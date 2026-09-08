@@ -41,8 +41,16 @@
   }
 
   function callRpc(fnName, args, handlers) {
+    var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timer = setTimeout(function () {
+      if (controller) controller.abort();
+    }, 25000);
+
     fetch(WEB_APP_URL, {
       method: 'POST',
+      mode: 'cors',
+      cache: 'no-store',
+      signal: controller ? controller.signal : undefined,
       // WAJIB text/plain, BUKAN application/json — supaya browser tidak
       // mengirim preflight OPTIONS (Apps Script tidak bisa menjawab OPTIONS).
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -52,6 +60,7 @@
         if (!res.ok) throw new Error('HTTP ' + res.status + ' dari Apps Script');
         return res.json();
       })
+      .finally(function () { clearTimeout(timer); })
       .then(function (payload) {
         if (payload && payload.ok) {
           if (handlers.success) handlers.success(payload.result, handlers.userObject);
@@ -62,8 +71,12 @@
         }
       })
       .catch(function (err) {
-        if (handlers.failure) handlers.failure(err, handlers.userObject);
-        else console.error('[gas-bridge] fetch error (' + fnName + '):', err);
+        var msg = (err && err.name === 'AbortError')
+          ? 'Koneksi Apps Script timeout (>25 detik).'
+          : ((err && err.message) || String(err));
+        var wrapped = new Error('[RH Bridge] ' + msg + ' | URL: ' + WEB_APP_URL);
+        if (handlers.failure) handlers.failure(wrapped, handlers.userObject);
+        else console.error('[gas-bridge] fetch error (' + fnName + '):', wrapped);
       });
   }
 
