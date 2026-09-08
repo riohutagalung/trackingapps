@@ -1,3 +1,5 @@
-{
-  "version": 2
+"functions": {
+  "api/rpc.js": {
+    "runtime": "nodejs20.x"
+  }
 }
