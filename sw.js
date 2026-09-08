@@ -1,55 +1,36 @@
-const CACHE_NAME = 'rh-habits-v1';
-const urlsToCache = [
+const CACHE_NAME = 'rh-habits-v12';
+const APP_SHELL = [
   './',
-  './manifest.json'
+  './index.html',
+  './manifest.json',
+  './gas-bridge.js'
 ];
 
-// Install Service Worker dan Cache file static
 self.addEventListener('install', event => {
+  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()));
+});
+
+self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => {
-        console.log('Opened cache');
-        return cache.addAll(urlsToCache);
-      })
+    caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
   );
 });
 
-// Fetching: Lewati cache untuk request ke Google Apps Script agar data selalu real-time
 self.addEventListener('fetch', event => {
-  // Jika URL mengarah ke Google Script, gunakan jaringan (Network Only / Network First)
-  if (event.request.url.includes('script.google.com')) {
-    event.respondWith(fetch(event.request));
+  const url = new URL(event.request.url);
+  // Never cache API/backend calls, including Apps Script and our Vercel proxy.
+  if (url.pathname.startsWith('/api/') || url.hostname.includes('script.google.com') || url.hostname.includes('script.googleusercontent.com')) {
     return;
   }
 
-  // Untuk file lainnya, gunakan Cache First
-  event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        if (response) return response;
-        return fetch(event.request).then(networkResponse => {
-          const copy = networkResponse.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy)).catch(() => {});
-          return networkResponse;
-        });
-      })
-      .catch(() => caches.match('./'))
-  );
-});
+  if (event.request.method !== 'GET') return;
 
-// Activate dan hapus cache lama
-self.addEventListener('activate', event => {
-  const cacheWhitelist = [CACHE_NAME];
-  event.waitUntil(
-    caches.keys().then(cacheNames => {
-      return Promise.all(
-        cacheNames.map(cacheName => {
-          if (cacheWhitelist.indexOf(cacheName) === -1) {
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    })
+  event.respondWith(
+    caches.match(event.request).then(cached => cached || fetch(event.request).then(response => {
+      const copy = response.clone();
+      caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy)).catch(() => {});
+      return response;
+    }))
   );
 });
