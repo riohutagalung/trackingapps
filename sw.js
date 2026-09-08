@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rh-habits-v13';
+const CACHE_NAME = 'rh-habits-v13-fixed-1';
 const APP_SHELL = [
   './',
   './index.html',

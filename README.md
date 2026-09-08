@@ -14,3 +14,6 @@ This avoids relying on browser CORS behavior when calling Apps Script Content Se
 
 ## Apps Script
 Use the supplied `Code.gs` from the same version. No Sheet creation is performed during normal reads.
+
+
+V13 FIXED: removed invalid Vercel functions runtime declaration. Vercel now auto-detects api/rpc.js as a Node.js Serverless Function. Added package.json and cache-busting service worker.
