@@ -1101,12 +1101,12 @@ body.device-android .mobile-header { padding-top:12px; }
 <div id="quick-backdrop" class="quick-backdrop" aria-hidden="true" onclick="App.closeQuickMenu()"></div>
 <div id="toast" class="toast"></div>
 
-<script src="gas-bridge.js"></script>
+<script src="./gas-bridge.js"></script>
 <script>
 const Icon=(name,size=16)=>{const i={fuel:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 21V4a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v17M5 21h14M9 6h6M17 7h2l2 2v7.5a2.5 2.5 0 0 1-5 0V14h3"/></svg>`,map:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l-6 3V6l6-3 6 3 6-3v15l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/></svg>`,route:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h3c4 0 2-9 6-9h1"/></svg>`,trash:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>`,clock:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>`,sun:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>`,rain:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16h10a4 4 0 0 0 .5-7.97A6 6 0 0 0 6.2 6.2 4.5 4.5 0 0 0 7 16z"/><path d="M9 19l-1 2M13 19l-1 2M17 19l-1 2"/></svg>`};return i[name]||i.route};
 
 const App={
-  data:{trips:[]},config:{},booted:false,
+  data:{trips:[]},config:{},booted:false,_sync:null,_refreshInFlight:false,
   titles:{dashboard:['Dashboard','Ringkasan perjalanan dan pengeluaran'],commute:['Perjalanan','GPS live, speedometer, dan route habit'],expenses:['Pengeluaran','OCR struk dan catatan transaksi'],settings:['Pengaturan','Integrasi traffic, cuaca, dan sistem']},
   init(){
     this.detectDevice(); GPS.init();
@@ -1124,7 +1124,49 @@ const App={
   ping(){try{google.script.run.withSuccessHandler(()=>{}).withFailureHandler(()=>{}).ping();}catch(e){}},
   detectDevice(){const w=window.innerWidth||document.documentElement.clientWidth||9999;const coarse=window.matchMedia&&window.matchMedia('(pointer: coarse)').matches;const mobile=w<=900||(coarse&&w<=1024);document.body.classList.toggle('device-mobile',mobile);const ios=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);const android=/Android/i.test(navigator.userAgent);document.body.classList.toggle('device-ios',ios);document.body.classList.toggle('device-android',android);const badge=document.getElementById('mobile-device-badge');if(badge)badge.textContent=ios?'iOS':android?'ANDROID':(mobile?'MOBILE':'WEB');},
   switchView(name){this.closeQuickMenu?.();document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));const target=document.getElementById('view-'+name);if(target)target.classList.add('active');document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===name));const t=this.titles[name]||this.titles.dashboard;document.getElementById('page-title').textContent=t[0];document.getElementById('page-subtitle').textContent=t[1];},
-  refresh(){document.getElementById('status-text').textContent='Menghubungkan...';google.script.run.withSuccessHandler(r=>{this.data=r&&r.dashboard?r.dashboard:{};this.config=r&&r.config?r.config:{};this.booted=true;document.getElementById('status-text').textContent='Connected';this.render();}).withFailureHandler(e=>this.error(e)).getBootstrap();},
+  refresh(){
+    const status=document.getElementById('status-text');
+    const cacheKey='rh_dashboard_cache_v10';
+    try{
+      const cached=localStorage.getItem(cacheKey);
+      if(cached){
+        const snap=JSON.parse(cached);
+        if(snap&&snap.dashboard){
+          this.data=snap.dashboard;
+          this.config=snap.config||{};
+          this._sync=snap.sync||null;
+          this.booted=true;
+          status.textContent='Data tersimpan';
+          this.render();
+        }
+      }
+    }catch(e){}
+    if(this._refreshInFlight)return;
+    this._refreshInFlight=true;
+    status.textContent=this.booted?'Sinkronisasi...':'Menghubungkan...';
+    google.script.run
+      .withSuccessHandler(r=>{
+        this._refreshInFlight=false;
+        this.data=r&&r.dashboard?r.dashboard:{};
+        this.config=r&&r.config?r.config:{};
+        this._sync=r&&r.sync?r.sync:null;
+        this.booted=true;
+        try{localStorage.setItem(cacheKey,JSON.stringify({dashboard:this.data,config:this.config,sync:this._sync,savedAt:Date.now()}));}catch(e){}
+        status.textContent='Connected';
+        this.render();
+      })
+      .withFailureHandler(e=>{
+        this._refreshInFlight=false;
+        if(this.booted){
+          status.textContent='Offline • data terakhir';
+          console.warn('[RH] backend sync gagal:',e);
+          this.toast('Data terakhir tetap dipakai. Koneksi server gagal.');
+        }else{
+          this.error(e);
+        }
+      })
+      .getBootstrap();
+  },
   render(){const d=this.data||{};document.getElementById('sum-today').textContent=Money(d.today);document.getElementById('sum-month').textContent=Money(d.month);document.getElementById('sum-trips').textContent=d.totTrip||0;document.getElementById('cost-per-km').textContent=d.costPerKm?Money(Math.round(d.costPerKm)):'Rp0';document.getElementById('month-distance').textContent=Num(d.monthDistance,1)+' km';document.getElementById('fuel-month').textContent=Money(d.monthFuel);document.getElementById('habit-streak').textContent=`${d.streak?.days||0} hari`;this.renderFuelPrediction(d.fuelInsight);this.renderTrend(d.monthTrend||[],d.monthChangePct);this.renderPublicTransport(d.publicTransport||{});this.renderExpenses(d.recent||[],'recent-expenses',true);this.renderTrips(d.trips||[]);const wf=d.weekFuel||{},wfEl=document.getElementById('week-fuel-summary');if(wfEl){wfEl.innerHTML=`<div class="insight-grid"><div class="stat"><div class="mini-label">BBM dibeli</div><div class="mini-value">${Money(wf.amount||0)}</div></div><div class="stat"><div class="mini-label">Liter dibeli</div><div class="mini-value">${Num(wf.liters||0,2)} L</div></div><div class="stat"><div class="mini-label">Jarak</div><div class="mini-value">${Num(wf.distanceKm||0,1)} km</div></div><div class="stat"><div class="mini-label">Terpakai (est.)</div><div class="mini-value">${Num(wf.estimatedLitersUsed||0,2)} L</div></div><div class="stat"><div class="mini-label">Efisiensi</div><div class="mini-value">${wf.avgKmL?Num(wf.avgKmL,1)+' km/L':'Belum cukup data'}</div></div><div class="stat"><div class="mini-label">Waktu jalan</div><div class="mini-value">${Num((wf.movingMin||0)/60,1)} jam</div></div></div>`;}
     const di=document.getElementById('daily-insight');const ins=d.dailyInsight||{};if(di){di.textContent=ins.tripCount?`7 hari terakhir: ${ins.tripCount} trip • ${Num(ins.distanceKm,1)} km • ${Num(ins.movingMin/60,1)} jam bergerak${ins.topRoute?' • habit teratas: '+ins.topRoute:''}.`:'Belum cukup data untuk membentuk insight pribadi.';}
     const habits=d.habits||[];document.getElementById('route-habits').innerHTML=habits.length?habits.slice(0,4).map(h=>`<div class="habit"><b>${Esc(h.routeName||((h.origin||'GPS')+' → '+(h.destination||'')))}</b><span>${h.freq}x perjalanan • rata-rata ${Num(h.avgDur)} menit • ${Num(h.avgDistance,1)} km</span></div>`).join(''):'<div class="empty">Belum ada route habit. Mulai perjalanan GPS untuk membangun kebiasaan.</div>';document.getElementById('system-info').innerHTML=`Sheets: <b>terhubung</b><br>GPS: <b>${GPS.supported()?'siap':'tidak didukung'}</b><br>OCR: <b>Google Drive</b><br>Traffic Google: <b>${this.config.trafficConfigured?'aktif':'buka Maps / API belum diisi'}</b><br>Device: <b>${document.body.classList.contains('device-ios')?'iOS':document.body.classList.contains('device-android')?'Android':'Desktop/Tablet'}</b>`;if(this.config.krlFare)document.getElementById('krl-fare').value=this.config.krlFare;if(this.config.tjFare)document.getElementById('tj-fare').value=this.config.tjFare;},
