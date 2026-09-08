@@ -79,17 +79,23 @@ function clearTrafficApiKey() {
  * pakai nama & ikon RH Habits — bukan sekadar shortcut/bookmark biasa.
  */
 function doGet(e) {
-  var params = (e && e.parameter) || {};
+  // Mengambil data dari spreadsheet untuk dikirim ke frontend
+  const sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName('Sheet1'); // sesuaikan nama sheet
+  const data = sheet.getDataRange().getValues();
   
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  var data = sheet.getDataRange().getValues();
-  
-  var responseOutput = JSON.stringify({
-    status: 'success',
-    data: data
-  });
+  return ContentService.createTextOutput(JSON.stringify({ status: 'success', data: data }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
 
-  return ContentService.createTextOutput(responseOutput)
+function doPost(e) {
+  // Menerima data dari frontend untuk ditulis ke spreadsheet
+  const body = JSON.parse(e.postData.contents);
+  const sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName('Sheet1');
+  
+  // Contoh menambah baris baru
+  sheet.appendRow([new Date(), body.nama, body.kategori, body.nominal]);
+  
+  return ContentService.createTextOutput(JSON.stringify({ status: 'success' }))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
