@@ -80,22 +80,23 @@ function clearTrafficApiKey() {
  */
 function doGet(e) {
   var params = (e && e.parameter) || {};
+  
+  // Jika frontend meminta data
+  if (params.action === 'getData' || !params.action) {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    var data = sheet.getDataRange().getValues();
+    
+    return ContentService.createTextOutput(JSON.stringify({
+      status: 'success',
+      data: data
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
 
-  if (params.manifest) {
-    var manifest = {
-      name: 'RH Habits',
-      short_name: 'RH Habits',
-      start_url: ScriptApp.getService().getUrl(),
-      scope: ScriptApp.getService().getUrl(),
-      display: 'standalone',
-      orientation: 'portrait',
-      background_color: '#060c15',
-      theme_color: '#060c15',
-      icons: [
-        {src: 'data:image/png;base64,' + LOGO_192_B64, sizes: '192x192', type: 'image/png', purpose: 'any maskable'},
-        {src: 'data:image/png;base64,' + LOGO_512_B64, sizes: '512x512', type: 'image/png', purpose: 'any maskable'}
-      ]
-    };
+  return ContentService.createTextOutput(JSON.stringify({
+    status: 'error',
+    message: 'Invalid action'
+  })).setMimeType(ContentService.MimeType.JSON);
+}
     return ContentService
       .createTextOutput(JSON.stringify(manifest))
       .setMimeType(ContentService.MimeType.JSON);
