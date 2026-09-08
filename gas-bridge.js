@@ -1,6 +1,6 @@
 /**
  * ===============================================================
- * GAS-BRIDGE.JS
+ * gas-bridge.js
  * ---------------------------------------------------------------
  * MASALAH:
  *   `google.script.run` HANYA ada kalau HTML-nya dibuka lewat URL
