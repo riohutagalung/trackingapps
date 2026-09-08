@@ -1,64 +1,91 @@
 /**
- * RH Habits V13 — Vercel Serverless RPC proxy
- * CommonJS on purpose: works in a default Vercel Node.js function without
- * requiring package.json { "type": "module" }.
+ * RH Habits — Vercel -> Google Apps Script RPC proxy
+ * CHANGE: Canonical backend URL is the Apps Script URL supplied for RH Habits.
+ * Prefer Vercel Environment Variable GAS_WEB_APP_URL so the URL can be rotated
+ * without changing source. No browser-to-Apps-Script CORS dependency.
  */
-const GAS_WEB_APP_URL = process.env.GAS_WEB_APP_URL ||
-  'https://script.google.com/macros/s/AKfycbwttZKVunZZwNPl782piugygn3JESN6wHQK8c5D2Pi6NE3kLJp57UbCdgfQush6Ql6lig/exec';
+'use strict';
 
-function json(res, status, body) {
-  res.status(status);
+const DEFAULT_GAS_WEB_APP_URL =
+  'https://script.google.com/macros/s/AKfycbxahLvhLXHepKDQravov_fs4PyvqDOxp3at_5iyuUK3Rs1PlN5bErFXNLZaq3PW4IngnA/exec';
+
+function getGasUrl() {
+  const value = String(process.env.GAS_WEB_APP_URL || DEFAULT_GAS_WEB_APP_URL).trim();
+  return value.replace(/\/+$/, '');
+}
+
+function sendJson(res, status, body) {
+  res.statusCode = status;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept');
   res.setHeader('X-RH-Backend', 'Vercel->AppsScript');
   return res.end(JSON.stringify(body));
 }
 
 function parseArgs(value) {
-  if (!value) return [];
   if (Array.isArray(value)) return value;
+  if (value == null || value === '') return [];
   try {
-    const parsed = JSON.parse(value);
+    const parsed = JSON.parse(String(value));
     return Array.isArray(parsed) ? parsed : [];
-  } catch (_) {
-    return [];
+  } catch {
+    throw new Error('Parameter args bukan JSON array yang valid.');
+  }
+}
+
+function extractJson(text, upstreamStatus) {
+  const raw = String(text || '').replace(/^\uFEFF/, '').trim();
+  if (!raw) throw new Error(`Apps Script mengembalikan body kosong (HTTP ${upstreamStatus}).`);
+  try {
+    return JSON.parse(raw);
+  } catch {
+    const preview = raw.replace(/\s+/g, ' ').slice(0, 500);
+    throw new Error(`Apps Script mengembalikan bukan JSON (HTTP ${upstreamStatus}). ${preview}`);
   }
 }
 
 async function callGas(fn, args, method) {
+  const base = getGasUrl();
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 25000);
+  const timeoutMs = method === 'GET' ? 20000 : 40000;
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
   try {
-    let url = GAS_WEB_APP_URL;
     const options = {
+      method,
       redirect: 'follow',
       signal: controller.signal,
-      headers: { 'Accept': 'application/json' }
+      headers: {
+        Accept: 'application/json'
+      }
     };
 
+    let url = base;
     if (method === 'GET') {
-      url += (url.includes('?') ? '&' : '?') +
-        'fn=' + encodeURIComponent(fn) +
-        '&args=' + encodeURIComponent(JSON.stringify(args || []));
-      options.method = 'GET';
+      url += '?fn=' + encodeURIComponent(fn) +
+        '&args=' + encodeURIComponent(JSON.stringify(Array.isArray(args) ? args : []));
     } else {
-      options.method = 'POST';
       options.headers['Content-Type'] = 'application/json;charset=utf-8';
-      options.body = JSON.stringify({ fn, args: Array.isArray(args) ? args : [] });
+      options.body = JSON.stringify({
+        fn,
+        args: Array.isArray(args) ? args : []
+      });
     }
 
     const upstream = await fetch(url, options);
-    const text = await upstream.text();
-    let payload;
-    try {
-      payload = text ? JSON.parse(text) : null;
-    } catch (e) {
-      const preview = String(text || '').replace(/\s+/g, ' ').slice(0, 300);
-      throw new Error('Apps Script mengembalikan bukan JSON (HTTP ' + upstream.status + '). ' + preview);
-    }
+    const payload = extractJson(await upstream.text(), upstream.status);
+
     if (!upstream.ok) {
-      throw new Error((payload && payload.error) || ('Apps Script HTTP ' + upstream.status));
+      const message = payload && payload.error
+        ? payload.error
+        : `Apps Script HTTP ${upstream.status}`;
+      throw new Error(message);
     }
+
     return payload;
   } finally {
     clearTimeout(timer);
@@ -66,38 +93,46 @@ async function callGas(fn, args, method) {
 }
 
 module.exports = async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept');
-  if (req.method === 'OPTIONS') return json(res, 204, {});
+  if (req.method === 'OPTIONS') return sendJson(res, 204, { ok: true });
+
   try {
     if (req.method === 'GET') {
-      const fn = String((req.query && req.query.fn) || 'ping');
-      const args = parseArgs(req.query && req.query.args);
+      const query = req.query || {};
+      const fn = String(query.fn || 'ping').trim();
+      if (!fn) return sendJson(res, 400, { ok: false, error: 'Field fn wajib ada.' });
+      const args = parseArgs(query.args);
       const result = await callGas(fn, args, 'GET');
-      return json(res, 200, result);
+      return sendJson(res, 200, result);
     }
 
     if (req.method !== 'POST') {
-      return json(res, 405, { ok: false, error: 'Method tidak diizinkan.' });
+      return sendJson(res, 405, { ok: false, error: 'Method tidak diizinkan.' });
     }
 
     let body = req.body || {};
     if (typeof body === 'string') {
-      try { body = JSON.parse(body || '{}'); } catch (_) { body = {}; }
+      try {
+        body = JSON.parse(body || '{}');
+      } catch {
+        return sendJson(res, 400, { ok: false, error: 'Body JSON tidak valid.' });
+      }
     }
-    const fn = String(body.fn || '').trim();
-    if (!fn) return json(res, 400, { ok: false, error: 'Field fn wajib ada.' });
 
-    // GET is preferred because Apps Script Content Service explicitly documents
-    // redirecting responses to a one-time googleusercontent URL. For large
-    // payloads (OCR images, GPS arrays), POST is still required.
-    const result = await callGas(fn, Array.isArray(body.args) ? body.args : [], 'POST');
-    return json(res, 200, result);
-  } catch (err) {
-    const msg = err && err.name === 'AbortError'
-      ? 'Apps Script timeout setelah 25 detik.'
-      : ((err && err.message) || String(err));
-    return json(res, 502, { ok: false, error: 'Proxy RH → Apps Script gagal: ' + msg });
+    const fn = String(body.fn || '').trim();
+    if (!fn) return sendJson(res, 400, { ok: false, error: 'Field fn wajib ada.' });
+
+    const args = Array.isArray(body.args) ? body.args : [];
+    const result = await callGas(fn, args, 'POST');
+    return sendJson(res, 200, result);
+  } catch (error) {
+    const message = error && error.name === 'AbortError'
+      ? 'Apps Script timeout. Coba lagi; operasi berat tidak dijalankan saat boot.'
+      : ((error && error.message) || String(error));
+
+    return sendJson(res, 502, {
+      ok: false,
+      error: 'Koneksi RH -> Apps Script gagal: ' + message,
+      backend: getGasUrl()
+    });
   }
 };

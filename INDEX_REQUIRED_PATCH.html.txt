@@ -1,0 +1,29 @@
+============================================================
+RH HABITS — PATCH WAJIB UNTUK index.html YANG SUDAH LENGKAP
+============================================================
+
+1. Pastikan sebelum </head> ada:
+
+<link rel="stylesheet" href="/mobile-responsive.css">
+
+2. Pastikan sebelum </body> ada:
+
+<script src="/gas-bridge.js" defer></script>
+
+3. HAPUS bridge lama/JSONP lama jika ada:
+   - gas-bridge inline lama
+   - jsonpCall(...)
+   - window.RH_APPSCRIPT_URL fallback
+
+4. Jangan panggil Apps Script langsung dari browser.
+   Semua pemanggilan harus melalui:
+   /api/rpc
+
+5. Meta viewport cukup satu:
+   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+6. Mobile memakai @media CSS berbasis lebar layar, bukan hanya user-agent.
+   Jangan menjadikan body.device-mobile sebagai satu-satunya sumber responsive.
+
+7. Service Worker lama harus di-unregister satu kali setelah deploy baru,
+   lalu browser hard-refresh. Setelah itu SW baru akan mengambil shell terbaru.
