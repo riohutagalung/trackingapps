@@ -22,6 +22,8 @@ const RECENT_ANALYTICS_EXPENSE_LIMIT = 180;
 const ENGINE_STATE_KEY = 'rh_engine_state_v9';
 const FUEL_PRICES_KEY = 'rh_fuel_prices_v1';
 const AI_INSIGHT_KEY = 'rh_ai_daily_v1';
+const DASHBOARD_CACHE_KEY = 'rh_dashboard_v10';
+const DASHBOARD_CACHE_TTL = 8;
 
 /*
  * Titik Rumah & Kantor — koordinat presisi dari link Google Maps kamu.
@@ -124,7 +126,7 @@ function doGet(e) {
   // dengan string di bawah (tanpa ekstensi .html). Sesuaikan jika filemu
   // bernama beda, misal 'index' atau 'catatanku_V10_FINAL_2'.
   return HtmlService
-    .createHtmlOutputFromFile('index')
+    .createHtmlOutputFromFile('catatanku')
     .setTitle('RH Habits')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
@@ -1308,7 +1310,19 @@ function savePublicTransportFares(krlFare, tjFare) {
   return {ok:true};
 }
 
-function getDashboard() {
+function getDashboard(){
+  var cache = CacheService.getScriptCache();
+  try {
+    var cached = cache.get(DASHBOARD_CACHE_KEY);
+    if (cached) return JSON.parse(cached);
+  } catch(e) {}
+
+  var result = getDashboardUncached_();
+  try { cache.put(DASHBOARD_CACHE_KEY, JSON.stringify(result), DASHBOARD_CACHE_TTL); } catch(e) {}
+  return result;
+}
+
+function getDashboardUncached_() {
   var today=todayStr_(), month=today.slice(0,7);
   var prevDate=new Date(); prevDate.setDate(1); prevDate.setMonth(prevDate.getMonth()-1);
   var prevMonth=Utilities.formatDate(prevDate,TZ,'yyyy-MM');
@@ -1383,8 +1397,40 @@ function calculateFuelInsight_(expenses,trips,today){ return calculateFuelInsigh
 =============================================================== */
 
 function getBootstrap(){
-  // Fast boot: one bounded dashboard read. No column validation, OCR, traffic, weather, AI, Calendar, or whole-sheet scans here.
-  return {dashboard:getDashboard(),config:{home:{name:HOME_CONFIG.name,lat:HOME_CONFIG.lat,lng:HOME_CONFIG.lng},office:{name:OFFICE_CONFIG.name,lat:OFFICE_CONFIG.lat,lng:OFFICE_CONFIG.lng},trafficConfigured:!!getTrafficApiKey_(),krlFare:Number(getSettings().krlFare||5000),tjFare:Number(getSettings().tjFare||3500),calendarLogging:getSettings().calendarLogging===true}};
+  // Fast boot: bounded tail reads + cached dashboard. No whole-sheet data scan, OCR, traffic, weather, AI, Calendar, or column creation here.
+  return {
+    dashboard:getDashboard(),
+    sync:getSyncMeta_(),
+    config:{
+      home:{name:HOME_CONFIG.name,lat:HOME_CONFIG.lat,lng:HOME_CONFIG.lng},
+      office:{name:OFFICE_CONFIG.name,lat:OFFICE_CONFIG.lat,lng:OFFICE_CONFIG.lng},
+      trafficConfigured:!!getTrafficApiKey_(),
+      krlFare:Number(getSettings().krlFare||5000),
+      tjFare:Number(getSettings().tjFare||3500),
+      calendarLogging:getSettings().calendarLogging===true
+    }
+  };
+}
+
+function getSyncMeta_(){
+  var expSheet=tab_('Expenses',EXP_H), tripSheet=tab_('Trips',TRIP_H);
+  var expLast=expSheet.getLastRow(), tripLast=tripSheet.getLastRow();
+  var expId='', expTs='', tripId='', tripTs='';
+  try{
+    if(expLast>1){
+      var eh=expSheet.getRange(1,1,1,expSheet.getLastColumn()).getValues()[0], em=getHeaderMap_(eh);
+      var er=expSheet.getRange(expLast,1,1,eh.length).getValues()[0];
+      expId=String(er[em['ID']]||''); expTs=String(er[em['Timestamp']]||'');
+    }
+  }catch(e){}
+  try{
+    if(tripLast>1){
+      var th=tripSheet.getRange(1,1,1,tripSheet.getLastColumn()).getValues()[0], tm=getHeaderMap_(th);
+      var tr=tripSheet.getRange(tripLast,1,1,th.length).getValues()[0];
+      tripId=String(tr[tm['ID']]||''); tripTs=String(tr[tm['Timestamp']]||'');
+    }
+  }catch(e){}
+  return {expenses:{count:Math.max(0,expLast-1),lastId:expId,lastTimestamp:expTs},trips:{count:Math.max(0,tripLast-1),lastId:tripId,lastTimestamp:tripTs},serverTime:nowISO_()};
 }
 function ping(){return {ok:true,time:nowISO_(),timezone:TZ,spreadsheet:SHEET_ID};}
 
@@ -1594,7 +1640,10 @@ function tryBuiltinMaps_(origin, destination, mapsUrl) {
    V9 PERFORMANCE / INCREMENTAL INTELLIGENCE
 =============================================================== */
 function invalidateEngineCache_(){
-  try{CacheService.getScriptCache().removeAll(['rh_dash_v9','rh_insight_v9']);}catch(e){}
+  try{
+    var c=CacheService.getScriptCache();
+    c.removeAll(['rh_dash_v9','rh_insight_v9',DASHBOARD_CACHE_KEY,AI_INSIGHT_KEY]);
+  }catch(e){}
 }
 function getEngineState_(){try{return JSON.parse(PropertiesService.getScriptProperties().getProperty(ENGINE_STATE_KEY)||'{}');}catch(e){return{};}}
 function saveEngineState_(state){PropertiesService.getScriptProperties().setProperty(ENGINE_STATE_KEY,JSON.stringify(state||{}));}
