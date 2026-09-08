@@ -1,52 +1,99 @@
 /**
- * Vercel Serverless Function: same-origin proxy to Google Apps Script.
- * Browser talks to /api/rpc, server talks to GAS /exec.
+ * RH Habits V13 — Vercel Serverless RPC proxy
+ * CommonJS on purpose: works in a default Vercel Node.js function without
+ * requiring package.json { "type": "module" }.
  */
-const GAS_WEB_APP_URL = process.env.GAS_WEB_APP_URL || 'https://script.google.com/macros/s/AKfycbzRjg19auTOg4Z0_0T_-S938vNFFfbE6DZtNXzGz91DL6snMqR9WIMb25OGym7I29H-aw/exec';
+const GAS_WEB_APP_URL = process.env.GAS_WEB_APP_URL ||
+  'https://script.google.com/macros/s/AKfycbzRjg19auTOg4Z0_0T_-S938vNFFfbE6DZtNXzGz91DL6snMqR9WIMb25OGym7I29H-aw/exec';
 
-export default async function handler(req, res) {
+function json(res, status, body) {
+  res.status(status);
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.setHeader('X-RH-Backend', 'Vercel->AppsScript');
+  return res.end(JSON.stringify(body));
+}
 
-  if (req.method === 'GET') {
-    return res.status(200).json({ ok: true, service: 'RH Habits RPC proxy', backend: GAS_WEB_APP_URL.replace(/\/exec.*/, '/exec') });
-  }
-  if (req.method !== 'POST') {
-    return res.status(405).json({ ok: false, error: 'Method tidak diizinkan. Gunakan POST.' });
-  }
-
+function parseArgs(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
   try {
-    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
-    if (!body.fn) return res.status(400).json({ ok: false, error: 'Field fn wajib ada.' });
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    return [];
+  }
+}
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 28000);
+async function callGas(fn, args, method) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 25000);
+  try {
+    let url = GAS_WEB_APP_URL;
+    const options = {
+      redirect: 'follow',
+      signal: controller.signal,
+      headers: { 'Accept': 'application/json' }
+    };
 
-    let upstream;
-    try {
-      upstream = await fetch(GAS_WEB_APP_URL, {
-        method: 'POST',
-        redirect: 'follow',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8', 'Accept': 'application/json' },
-        body: JSON.stringify({ fn: body.fn, args: Array.isArray(body.args) ? body.args : [] }),
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timer);
+    if (method === 'GET') {
+      url += (url.includes('?') ? '&' : '?') +
+        'fn=' + encodeURIComponent(fn) +
+        '&args=' + encodeURIComponent(JSON.stringify(args || []));
+      options.method = 'GET';
+    } else {
+      options.method = 'POST';
+      options.headers['Content-Type'] = 'application/json;charset=utf-8';
+      options.body = JSON.stringify({ fn, args: Array.isArray(args) ? args : [] });
     }
 
+    const upstream = await fetch(url, options);
     const text = await upstream.text();
     let payload;
     try {
-      payload = JSON.parse(text);
+      payload = text ? JSON.parse(text) : null;
     } catch (e) {
-      const preview = String(text || '').replace(/\s+/g, ' ').slice(0, 240);
-      return res.status(502).json({ ok: false, error: 'Apps Script mengembalikan respons bukan JSON (HTTP ' + upstream.status + '). Preview: ' + preview });
+      const preview = String(text || '').replace(/\s+/g, ' ').slice(0, 300);
+      throw new Error('Apps Script mengembalikan bukan JSON (HTTP ' + upstream.status + '). ' + preview);
     }
-
-    return res.status(upstream.ok ? 200 : 502).json(payload);
-  } catch (err) {
-    const msg = err && err.name === 'AbortError' ? 'Apps Script timeout setelah 28 detik.' : ((err && err.message) || String(err));
-    return res.status(502).json({ ok: false, error: 'Proxy ke Apps Script gagal: ' + msg });
+    if (!upstream.ok) {
+      throw new Error((payload && payload.error) || ('Apps Script HTTP ' + upstream.status));
+    }
+    return payload;
+  } finally {
+    clearTimeout(timer);
   }
 }
+
+module.exports = async function handler(req, res) {
+  try {
+    if (req.method === 'GET') {
+      const fn = String((req.query && req.query.fn) || 'ping');
+      const args = parseArgs(req.query && req.query.args);
+      const result = await callGas(fn, args, 'GET');
+      return json(res, 200, result);
+    }
+
+    if (req.method !== 'POST') {
+      return json(res, 405, { ok: false, error: 'Method tidak diizinkan.' });
+    }
+
+    let body = req.body || {};
+    if (typeof body === 'string') {
+      try { body = JSON.parse(body || '{}'); } catch (_) { body = {}; }
+    }
+    const fn = String(body.fn || '').trim();
+    if (!fn) return json(res, 400, { ok: false, error: 'Field fn wajib ada.' });
+
+    // GET is preferred because Apps Script Content Service explicitly documents
+    // redirecting responses to a one-time googleusercontent URL. For large
+    // payloads (OCR images, GPS arrays), POST is still required.
+    const result = await callGas(fn, Array.isArray(body.args) ? body.args : [], 'POST');
+    return json(res, 200, result);
+  } catch (err) {
+    const msg = err && err.name === 'AbortError'
+      ? 'Apps Script timeout setelah 25 detik.'
+      : ((err && err.message) || String(err));
+    return json(res, 502, { ok: false, error: 'Proxy RH → Apps Script gagal: ' + msg });
+  }
+};
