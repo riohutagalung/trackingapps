@@ -1157,12 +1157,14 @@ const App={
       })
       .withFailureHandler(e=>{
         this._refreshInFlight=false;
+        const msg=(e&&e.message)||String(e||'Unknown error');
         if(this.booted){
           status.textContent='Offline • data terakhir';
-          console.warn('[RH] backend sync gagal:',e);
-          this.toast('Data terakhir tetap dipakai. Koneksi server gagal.');
+          console.warn('[RH] backend sync gagal:',msg);
+          this.toast('Sinkronisasi gagal: '+msg);
         }else{
-          this.error(e);
+          status.textContent='Koneksi gagal';
+          this.error(new Error(msg+' | Cek Vercel /api/rpc dan Apps Script deployment.'));
         }
       })
       .getBootstrap();

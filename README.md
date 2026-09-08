@@ -1,4 +1,4 @@
-# RH Habits V12 — Performance + Stable Backend Bridge
+# RH Habits V13 — Performance + Stable Backend Bridge
 
 ## Architecture
 Browser -> Vercel `/api/rpc` -> Apps Script `/exec` -> Google Sheets.
