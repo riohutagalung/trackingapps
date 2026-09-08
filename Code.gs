@@ -78,42 +78,129 @@ function clearTrafficApiKey() {
  * app" menghasilkan app standalone beneran (tanpa address bar Chrome),
  * pakai nama & ikon RH Habits — bukan sekadar shortcut/bookmark biasa.
  */
+
+/* ===============================================================
+   WEB APP ENTRY POINTS
+   - doGet: melayani 3 hal — (1) manifest PWA saat ?manifest=1,
+     (2) RPC JSON saat ?fn=namaFungsi (dipakai frontend eksternal
+     di Vercel/GitHub Pages via fetch), (3) halaman HTML app itu
+     sendiri kalau dibuka langsung tanpa parameter.
+   - doPost: RPC JSON generik. Body: {"fn":"namaFungsi","args":[...]}.
+     Dipakai oleh gas-bridge.js dari frontend yang di-hosting terpisah
+     (Vercel), supaya google.script.run bisa "ditiru" lewat fetch().
+=============================================================== */
+
 function doGet(e) {
-  // Mengambil data dari spreadsheet untuk dikirim ke frontend
-  const sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName('Sheet1'); // sesuaikan nama sheet
-  const data = sheet.getDataRange().getValues();
-  
-  return ContentService.createTextOutput(JSON.stringify({ status: 'success', data: data }))
-    .setMimeType(ContentService.MimeType.JSON);
-}
+  var params = (e && e.parameter) || {};
 
-function doPost(e) {
-  // Menerima data dari frontend untuk ditulis ke spreadsheet
-  const body = JSON.parse(e.postData.contents);
-  const sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName('Sheet1');
-  
-  // Contoh menambah baris baru
-  sheet.appendRow([new Date(), body.nama, body.kategori, body.nominal]);
-  
-  return ContentService.createTextOutput(JSON.stringify({ status: 'success' }))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-  return ContentService.createTextOutput(JSON.stringify({
-    status: 'error',
-    message: 'Invalid action'
-  })).setMimeType(ContentService.MimeType.JSON);
-}
+  if (params.manifest) {
+    var manifest = {
+      name: 'RH Habits',
+      short_name: 'RH Habits',
+      start_url: ScriptApp.getService().getUrl(),
+      scope: ScriptApp.getService().getUrl(),
+      display: 'standalone',
+      orientation: 'portrait',
+      background_color: '#060c15',
+      theme_color: '#060c15',
+      icons: [
+        {src: 'data:image/png;base64,' + LOGO_192_B64, sizes: '192x192', type: 'image/png', purpose: 'any maskable'},
+        {src: 'data:image/png;base64,' + LOGO_512_B64, sizes: '512x512', type: 'image/png', purpose: 'any maskable'}
+      ]
+    };
     return ContentService
       .createTextOutput(JSON.stringify(manifest))
       .setMimeType(ContentService.MimeType.JSON);
   }
 
+  // RPC lewat GET — dipakai gas-bridge.js untuk panggilan ringan/tanpa payload besar.
+  if (params.fn) {
+    var args = [];
+    try { args = params.args ? JSON.parse(params.args) : []; } catch (parseErr) {}
+    return rpcDispatch_(params.fn, args);
+  }
+
+  // PENTING: nama file HTML di project Apps Script kamu harus sama persis
+  // dengan string di bawah (tanpa ekstensi .html). Sesuaikan jika filemu
+  // bernama beda, misal 'index' atau 'catatanku_V10_FINAL_2'.
   return HtmlService
-    .createHtmlOutputFromFile('catatanku.html')
+    .createHtmlOutputFromFile('catatanku')
     .setTitle('RH Habits')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
+
+function doPost(e) {
+  try {
+    var raw = (e && e.postData && e.postData.contents) || '{}';
+    var body = JSON.parse(raw);
+    if (body && body.fn) {
+      return rpcDispatch_(body.fn, body.args || []);
+    }
+    return jsonOut_({ok: false, error: 'Request tidak memiliki field "fn". Body harus berupa {"fn":"namaFungsi","args":[...]}.'});
+  } catch (err) {
+    return jsonOut_({ok: false, error: 'doPost error: ' + ((err && err.message) || err)});
+  }
+}
+
+/*
+ * Daftar putih (allowlist) fungsi yang boleh dipanggil dari luar lewat
+ * RPC. Ini WAJIB ada — tanpa allowlist, siapapun yang tahu URL /exec
+ * kamu bisa memanggil fungsi Apps Script apapun secara sembarangan.
+ * Tambahkan nama fungsi baru ke sini kalau frontend butuh memanggilnya.
+ */
+function getRpcMap_() {
+  return {
+    ping: ping,
+    getBootstrap: getBootstrap,
+    getDashboard: getDashboard,
+    addExpense: addExpense,
+    deleteExpense: deleteExpense,
+    getExpenseHistory: getExpenseHistory,
+    getExpensesSince: getExpensesSince,
+    addTrip: addTrip,
+    deleteTrip: deleteTrip,
+    getTripMapsUrl: getTripMapsUrl,
+    getGoogleMapsUrl: getGoogleMapsUrl,
+    getGoogleMapsUrlForTrip: getGoogleMapsUrlForTrip,
+    getRouteSuggestion: getRouteSuggestion,
+    getRouteHabits: getRouteHabits,
+    getRouteIntelligence: getRouteIntelligence,
+    saveTrafficApiKey: saveTrafficApiKey,
+    clearTrafficApiKey: clearTrafficApiKey,
+    savePublicTransportFares: savePublicTransportFares,
+    getCommuteWeather: getCommuteWeather,
+    runPostTripAnalysis: runPostTripAnalysis,
+    analyzeReceipt: analyzeReceipt,
+    ocrImage: ocrImage,
+    getSettings: getSettings,
+    saveSetting: saveSetting,
+    runDailyHabitEngine: runDailyHabitEngine,
+    installRHAutomation: installRHAutomation,
+    getSystemStatus: getSystemStatus,
+    initializeSystem: initializeSystem,
+    rebuildHabitIndex: rebuildHabitIndex,
+    refreshFuelPrices: refreshFuelPrices,
+    saveFuelReferencePrice: saveFuelReferencePrice
+  };
+}
+
+function rpcDispatch_(fn, args) {
+  var map = getRpcMap_();
+  if (!Object.prototype.hasOwnProperty.call(map, fn) || typeof map[fn] !== 'function') {
+    return jsonOut_({ok: false, error: 'Fungsi tidak diizinkan atau tidak ditemukan: ' + fn});
+  }
+  try {
+    var result = map[fn].apply(null, args || []);
+    return jsonOut_({ok: true, result: result});
+  } catch (err) {
+    return jsonOut_({ok: false, error: (err && err.message) || String(err)});
+  }
+}
+
+function jsonOut_(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
 
 /* ===============================================================
    GOOGLE SHEET HELPERS
