@@ -4,7 +4,7 @@
  * requiring package.json { "type": "module" }.
  */
 const GAS_WEB_APP_URL = process.env.GAS_WEB_APP_URL ||
-  'https://script.google.com/macros/s/AKfycbzRjg19auTOg4Z0_0T_-S938vNFFfbE6DZtNXzGz91DL6snMqR9WIMb25OGym7I29H-aw/exec';
+  'https://script.google.com/macros/s/AKfycbwttZKVunZZwNPl782piugygn3JESN6wHQK8c5D2Pi6NE3kLJp57UbCdgfQush6Ql6lig/exec';
 
 function json(res, status, body) {
   res.status(status);
