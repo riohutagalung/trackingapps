@@ -81,16 +81,17 @@ function clearTrafficApiKey() {
 function doGet(e) {
   var params = (e && e.parameter) || {};
   
-  // Jika frontend meminta data
-  if (params.action === 'getData' || !params.action) {
-    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-    var data = sheet.getDataRange().getValues();
-    
-    return ContentService.createTextOutput(JSON.stringify({
-      status: 'success',
-      data: data
-    })).setMimeType(ContentService.MimeType.JSON);
-  }
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var data = sheet.getDataRange().getValues();
+  
+  var responseOutput = JSON.stringify({
+    status: 'success',
+    data: data
+  });
+
+  return ContentService.createTextOutput(responseOutput)
+    .setMimeType(ContentService.MimeType.JSON);
+}
 
   return ContentService.createTextOutput(JSON.stringify({
     status: 'error',
