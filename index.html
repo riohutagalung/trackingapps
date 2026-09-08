@@ -1218,24 +1218,33 @@ document.addEventListener('DOMContentLoaded',()=>App.init());
   }
 
   // 2. KONEKSI REAL-TIME GOOGLE APPS SCRIPT
-  const WEB_APP_URL = "[https://script.google.com/macros/s/AKfycbxKW6HQtYkFjpz6UqzfzY5XLZXySHTgE8_rVPrgnXuR2oLbA-8sT3VK2RWCTXYmK1-lLw/exec](https://script.google.com/macros/s/AKfycbxKW6HQtYkFjpz6UqzfzY5XLZXySHTgE8_rVPrgnXuR2oLbA-8sT3VK2RWCTXYmK1-lLw/exec)";
+  const WEB_APP_URL = "[https://script.google.com/macros/s/AKfycbyrGowGuXu6JlL03qKEWiwsx2L3npl22VIqn1R8mlOttaKBZP8gGGod_OcXhodAcSqESA](https://script.google.com/macros/s/AKfycbyrGowGuXu6JlL03qKEWiwsx2L3npl22VIqn1R8mlOttaKBZP8gGGod_OcXhodAcSqESA/exec)";
 
   // Fungsi untuk mengambil data dari Spreadsheet
-  async function fetchData() {
-    try {
-      const response = await fetch(WEB_APP_URL + "?action=getData");
-      // Karena masalah CORS biasanya Fetch ke GAS butuh mode no-cors jika tidak diatur dari server,
-      // pastikan Apps Script kamu mereturn JSONP atau JSON response yang proper.
-      const data = await response.json(); 
-      console.log("Data tersinkronisasi:", data);
+ async function fetchData() {
+  try {
+    const response = await fetch(WEB_APP_URL + "?action=getData");
+    const result = await response.json();
+    
+    // Karena Apps Script mengembalikan objek { status, data }
+    if (result.status === 'success') {
+      const arrayData = result.data; // Ini adalah isi baris & kolom spreadsheet
+      console.log("Connected:", arrayData);
       
-      // TODO: Panggil fungsi update UI di sini menggunakan 'data'
-      // contoh: renderHabits(data.habits);
-
-    } catch (error) {
-      console.error("Gagal sinkronisasi data:", error);
+      // TAMBAHKAN KODE UNTUK MENUTUP LOADING & RENDER UI DI SINI
+      // Contoh:
+      // document.getElementById("loading-screen").style.display = "none";
+      // renderUI(arrayData);
+    } else {
+      console.error("Disconnected:", result.message);
     }
+  } catch (error) {
+    console.error("Error!:", error);
   }
+}
+
+// Jalankan saat halaman selesai dimuat
+window.addEventListener('DOMContentLoaded', fetchData);
 
   // Fungsi untuk menyimpan data ke Spreadsheet
   async function sendData(payload) {
