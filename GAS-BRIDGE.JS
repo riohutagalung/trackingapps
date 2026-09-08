@@ -30,7 +30,7 @@
   'use strict';
 
   // GANTI dengan URL /exec Apps Script kamu (harus diakhiri "/exec").
-  var WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwfjvA4oJNpc7jcU9VX3gR-sTvoOs7B5NFFbQjah7IipxlEEvKOGbMsT2Lc6g5JtHbPPg/exec';
+  var WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzJAwTklwT6gdaPRbFD6KSxjNFSVOvGO7d7uA33WVKoR2iKUUPiQ3cNOoUGd7o1NzAoLg/exec';
 
   // Kalau halaman ini dibuka LANGSUNG lewat Apps Script (mis. saat kamu
   // buka /exec sendiri di browser), google.script.run ASLI sudah ada
