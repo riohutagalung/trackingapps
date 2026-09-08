@@ -124,7 +124,7 @@ function doGet(e) {
   // dengan string di bawah (tanpa ekstensi .html). Sesuaikan jika filemu
   // bernama beda, misal 'index' atau 'catatanku_V10_FINAL_2'.
   return HtmlService
-    .createHtmlOutputFromFile('catatanku')
+    .createHtmlOutputFromFile('index')
     .setTitle('RH Habits')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
