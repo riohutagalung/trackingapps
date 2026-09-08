@@ -1201,80 +1201,71 @@ function EscAttr(s){return Esc(s).replace(/`/g,'&#96;');}
 function localDateFromMs(ms){const d=new Date(ms);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
 GPS.localDate=localDateFromMs;
 
-document.addEventListener('DOMContentLoaded',()=>App.init());
+document.addEventListener('DOMContentLoaded', () => {
+    if (typeof App !== 'undefined' && App.init) App.init();
+  });
 </script>
-  <script>
-  // 1. REGISTER SERVICE WORKER (Untuk PWA)
+
+<script>
+  // 1. REGISTER SERVICE WORKER
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('./sw.js')
-        .then(registration => {
-          console.log('ServiceWorker berhasil didaftarkan dengan scope: ', registration.scope);
-        })
-        .catch(err => {
-          console.log('ServiceWorker gagal didaftarkan: ', err);
-        });
+        .then(registration => console.log('ServiceWorker registered:', registration.scope))
+        .catch(err => console.error('ServiceWorker failed:', err));
     });
   }
 
-  // 2. KONEKSI REAL-TIME GOOGLE APPS SCRIPT
-  const WEB_APP_URL = "[https://script.google.com/macros/s/AKfycbyrGowGuXu6JlL03qKEWiwsx2L3npl22VIqn1R8mlOttaKBZP8gGGod_OcXhodAcSqESA](https://script.google.com/macros/s/AKfycbyrGowGuXu6JlL03qKEWiwsx2L3npl22VIqn1R8mlOttaKBZP8gGGod_OcXhodAcSqESA/exec)";
+  // 2. KONEKSI GOOGLE APPS SCRIPT
+  const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbw-dXXbZSJwEFHeoc1jHF9TH0zd5SXg0vgBflbGu4neISpLDi4oM4BvO9djky4TQFXg/exec";
 
-  // Fungsi untuk mengambil data dari Spreadsheet
- async function fetchData() {
-  try {
-    const response = await fetch(WEB_APP_URL + "?action=getData");
-    const result = await response.json();
-    
-    // Karena Apps Script mengembalikan objek { status, data }
-    if (result.status === 'success') {
-      const arrayData = result.data; // Ini adalah isi baris & kolom spreadsheet
-      console.log("Connected:", arrayData);
+  // Fungsi mengambil data
+  async function fetchData() {
+    try {
+      const response = await fetch(`${WEB_APP_URL}?action=getData`);
+      const result = await response.json();
       
-      // TAMBAHKAN KODE UNTUK MENUTUP LOADING & RENDER UI DI SINI
-      // Contoh:
-      // document.getElementById("loading-screen").style.display = "none";
-      // renderUI(arrayData);
-    } else {
-      console.error("Disconnected:", result.message);
+      if (result.status === 'success') {
+        console.log("Connected:", result.data);
+        
+        // Menutup loading screen jika ada
+        const loadingEl = document.getElementById("loading-screen");
+        if (loadingEl) loadingEl.style.display = "none";
+
+        // Salurkan data ke Objek App frontend jika fungsi render tersedia
+        if (typeof App !== 'undefined' && App.render) {
+          App.render(result.data);
+        }
+      } else {
+        console.error("Disconnected:", result.message);
+      }
+    } catch (error) {
+      console.error("Error fetching data:", error);
     }
-  } catch (error) {
-    console.error("Error!:", error);
   }
-}
 
-// Jalankan saat halaman selesai dimuat
-window.addEventListener('DOMContentLoaded', fetchData);
-
-  // Fungsi untuk menyimpan data ke Spreadsheet
+  // Fungsi mengirim data
   async function sendData(payload) {
     try {
       const response = await fetch(WEB_APP_URL, {
         method: "POST",
-        // header content-type text/plain digunakan untuk menghindari preflight CORS error di GAS
         headers: {
-            "Content-Type": "text/plain;charset=utf-8", 
+          "Content-Type": "text/plain;charset=utf-8",
         },
         body: JSON.stringify(payload)
       });
       const result = await response.json();
-      console.log("Data berhasil disimpan:", result);
+      console.log("Data tersimpan:", result);
       
-      // Ambil ulang data agar UI selalu sinkron (real-time feeling)
-      fetchData(); 
+      fetchData(); // Refresh data
     } catch (error) {
       console.error("Gagal mengirim data:", error);
     }
   }
 
-  // 3. EFEK "REAL-TIME" DENGAN POLLING
-  // Aplikasi akan mengecek data terbaru di Spreadsheet setiap 5 detik (5000 ms)
-  setInterval(fetchData, 5000);
-
-  // Ambil data pertama kali saat aplikasi dibuka
-  window.onload = () => {
-    fetchData();
-  };
+  // 3. EVENT LISTENER & POLLING
+  document.addEventListener('DOMContentLoaded', () => {
+    fetchData(); // Jalankan sekali saat load
+    setInterval(fetchData, 5000); // Polling tiap 5 detik
+  });
 </script>
-</body>
-</html>
