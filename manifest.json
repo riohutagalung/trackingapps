@@ -2,7 +2,7 @@
   "name": "RH Habits",
   "short_name": "RH Habits",
   "description": "Aplikasi Habit Tracker, GPS, dan Catatan Keuangan",
-  "start_url": "./catatanku_V10_FINAL_2.html",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#060c15",
   "theme_color": "#060c15",
