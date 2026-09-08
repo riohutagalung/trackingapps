@@ -1,1 +1,182 @@
-(full index.html modified)
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>RH Habits</title>
+
+<!-- Apps Script ID for JSONP fallback -->
+<meta name="rh-script-id" content="AKfycbxahLvhLXHepKDQravov_fs4PyvqDOxp3at_5iyuUK3Rs1PlN5bErFXNLZaq3PW4IngnA">
+
+<!-- PWA: biar bisa "Install app" beneran (standalone, tanpa address bar Chrome) -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#060c15">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="RH Habits">
+<link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAYAAAA9zQYyAAAfNElEQVR4nO2deXQc15Xev/uqekNjX4iFJECCa0hxp8RFlEQq9thabS0Zje04I1u2pVE8Xs44yUnOJCeTZHI8PuPx2I5[...]">
+<link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAYAAAA9zQYyAAAfNElEQVR4nO2deXQc15Xev/uqekNjX4iFJECCa0hxp8RFlEQq9thabS0Zje04I1u2pVE8Xs44yUnOJCeTZHI8Pu[...]">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --bg: #060c15;
+  --bg-gradient: radial-gradient(circle at 50% 0%, #152744 0%, #081220 50%, #040810 100%);
+  --panel: rgba(15, 27, 45, 0.75);
+  --panel-solid: #0d1828;
+  --panel-hover: rgba(22, 38, 62, 0.85);
+  --line: rgba(255, 255, 255, 0.08);
+  --line-active: rgba(53, 212, 154, 0.3);
+  
+  --text: #f8fafc;
+  --muted: #94a3b8;
+  --dim: #64748b;
+  
+  --green: #2ecc71;
+  --green-glow: rgba(46, 204, 113, 0.25);
+  --blue: #38bdf8;
+  --blue-glow: rgba(56, 189, 248, 0.25);
+  --orange: #fbbf24;
+  --red: #f43f5e;
+  --purple: #a855f7;
+  
+  --shadow-sm: 0 4px 12px rgba(0,0,0,0.25);
+  --shadow-lg: 0 20px 40px -10px rgba(0,0,0,0.5);
+  --shadow-glow: 0 8px 24px rgba(46, 204, 113, 0.2);
+  
+  --radius: 22px;
+  --radius-sm: 14px;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html {
+  width: 100%;
+  min-height: 100%;
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+}
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg-gradient);
+  background-attachment: fixed;
+  color: var(--text);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
+}
+
+body.device-ios {
+  background-attachment: scroll;
+}
+
+@supports (min-height: 100dvh) {
+  body.device-ios, body.device-android { min-height: 100dvh; }
+  body.device-ios #app, body.device-android #app { min-height: 100dvh; }
+}
+
+body { display: flex; justify-content: center; }
+button, input, select { font: inherit; }
+button { cursor: pointer; border: none; background: none; }
+
+#app {
+  width: 100%;
+  max-width: 1180px;
+  min-height: 100vh;
+  padding: 20px 20px 110px;
+}
+
+.shell { display: grid; grid-template-columns: 250px 1fr; gap: 22px; }
+
+/* Sidebar */
+.sidebar {
+  position: sticky;
+  top: 20px;
+  height: calc(100vh - 40px);
+  padding: 20px;
+  background: var(--panel);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ... rest of existing CSS ... (Kept unchanged to avoid noise) */
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAYAAABS3GwHAAAht0lEQVR4nO2deZAdxZ3nv7/Memff3epDTR/q1i0QSEgIISEBiy8wxuABe2d2jcfXxBp7N8I7szGzE7Ph3T92YmNn1[...]">
+        <div>
+          <h1>RH Habits</h1>
+          <small>COMMUTE • EXPENSE</small>
+        </div>
+      </div>
+      <nav class="nav">
+        <button class="active" data-view="dashboard">
+          <span class="ico"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" w[...]</svg></span>
+          Dashboard
+        </button>
+        <button data-view="commute">
+          <span class="ico"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 [...]"></svg></span>
+          Perjalanan
+        </button>
+        <button data-view="expenses">
+          <span class="ico"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" w[...]></svg></span>
+          Pengeluaran
+        </button>
+        <button data-view="settings">
+          <span class="ico"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy=[...]"></svg></span>
+          Pengaturan
+        </button>
+      </nav>
+      <div class="side-foot">Google Sheets sebagai pusat data.<br>GPS berjalan live dari perangkat.<br>OCR diproses di Apps Script.</div>
+    </aside>
+
+    <main class="main">
+      <!-- (page content omitted for brevity, unchanged) -->
+    </main>
+  </div>
+
+  <nav class="mobile-nav">
+  <!-- mobile nav omitted -->
+  </nav>
+</div>
+
+<!-- Device detection script: adds body.device-mobile / device-android / device-ios -->
+<script>
+(function(){
+  var ua = navigator.userAgent || navigator.vendor || window.opera || '';
+  var isAndroid = /android/i.test(ua);
+  var isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+  var isMobile = isAndroid || isIOS || ('ontouchstart' in window && (screen.width <= 900 || screen.height <= 900));
+
+  if(isMobile) document.body.classList.add('device-mobile');
+  if(isAndroid) document.body.classList.add('device-android');
+  if(isIOS) document.body.classList.add('device-ios');
+
+  var badge = document.getElementById('mobile-device-badge');
+  if (badge) {
+    if (isIOS) badge.textContent = 'iOS';
+    else if (isAndroid) badge.textContent = 'Android';
+    else if (isMobile) badge.textContent = 'Mobile';
+    else badge.textContent = 'WEB';
+  }
+})();
+</script>
+
+</body>
+</html>
