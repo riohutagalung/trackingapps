@@ -148,6 +148,14 @@ function doPost(e) {
   try {
     var raw = (e && e.postData && e.postData.contents) || '{}';
     var body = JSON.parse(raw);
+
+    // Native Android/iOS GPS ingestion. The native plugin POSTs one Location
+    // object directly, including while the WebView is backgrounded/locked.
+    if (body && (body.latitude !== undefined || body.longitude !== undefined) && (body.tripId || (e && e.parameter && e.parameter.nativeTrip))) {
+      var nativeTripId = String(body.tripId || e.parameter.nativeTrip || '').trim();
+      return ingestNativeLocation_(nativeTripId, body);
+    }
+
     if (body && body.fn) {
       return rpcDispatch_(body.fn, body.args || []);
     }
@@ -173,6 +181,8 @@ function getRpcMap_() {
     getExpenseHistory: getExpenseHistory,
     getExpensesSince: getExpensesSince,
     addTrip: addTrip,
+    getNativeTripPoints: getNativeTripPoints,
+    deleteNativeTripPoints: deleteNativeTripPoints,
     deleteTrip: deleteTrip,
     getTripMapsUrl: getTripMapsUrl,
     getGoogleMapsUrl: getGoogleMapsUrl,
@@ -1783,6 +1793,121 @@ function rebuildHabitIndex(){
   for(var i=1;i<rows.length;i++){var k2=String(rows[i][map['Asal']]||'')+'|'+String(rows[i][map['Tujuan']]||''); if(agg[k2]){seen[k2]=true;if(map['Frekuensi']!==undefined)sheet.getRange(i+1,map['Frekuensi']+1).setValue(agg[k2].freq);if(map['AvgDurasi_menit']!==undefined)sheet.getRange(i+1,map['AvgDurasi_menit']+1).setValue(agg[k2].dur/agg[k2].freq);if(map['AvgJarak_km']!==undefined)sheet.getRange(i+1,map['AvgJarak_km']+1).setValue(agg[k2].dist/agg[k2].freq);}}
   Object.keys(agg).forEach(function(k){if(!seen[k]){var a=agg[k];sheet.appendRow([a.origin,a.destination,a.freq,a.dur/a.freq,a.dist/a.freq,a.name,nowISO_()]);}});
   invalidateEngineCache_(); return {ok:true,tripCount:trips.length,expenseCount:expenses.length,routeGroups:Object.keys(agg).length};
+}
+
+
+
+/* ===============================================================
+   NATIVE BACKGROUND GPS BUFFER
+   Receives points from Android/iOS even when the WebView is not active.
+=============================================================== */
+
+var NATIVE_TRIP_H = [
+  'TripID','Time','TimestampISO','Latitude','Longitude','Accuracy_m',
+  'Speed_kmh','Bearing','Altitude_m','Simulated','ReceivedAt','Vehicle','Source'
+];
+
+function nativeTripSheet_() {
+  var ss = ss_();
+  var sh = ss.getSheetByName('TripPoints');
+  if (!sh) {
+    sh = ss.insertSheet('TripPoints');
+    sh.getRange(1, 1, 1, NATIVE_TRIP_H.length).setValues([NATIVE_TRIP_H]);
+  } else if (sh.getLastRow() === 0) {
+    sh.getRange(1, 1, 1, NATIVE_TRIP_H.length).setValues([NATIVE_TRIP_H]);
+  }
+  return sh;
+}
+
+function ingestNativeLocation_(tripId, body) {
+  tripId = String(tripId || '').trim();
+  if (!tripId) return jsonOut_({ok:false,error:'tripId kosong'});
+
+  var lat = Number(body.latitude), lng = Number(body.longitude);
+  if (!isFinite(lat) || !isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    return jsonOut_({ok:false,error:'Koordinat GPS tidak valid'});
+  }
+
+  var accuracy = Number(body.accuracy); if (!isFinite(accuracy)) accuracy = 0;
+  var speed = Number(body.speed); if (!isFinite(speed) || speed < 0) speed = 0;
+  // Native plugin exposes speed in m/s; keep the backend storage/UI in km/h.
+  speed = speed * 3.6;
+  var bearing = Number(body.bearing); if (!isFinite(bearing)) bearing = '';
+  var altitude = Number(body.altitude); if (!isFinite(altitude)) altitude = '';
+  var t = Number(body.time); if (!isFinite(t) || t <= 0) t = Date.now();
+  var d = new Date(t);
+  var received = new Date();
+  var vehicle = String(body.vehicle || 'Motor');
+  var source = String(body.source || 'native');
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var sh = nativeTripSheet_();
+    sh.appendRow([
+      tripId, t, d.toISOString(), lat, lng, accuracy, speed, bearing,
+      altitude, body.simulated === true, received, vehicle, source
+    ]);
+  } finally {
+    try { lock.releaseLock(); } catch (_) {}
+  }
+
+  return jsonOut_({ok:true,result:{tripId:tripId,saved:true,time:t}});
+}
+
+function getNativeTripPoints(tripId) {
+  tripId = String(tripId || '').trim();
+  if (!tripId) return [];
+  var sh = ss_().getSheetByName('TripPoints');
+  if (!sh || sh.getLastRow() < 2) return [];
+  var values = sh.getDataRange().getValues();
+  var out = [];
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][0]) !== tripId) continue;
+    out.push({
+      tripId: String(values[i][0]),
+      time: Number(values[i][1]) || new Date(values[i][2]).getTime() || 0,
+      latitude: Number(values[i][3]),
+      longitude: Number(values[i][4]),
+      lat: Number(values[i][3]),
+      lng: Number(values[i][4]),
+      accuracy: Number(values[i][5]) || 0,
+      speed: Number(values[i][6]) || 0,
+      speedKmh: Number(values[i][6]) || 0,
+      bearing: isFinite(Number(values[i][7])) ? Number(values[i][7]) : null,
+      altitude: isFinite(Number(values[i][8])) ? Number(values[i][8]) : null,
+      simulated: values[i][9] === true,
+      vehicle: String(values[i][11] || 'Motor'),
+      source: String(values[i][12] || 'native')
+    });
+  }
+  out.sort(function(a,b){ return (a.time||0) - (b.time||0); });
+  return out;
+}
+
+function deleteNativeTripPoints(tripId) {
+  tripId = String(tripId || '').trim();
+  if (!tripId) return {ok:false};
+  var sh = ss_().getSheetByName('TripPoints');
+  if (!sh || sh.getLastRow() < 2) return {ok:true,deleted:0};
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var lastRow = sh.getLastRow(), lastCol = Math.max(sh.getLastColumn(), NATIVE_TRIP_H.length);
+    var all = sh.getRange(1,1,lastRow,lastCol).getValues();
+    var kept = [all[0]], deleted = 0;
+    for (var i=1;i<all.length;i++) {
+      if (String(all[i][0]) === tripId) deleted++;
+      else kept.push(all[i]);
+    }
+    if (!deleted) return {ok:true,deleted:0};
+    sh.getRange(2,1,lastRow-1,lastCol).clearContent();
+    if (kept.length>1) sh.getRange(2,1,kept.length-1,lastCol).setValues(kept.slice(1));
+    return {ok:true,deleted:deleted};
+  } finally {
+    try { lock.releaseLock(); } catch (_) {}
+  }
 }
 
 /* ===============================================================
