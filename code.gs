@@ -23,7 +23,10 @@ const ENGINE_STATE_KEY = 'rh_engine_state_v9';
 const FUEL_PRICES_KEY = 'rh_fuel_prices_v1';
 const AI_INSIGHT_KEY = 'rh_ai_daily_v1';
 const DASHBOARD_CACHE_KEY = 'rh_dashboard_v10';
-const DASHBOARD_CACHE_TTL = 8;
+const DASHBOARD_CACHE_TTL = 30;
+const SYNC_REV_KEY = 'rh_sync_revision_v14';
+const ROUTE_CACHE_KEY = 'rh_route_habits_v14';
+const ROUTE_CACHE_TTL = 120;
 
 /*
  * Titik Rumah & Kantor — koordinat presisi dari link Google Maps kamu.
@@ -400,6 +403,7 @@ function addExpense(data) {
   };
   Object.keys(values).forEach(function(key) { if (map[key] !== undefined) row[map[key]] = values[key]; });
   sheet.appendRow(row);
+  bumpSyncRevision_('addExpense');
   try { var r = sheet.getLastRow(); if(map['Jumlah']!==undefined) sheet.getRange(r,map['Jumlah']+1).setNumberFormat('#,##0'); if(map['Liter']!==undefined) sheet.getRange(r,map['Liter']+1).setNumberFormat('0.00'); if(map['FuelPricePerL']!==undefined) sheet.getRange(r,map['FuelPricePerL']+1).setNumberFormat('#,##0'); } catch(e) {}
   invalidateEngineCache_();
   return {ok:true, id:id, fuel:{category:category, fuelGrade:fuelGrade, liters:liters, pricePerL:values['FuelPricePerL'], referencePricePerL:refPrice, referenceDate:ref.effectiveDate||'', fullTank:!!data.fullTank}};
@@ -475,35 +479,13 @@ function getExpenseHistory(filters) {
 }
 
 function deleteExpense(id) {
-  var sheet = tab_(
-    'Expenses',
-    EXP_H
-  );
-
-  var rows = sheet
-    .getDataRange()
-    .getValues();
-
-  for (
-    var i = 1;
-    i < rows.length;
-    i++
-  ) {
-    if (
-      String(rows[i][0]) ===
-      String(id)
-    ) {
-      sheet.deleteRow(i + 1);
-      return {
-        ok: true
-      };
-    }
-  }
-
-  return {
-    ok: false,
-    error: 'Data tidak ditemukan'
-  };
+  var sheet=tab_('Expenses',EXP_H), last=sheet.getLastRow();
+  if(last<=1) return {ok:false,error:'Data tidak ditemukan'};
+  var headers=sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0], map=getHeaderMap_(headers), col=map.ID;
+  if(col===undefined) return {ok:false,error:'Kolom ID tidak ditemukan'};
+  var hit=sheet.getRange(2,col+1,last-1,1).createTextFinder(String(id)).matchEntireCell(true).findNext();
+  if(hit){ sheet.deleteRow(hit.getRow()); bumpSyncRevision_('deleteExpense'); invalidateEngineCache_(); return {ok:true}; }
+  return {ok:false,error:'Data tidak ditemukan'};
 }
 
 /* ===============================================================
@@ -547,6 +529,7 @@ function addTrip(data) {
   var row = new Array(headers.length).fill('');
   Object.keys(values).forEach(function(k){ if(map[k]!==undefined) row[map[k]]=values[k]; });
   sheet.appendRow(row);
+  bumpSyncRevision_('addTrip');
   try { var rr=sheet.getLastRow(); ['Jarak_km','Durasi_menit','AvgSpeed_kmh','MaxSpeed_kmh','MovingTime_menit','StopTime_menit','FuelEfficiency_kmL','FuelEstimated_L','FuelEstimatedCost'].forEach(function(k){if(map[k]!==undefined)sheet.getRange(rr,map[k]+1).setNumberFormat('0.00');}); } catch(e) {}
   if (data.origin && data.destination) updateRouteHabit_(data.origin,data.destination,durationMin,distanceKm,routeName,variant,movingTimeMin,stopTimeMin);
   // Calendar logging is intentionally opt-in for performance.
@@ -583,16 +566,13 @@ function ensureTripColumns_(sheet) {
 function getTrips(limit){ return getTripsFast_(limit || BOOT_TRIP_LIMIT); }
 
 function deleteTrip(id) {
-  var sheet = tab_('Trips', TRIP_H);
-  var rows = sheet.getDataRange().getValues();
-
-  for (var i = 1; i < rows.length; i++) {
-    if (String(rows[i][0]) === String(id)) {
-      sheet.deleteRow(i + 1);
-      return { ok: true };
-    }
-  }
-  return { ok: false };
+  var sheet=tab_('Trips',TRIP_H), last=sheet.getLastRow();
+  if(last<=1) return {ok:false};
+  var headers=sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0], map=getHeaderMap_(headers), col=map.ID;
+  if(col===undefined) return {ok:false,error:'Kolom ID tidak ditemukan'};
+  var hit=sheet.getRange(2,col+1,last-1,1).createTextFinder(String(id)).matchEntireCell(true).findNext();
+  if(hit){ sheet.deleteRow(hit.getRow()); bumpSyncRevision_('deleteTrip'); invalidateEngineCache_(); return {ok:true}; }
+  return {ok:false};
 }
 
 /* ===============================================================
@@ -1327,8 +1307,8 @@ function getDashboardUncached_() {
   var prevDate=new Date(); prevDate.setDate(1); prevDate.setMonth(prevDate.getMonth()-1);
   var prevMonth=Utilities.formatDate(prevDate,TZ,'yyyy-MM');
   var weekStart=Utilities.formatDate(new Date(Date.now()-7*86400000),TZ,'yyyy-MM-dd');
-  var expenses=getExpensesFast_(BOOT_EXPENSE_LIMIT);
-  var trips=getTripsFast_(BOOT_TRIP_LIMIT);
+  var expenses=getExpensesFast_(250);
+  var trips=getTripsFast_(250);
   var habits=getRouteHabitsFast_();
   var totals={today:0,week:0,month:0,prevMonth:0}, byCategory={}, monthTrend={};
   expenses.forEach(function(e){ if(e.date===today)totals.today+=e.amount; if(e.date>=weekStart)totals.week+=e.amount; if(e.date.slice(0,7)===month){totals.month+=e.amount;byCategory[e.category]=(byCategory[e.category]||0)+e.amount;monthTrend[month]=(monthTrend[month]||0)+e.amount;} if(e.date.slice(0,7)===prevMonth){totals.prevMonth+=e.amount;monthTrend[prevMonth]=(monthTrend[prevMonth]||0)+e.amount;} });
@@ -1360,9 +1340,15 @@ function getTripsFast_(limit){
   }).reverse();
 }
 function getRouteHabitsFast_(){
+  var cache=CacheService.getScriptCache();
+  try{var c=cache.get(ROUTE_CACHE_KEY);if(c)return JSON.parse(c);}catch(e){}
   var sheet=tab_('Routes',ROUTE_H), last=sheet.getLastRow(); if(last<=1)return[];
-  var headers=sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0], map=getHeaderMap_(headers), rows=sheet.getRange(2,1,last-1,headers.length).getValues();
-  return rows.map(function(r){return {origin:r[map['Asal']],destination:r[map['Tujuan']],freq:Number(r[map['Frekuensi']]||0),avgDur:Number(r[map['AvgDurasi_menit']]||0),avgDistance:Number(r[map['AvgJarak_km']]||0),routeName:r[map['RouteName']]||'',last:r[map['LastUsed']]||''};}).filter(function(x){return x.origin||x.destination;}).sort(function(a,b){return b.freq-a.freq;});
+  var headers=sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0], map=getHeaderMap_(headers);
+  var n=Math.min(last-1,250), start=last-n+1;
+  var rows=sheet.getRange(start,1,n,headers.length).getValues();
+  var out=rows.map(function(r){return {origin:r[map['Asal']],destination:r[map['Tujuan']],freq:Number(r[map['Frekuensi']]||0),avgDur:Number(r[map['AvgDurasi_menit']]||0),avgDistance:Number(r[map['AvgJarak_km']]||0),routeName:r[map['RouteName']]||'',last:r[map['LastUsed']]||''};}).filter(function(x){return x.origin||x.destination;}).sort(function(a,b){return b.freq-a.freq;});
+  try{cache.put(ROUTE_CACHE_KEY,JSON.stringify(out),ROUTE_CACHE_TTL);}catch(e){}
+  return out;
 }
 function getExpenseCountFast_(){try{return Math.max(0,tab_('Expenses',EXP_H).getLastRow()-1);}catch(e){return 0;}}
 function getTripCountFast_(){try{return Math.max(0,tab_('Trips',TRIP_H).getLastRow()-1);}catch(e){return 0;}}
@@ -1396,23 +1382,33 @@ function calculateFuelInsight_(expenses,trips,today){ return calculateFuelInsigh
    BOOTSTRAP
 =============================================================== */
 
-function getBootstrap(){
-  // Fast boot: bounded tail reads + cached dashboard. No whole-sheet data scan, OCR, traffic, weather, AI, Calendar, or column creation here.
+function getBootstrap(clientRevision){
+  var meta = getSyncMeta_();
+  if (clientRevision && String(clientRevision) === String(meta.revision)) {
+    return {unchanged:true, sync:meta, config:getPublicConfig_()};
+  }
   return {
+    unchanged:false,
     dashboard:getDashboard(),
-    sync:getSyncMeta_(),
-    config:{
-      home:{name:HOME_CONFIG.name,lat:HOME_CONFIG.lat,lng:HOME_CONFIG.lng},
-      office:{name:OFFICE_CONFIG.name,lat:OFFICE_CONFIG.lat,lng:OFFICE_CONFIG.lng},
-      trafficConfigured:!!getTrafficApiKey_(),
-      krlFare:Number(getSettings().krlFare||5000),
-      tjFare:Number(getSettings().tjFare||3500),
-      calendarLogging:getSettings().calendarLogging===true
-    }
+    sync:meta,
+    config:getPublicConfig_()
+  };
+}
+
+function getPublicConfig_(){
+  var settings=getSettings();
+  return {
+    home:{name:HOME_CONFIG.name,lat:HOME_CONFIG.lat,lng:HOME_CONFIG.lng},
+    office:{name:OFFICE_CONFIG.name,lat:OFFICE_CONFIG.lat,lng:OFFICE_CONFIG.lng},
+    trafficConfigured:!!getTrafficApiKey_(),
+    krlFare:Number(settings.krlFare||5000),
+    tjFare:Number(settings.tjFare||3500),
+    calendarLogging:settings.calendarLogging===true
   };
 }
 
 function getSyncMeta_(){
+  var rev=PropertiesService.getScriptProperties().getProperty(SYNC_REV_KEY)||'1';
   var expSheet=tab_('Expenses',EXP_H), tripSheet=tab_('Trips',TRIP_H);
   var expLast=expSheet.getLastRow(), tripLast=tripSheet.getLastRow();
   var expId='', expTs='', tripId='', tripTs='';
@@ -1420,20 +1416,30 @@ function getSyncMeta_(){
     if(expLast>1){
       var eh=expSheet.getRange(1,1,1,expSheet.getLastColumn()).getValues()[0], em=getHeaderMap_(eh);
       var er=expSheet.getRange(expLast,1,1,eh.length).getValues()[0];
-      expId=String(er[em['ID']]||''); expTs=String(er[em['Timestamp']]||'');
+      expId=String(em.ID!==undefined?er[em.ID]||'':''); expTs=String(em.Timestamp!==undefined?er[em.Timestamp]||'':'');
     }
   }catch(e){}
   try{
     if(tripLast>1){
       var th=tripSheet.getRange(1,1,1,tripSheet.getLastColumn()).getValues()[0], tm=getHeaderMap_(th);
       var tr=tripSheet.getRange(tripLast,1,1,th.length).getValues()[0];
-      tripId=String(tr[tm['ID']]||''); tripTs=String(tr[tm['Timestamp']]||'');
+      tripId=String(tm.ID!==undefined?tr[tm.ID]||'':''); tripTs=String(tm.Timestamp!==undefined?tr[tm.Timestamp]||'':'');
     }
   }catch(e){}
-  return {expenses:{count:Math.max(0,expLast-1),lastId:expId,lastTimestamp:expTs},trips:{count:Math.max(0,tripLast-1),lastId:tripId,lastTimestamp:tripTs},serverTime:nowISO_()};
+  return {revision:String(rev),expenses:{count:Math.max(0,expLast-1),lastId:expId,lastTimestamp:expTs},trips:{count:Math.max(0,tripLast-1),lastId:tripId,lastTimestamp:tripTs},serverTime:nowISO_()};
 }
-function ping(){return {ok:true,time:nowISO_(),timezone:TZ,spreadsheet:SHEET_ID};}
+function bumpSyncRevision_(reason){
+  try{
+    var props=PropertiesService.getScriptProperties(), old=Number(props.getProperty(SYNC_REV_KEY)||1), next=old+1;
+    props.setProperty(SYNC_REV_KEY,String(next));
+    props.setProperty(SYNC_REV_KEY+'_reason',String(reason||''));
+    return String(next);
+  }catch(e){ return '1'; }
+}
+function ping(){return {ok:true,time:nowISO_(),timezone:TZ,spreadsheet:SHEET_ID,revision:PropertiesService.getScriptProperties().getProperty(SYNC_REV_KEY)||'1'};}
 
+function onRhEdit_(e){ bumpSyncRevision_('edit'); invalidateEngineCache_(); }
+function onRhChange_(e){ bumpSyncRevision_(e&&e.changeType||'change'); invalidateEngineCache_(); }
 
 function getCommuteWeather() {
   var cache = CacheService.getScriptCache();
@@ -1642,7 +1648,7 @@ function tryBuiltinMaps_(origin, destination, mapsUrl) {
 function invalidateEngineCache_(){
   try{
     var c=CacheService.getScriptCache();
-    c.removeAll(['rh_dash_v9','rh_insight_v9',DASHBOARD_CACHE_KEY,AI_INSIGHT_KEY]);
+    c.removeAll(['rh_dash_v9','rh_insight_v9',DASHBOARD_CACHE_KEY,AI_INSIGHT_KEY,ROUTE_CACHE_KEY]);
   }catch(e){}
 }
 function getEngineState_(){try{return JSON.parse(PropertiesService.getScriptProperties().getProperty(ENGINE_STATE_KEY)||'{}');}catch(e){return{};}}
@@ -1744,8 +1750,16 @@ function runDailyHabitEngine(){
   return {ok:true,insight:insight};
 }
 function installRHAutomation(){
-  var triggers=ScriptApp.getProjectTriggers(); triggers.forEach(function(t){if(t.getHandlerFunction()==='runDailyHabitEngine')ScriptApp.deleteTrigger(t);});
-  ScriptApp.newTrigger('runDailyHabitEngine').timeBased().everyDays(1).atHour(21).create(); return {ok:true};
+  var triggers=ScriptApp.getProjectTriggers();
+  triggers.forEach(function(t){
+    var h=t.getHandlerFunction();
+    if(h==='runDailyHabitEngine'||h==='onRhEdit_'||h==='onRhChange_') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('runDailyHabitEngine').timeBased().everyDays(1).atHour(21).create();
+  ScriptApp.newTrigger('onRhEdit_').forSpreadsheet(ss_()).onEdit().create();
+  ScriptApp.newTrigger('onRhChange_').forSpreadsheet(ss_()).onChange().create();
+  if(!PropertiesService.getScriptProperties().getProperty(SYNC_REV_KEY)) bumpSyncRevision_('install');
+  return {ok:true};
 }
 function rebuildHabitIndex(){
   // Explicit/manual heavy rebuild only. Never called during app startup.
