@@ -3,7 +3,7 @@
   "rewrites": [
     {
       "source": "/api/rpc",
-      "destination": "https://script.google.com/macros/s/AKfycbyi6yqLiKwjpoy9TclZycH6KOPi0GXlPHc7iHGAA5srKCV6TVWOlSyTr-1V-JOiwlr2MQ/exec"
+      "destination": "https://script.google.com/macros/s/AKfycbzFXCBFXS4LMnfwSoe_dUG8AkogRtOG9vF2kM4VZOe9GsP0GFyT5mFvvnC4x5kZFH6_WA/exec"
     }
   ],
   "headers": [
