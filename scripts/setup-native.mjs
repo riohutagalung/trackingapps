@@ -33,6 +33,8 @@ if (fs.existsSync(plist)) {
   const inserts = [];
   if (!s.includes('<key>NSLocationWhenInUseUsageDescription</key>')) inserts.push(`\n\t<key>NSLocationWhenInUseUsageDescription</key>\n\t<string>RH Habits menggunakan lokasi saat Trip Tracking aktif untuk menghitung jarak, kecepatan, dan rute perjalanan.</string>`);
   if (!s.includes('<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>')) inserts.push(`\n\t<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>\n\t<string>RH Habits menggunakan lokasi saat Trip Tracking aktif, termasuk ketika layar dikunci, untuk merekam perjalanan.</string>`);
+  if (!s.includes('<key>NSCameraUsageDescription</key>')) inserts.push(`\n\t<key>NSCameraUsageDescription</key>\n\t<string>RH Habits membutuhkan akses kamera saat kamu memilih Ambil Foto untuk membaca struk.</string>`);
+  if (!s.includes('<key>NSPhotoLibraryUsageDescription</key>')) inserts.push(`\n\t<key>NSPhotoLibraryUsageDescription</key>\n\t<string>RH Habits membutuhkan akses foto saat kamu memilih gambar struk dari galeri.</string>`);
   if (!s.includes('<key>UIBackgroundModes</key>')) inserts.push(`\n\t<key>UIBackgroundModes</key>\n\t<array>\n\t\t<string>location</string>\n\t</array>`);
   if (inserts.length) s=s.replace('</dict>', inserts.join('')+'\n</dict>');
   fs.writeFileSync(plist,s);
