@@ -1,35 +1,52 @@
-const CACHE = 'rh-habits-v14-shell-20260909';
-const SHELL = [
-  './',
-  './index.html',
-  './manifest.json',
-  './gas-bridge.js'
+const CACHE_NAME = 'rh-habits-v1';
+const urlsToCache = [
+  './catatanku_V10_FINAL_2.html',
+  './manifest.json'
 ];
 
+// Install Service Worker dan Cache file static
 self.addEventListener('install', event => {
-  self.skipWaiting();
-  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL).catch(() => {})));
-});
-
-self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
-      .then(() => self.clients.claim())
+    caches.open(CACHE_NAME)
+      .then(cache => {
+        console.log('Opened cache');
+        return cache.addAll(urlsToCache);
+      })
   );
 });
 
+// Fetching: Lewati cache untuk request ke Google Apps Script agar data selalu real-time
 self.addEventListener('fetch', event => {
-  const url = new URL(event.request.url);
-  // Never cache API/RPC traffic: Sheet data must always be fresh.
-  if (url.pathname === '/api/rpc' || event.request.method !== 'GET') return;
+  // Jika URL mengarah ke Google Script, gunakan jaringan (Network Only / Network First)
+  if (event.request.url.includes('script.google.com')) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
 
+  // Untuk file lainnya, gunakan Cache First
   event.respondWith(
-    fetch(event.request)
+    caches.match(event.request)
       .then(response => {
-        const copy = response.clone();
-        caches.open(CACHE).then(cache => cache.put(event.request, copy)).catch(() => {});
-        return response;
+        if (response) {
+          return response; // Gunakan versi cache
+        }
+        return fetch(event.request); // Gunakan network jika tidak ada di cache
       })
-      .catch(() => caches.match(event.request).then(cached => cached || caches.match('./index.html')))
+  );
+});
+
+// Activate dan hapus cache lama
+self.addEventListener('activate', event => {
+  const cacheWhitelist = [CACHE_NAME];
+  event.waitUntil(
+    caches.keys().then(cacheNames => {
+      return Promise.all(
+        cacheNames.map(cacheName => {
+          if (cacheWhitelist.indexOf(cacheName) === -1) {
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    })
   );
 });
