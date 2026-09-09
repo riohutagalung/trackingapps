@@ -1,7 +1,16 @@
 {
-  "functions": {
-    "api/rpc.js": {
-      "runtime": "nodejs20.x"
+  "rewrites": [
+    {
+      "source": "/api/rpc",
+      "destination": "https://script.google.com/macros/s/AKfycbyi6yqLiKwjpoy9TclZycH6KOPi0GXlPHc7iHGAA5srKCV6TVWOlSyTr-1V-JOiwlr2MQ/exec"
     }
-  }
+  ],
+  "headers": [
+    {
+      "source": "/api/rpc",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate" }
+      ]
+    }
+  ]
 }
