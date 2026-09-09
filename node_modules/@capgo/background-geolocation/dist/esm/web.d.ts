@@ -1,0 +1,41 @@
+import { WebPlugin } from '@capacitor/core';
+import type { BackgroundGeolocationPlugin, StartOptions, Location, CallbackError, SetPlannedRouteOptions, GeofenceSetupOptions, AddGeofenceOptions, RemoveGeofenceOptions, MonitoredGeofencesResult, BackgroundGeolocationPermissionStatus, UpdateHeadersOptions } from './definitions';
+export declare class BackgroundGeolocationWeb extends WebPlugin implements BackgroundGeolocationPlugin {
+    private static readonly EARTH_RADIUS_M;
+    private watchId;
+    private geofenceWatchId;
+    private plannedRoute;
+    private audio;
+    private isOffRoute;
+    private distanceThreshold;
+    private geofences;
+    private geofenceUrl;
+    private geofenceHeaders;
+    private geofencePayload;
+    private notifyOnEntry;
+    private notifyOnExit;
+    start(options: StartOptions, callback: (position?: Location, error?: CallbackError) => void): Promise<void>;
+    stop(): Promise<void>;
+    openSettings(): Promise<void>;
+    setPlannedRoute(options: SetPlannedRouteOptions): Promise<void>;
+    setupGeofencing(options: GeofenceSetupOptions): Promise<void>;
+    updateHeaders(options: UpdateHeadersOptions): Promise<void>;
+    addGeofence(options: AddGeofenceOptions): Promise<void>;
+    removeGeofence(options: RemoveGeofenceOptions): Promise<void>;
+    removeAllGeofences(): Promise<void>;
+    getMonitoredGeofences(): Promise<MonitoredGeofencesResult>;
+    checkPermissions(): Promise<BackgroundGeolocationPermissionStatus>;
+    requestPermissions(): Promise<BackgroundGeolocationPermissionStatus>;
+    private validateGeofence;
+    private startGeofenceWatch;
+    private stopGeofenceWatchIfIdle;
+    private checkGeofences;
+    private emitGeofenceTransition;
+    private toRadians;
+    private haversine;
+    private distancePointToLineSegment;
+    private distancePointToRoute;
+    getPluginVersion(): Promise<{
+        version: string;
+    }>;
+}

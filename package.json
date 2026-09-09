@@ -12,12 +12,13 @@
     "native:prepare": "node scripts/setup-native.mjs"
   },
   "dependencies": {
-    "@capacitor/core": "^8.0.0",
     "@capacitor/android": "^8.0.0",
+    "@capacitor/core": "^8.0.0",
     "@capacitor/ios": "^8.0.0",
     "@capgo/background-geolocation": "^8.3.2"
   },
   "devDependencies": {
-    "@capacitor/cli": "^8.0.0"
+    "@capacitor/cli": "^8.0.0",
+    "typescript": "^7.0.2"
   }
 }
