@@ -1,5 +1,23 @@
 {
   "name": "rh-habits",
-  "version": "1.1.0",
-  "private": true
+  "version": "2.0.0",
+  "private": true,
+  "scripts": {
+    "cap:add:android": "npx cap add android",
+    "cap:add:ios": "npx cap add ios",
+    "cap:sync": "npx cap sync",
+    "cap:copy": "npx cap copy",
+    "cap:open:android": "npx cap open android",
+    "cap:open:ios": "npx cap open ios",
+    "native:prepare": "node scripts/setup-native.mjs"
+  },
+  "dependencies": {
+    "@capacitor/core": "^8.0.0",
+    "@capacitor/android": "^8.0.0",
+    "@capacitor/ios": "^8.0.0",
+    "@capgo/background-geolocation": "^8.3.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.0.0"
+  }
 }
