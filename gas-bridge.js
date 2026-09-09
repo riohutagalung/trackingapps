@@ -1,5 +1,5 @@
 /**
- * RH Habits V13 — same-origin RPC bridge.
+ * RH Habits — same-origin RPC bridge.
  * Browser -> /api/rpc -> Apps Script /exec.
  */
 (function () {
@@ -76,5 +76,4 @@
   window.google.script = window.google.script || {};
   window.google.script.run = makeRunner({});
   window.RHBridge = { rpc: callRpc, endpoint: RPC_URL };
-  console.log('[RH] V13 bridge aktif → ' + RPC_URL);
 })();
