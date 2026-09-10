@@ -23,7 +23,7 @@
 
   async function start(id){
     const bg=getPlugin();
-    if(!bg)return false;
+    if(!bg) throw new Error('Native GPS plugin belum terpasang. Jalankan npm install lalu npx cap sync.');
     sessionId=id;
     const url='https://rhhabits.vercel.app/api/native-location?tripId='+encodeURIComponent(id);
     await bg.start({
