@@ -6,6 +6,16 @@ const config: CapacitorConfig = {
   webDir: '.',
   android: {
     useLegacyBridge: true
+  },
+  plugins: {
+    SplashScreen: {
+      launchAutoHide: false,
+      launchFadeOutDuration: 180,
+      backgroundColor: '#060c15',
+      showSpinner: false,
+      splashFullScreen: false,
+      splashImmersive: false
+    }
   }
 };
 
