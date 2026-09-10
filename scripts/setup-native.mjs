@@ -1,6 +1,31 @@
 import fs from 'node:fs';
 import path from 'node:path';
-const root=process.cwd();
+
+const root = process.cwd();
+const www = path.join(root, 'www');
+
+function ensureDir(dir) {
+  fs.mkdirSync(dir, { recursive: true });
+}
+
+function copyIfExists(name) {
+  const src = path.join(root, name);
+  if (!fs.existsSync(src)) return;
+  fs.copyFileSync(src, path.join(www, name));
+}
+
+// Capacitor 8 requires webDir to point to a real web asset directory.
+// Stage the files needed by the native WebView under ./www.
+ensureDir(www);
+for (const name of [
+  'index.html',
+  'gas-bridge.js',
+  'rh-native-gps.js',
+  'rh-native-media.js',
+  'manifest.json',
+  'mobile-responsive.css'
+]) copyIfExists(name);
+
 function patchAndroid(file){
   if(!fs.existsSync(file)) return;
   let s=fs.readFileSync(file,'utf8');
@@ -28,4 +53,5 @@ if(fs.existsSync(plist)){
   if(inserts.length)s=s.replace('</dict>',inserts.join('')+'\n</dict>');
   fs.writeFileSync(plist,s);
 }
-console.log('[RH] Native preparation complete. Review Xcode Background Modes > Location updates before release.');
+console.log('[RH] Native web assets staged in ./www and native permissions prepared.');
+console.log('[RH] Review Xcode Background Modes > Location updates before release.');
