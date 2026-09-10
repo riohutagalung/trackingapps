@@ -556,6 +556,16 @@ function addTrip(data) {
   var endTime = data.endTime || nowISO_();
   var routeName = data.routeName || generateRouteName_(data.origin, data.destination, data.note);
   var gpsPoints = Array.isArray(data.gpsPoints) ? compressGpsPoints_(data.gpsPoints) : [];
+  // Native Android/iOS stores background points in TripPoints. Do not send the
+  // whole track back through the WebView/RPC payload when saving the trip.
+  if (!gpsPoints.length && id) {
+    try {
+      var nativeRows = getNativeTripPoints(id);
+      if (Array.isArray(nativeRows) && nativeRows.length) gpsPoints = compressGpsPoints_(nativeRows);
+    } catch (nativeReadErr) {
+      // Keep the trip save usable even if the temporary TripPoints sheet is unavailable.
+    }
+  }
   var variant = data.routeVariant || makeRouteVariantSignature_(gpsPoints.length ? gpsPoints : data.gpsPoints);
   var fuelGrade = String(data.fuelGrade || '');
   var fuelEff = Number(data.fuelEfficiency || 0);
