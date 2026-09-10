@@ -1,4 +1,4 @@
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbxjHPRvNNx7oDJUSdnOWaDWq6NoBSw4jtJiFeEL3pWIY4FVQaIBhXc9hZ1St1REoBPhIA/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbyi6yqLiKwjpoy9TclZycH6KOPi0GXlPHc7iHGAA5srKCV6TVWOlSyTr-1V-JOiwlr2MQ/exec';
 
 function json(res, status, data){
   res.statusCode=status;
