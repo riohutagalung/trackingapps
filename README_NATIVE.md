@@ -46,3 +46,7 @@ Sebelum native tracking pertama, aplikasi menjelaskan bahwa lokasi digunakan ket
 ## 7. Catatan akurasi
 
 Jarak dihitung dari titik GPS berurutan setelah filter outlier. Kecepatan memakai GPS speed jika tersedia dan fallback delta-distance/time. Konsumsi BBM mingguan tetap merupakan estimasi berbasis data trip + catatan pengisian BBM/efisiensi yang ada; GPS sendiri tidak dapat mengukur liter bensin yang benar-benar terbakar.
+
+## Media / OCR
+
+Native Android/iOS memakai `@capacitor/camera` untuk Kamera dan Galeri. Desktop/Web tetap memakai input file biasa. Keduanya mengirim hasil foto yang sudah diperkecil ke OCR Apps Script sehingga alur OCR sama lintas device.

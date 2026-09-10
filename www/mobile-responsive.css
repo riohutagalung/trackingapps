@@ -1,0 +1,87 @@
+/* RH Habits — responsive layer. Desktop logic/layout stays untouched. */
+
+html, body { width: 100%; overflow-x: hidden; }
+
+@media (max-width: 900px) {
+  body { display: block; }
+
+  #app {
+    width: 100%;
+    max-width: none;
+    min-height: 100dvh;
+    padding: 12px 12px calc(92px + env(safe-area-inset-bottom));
+  }
+
+  .shell {
+    display: block;
+  }
+
+  .sidebar {
+    display: none !important;
+  }
+
+  .main {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .mobile-nav {
+    position: fixed;
+    left: 10px;
+    right: 10px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    z-index: 9999;
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    background: rgba(9, 17, 30, .94);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    box-shadow: 0 14px 34px rgba(0,0,0,.34);
+  }
+
+  .mobile-nav button {
+    min-width: 0;
+    min-height: 48px;
+    padding: 8px 4px;
+    border-radius: 14px;
+    color: var(--muted);
+    touch-action: manipulation;
+  }
+
+  .mobile-nav button.active {
+    color: var(--text);
+    background: rgba(46, 204, 113, .14);
+  }
+
+  .card, .panel, .section, .hero, .form-card, .table-wrap {
+    max-width: 100%;
+  }
+
+  input, select, textarea, button {
+    max-width: 100%;
+  }
+
+  .grid, .cards, .stats, .form-grid, .dashboard-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 560px) {
+  #app { padding-left: 8px; padding-right: 8px; }
+
+  body { font-size: 14px; }
+
+  .card, .panel, .section, .hero, .form-card {
+    border-radius: 18px;
+  }
+
+  .title, h1, h2, h3 { overflow-wrap: anywhere; }
+}
+
+@media (min-width: 901px) {
+  .mobile-nav { display: none !important; }
+}
