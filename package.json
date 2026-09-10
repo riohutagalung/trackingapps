@@ -1,15 +1,15 @@
 {
   "name": "rh-habits",
-  "version": "2.3.1",
+  "version": "2.3.2",
   "private": true,
   "scripts": {
     "cap:add:android": "npx cap add android",
     "cap:add:ios": "npx cap add ios",
-    "cap:sync": "npx cap sync",
-    "cap:copy": "npx cap copy",
+    "native:prepare": "node scripts/setup-native.mjs",
+    "cap:sync": "npm run native:prepare && npx cap sync",
+    "cap:copy": "npm run native:prepare && npx cap copy",
     "cap:open:android": "npx cap open android",
-    "cap:open:ios": "npx cap open ios",
-    "native:prepare": "node scripts/setup-native.mjs"
+    "cap:open:ios": "npx cap open ios"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.0",
