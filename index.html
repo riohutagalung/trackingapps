@@ -716,10 +716,38 @@ body.device-android .mobile-header { padding-top:12px; }
   .item-actions { max-width:42%; }
 }
 
+
+/* ===== RH HABITS CROSS-DEVICE SPLASH ===== */
+#rh-splash {
+  position: fixed; inset: 0; z-index: 5000;
+  display: grid; place-items: center;
+  background: #060c15;
+  opacity: 1; visibility: visible;
+  transition: opacity .28s ease, visibility .28s ease;
+}
+#rh-splash.hide { opacity: 0; visibility: hidden; pointer-events: none; }
+.rh-splash-inner { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; transform:translateY(4px); }
+.rh-splash-logo { width:88px; height:88px; border-radius:24px; object-fit:cover; box-shadow:0 18px 48px rgba(0,0,0,.42); }
+.rh-splash-mark { width:82px; height:82px; display:grid; place-items:center; border:1px solid rgba(67,170,255,.28); border-radius:24px; background:rgba(10,22,38,.6); color:#35a7ff; }
+.rh-splash-mark svg { width:58px; height:58px; }
+.rh-splash-title { font-family:'Space Grotesk',sans-serif; font-size:28px; font-weight:600; letter-spacing:-.5px; color:#f5f8fc; }
+.rh-splash-sub { margin-top:-10px; font-size:10px; letter-spacing:.9px; text-transform:uppercase; color:#6f8198; font-weight:700; }
+@media (max-width:600px){ .rh-splash-logo{width:78px;height:78px;border-radius:22px}.rh-splash-title{font-size:26px}.rh-splash-sub{font-size:9px} }
 </style>
 </head>
 <body>
-
+<div id="rh-splash" aria-hidden="true">
+  <div class="rh-splash-inner">
+    <div class="rh-splash-mark" aria-hidden="true">
+      <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M11 42V22h11c8 0 13 4 13 10s-5 10-13 10H11Z"/>
+        <path d="M23 32h27M39 22v20M50 22v20"/>
+      </svg>
+    </div>
+    <div class="rh-splash-title">RH Habits</div>
+    <div class="rh-splash-sub">Personal commute & expense tracker</div>
+  </div>
+</div>
 <div id="app">
   <div class="shell">
     <aside class="sidebar">
@@ -998,7 +1026,7 @@ body.device-android .mobile-header { padding-top:12px; }
   <div id="quick-menu" class="quick-menu" aria-hidden="true">
     <button type="button" onclick="App.quickExpense()"><span class="quick-icon"><svg viewBox='0 0 24 24' width='18' height='18' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round'><path d='M12 5v14M5 12h14'/></svg></span><span><b>Pengeluaran</b><small>Catat biaya baru</small></span></button>
     <button type="button" onclick="App.quickFuel()"><span class="quick-icon"><svg viewBox='0 0 24 24' width='18' height='18' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 21V4a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v17'/><path d='M5 21h14'/><path d='M9 6h6'/><path d='M17 7h2l2 2v7.5a2.5 2.5 0 0 1-5 0V14h3'/></svg></span><span><b>Isi BBM</b><small>Langsung ke form BBM</small></span></button>
-    <button type="button" onclick="App.quickTrip()"><span class="quick-icon"><svg viewBox='0 0 24 24' width='18' height='18' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linejoin='round'><path d='M7 4l12 8-12 8z'/></svg></span><span><b>Mulai Trip</b><small>Aktifkan GPS</small></span></button>
+    <button type="button" onclick="App.quickTrip()"><span class="quick-icon">${Icon('navigation',18)}</span><span><b>Mulai Trip</b><small>Aktifkan GPS</small></span></button>
   </div>
 </div>
 
@@ -1081,7 +1109,7 @@ body.device-android .mobile-header { padding-top:12px; }
 <script src="rh-native-gps.js"></script>
 <script src="rh-native-media.js"></script>
 <script>
-const Icon=(name,size=16)=>{const i={fuel:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 21V4a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v17M5 21h14M9 6h6M17 7h2l2 2v7.5a2.5 2.5 0 0 1-5 0V14h3"/></svg>`,map:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l-6 3V6l6-3 6 3 6-3v15l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/></svg>`,route:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h3c4 0 2-9 6-9h1"/></svg>`,trash:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>`,clock:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>`,sun:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>`,rain:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16h10a4 4 0 0 0 .5-7.97A6 6 0 0 0 6.2 6.2 4.5 4.5 0 0 0 7 16z"/><path d="M9 19l-1 2M13 19l-1 2M17 19l-1 2"/></svg>`,receipt:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z"/><path d="M9 7h6M9 11h6M9 15h4"/></svg>`};return i[name]||i.route};
+const Icon=(name,size=16)=>{const i={fuel:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 21V4a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v17M5 21h14M9 6h6M17 7h2l2 2v7.5a2.5 2.5 0 0 1-5 0V14h3"/></svg>`,map:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l-6 3V6l6-3 6 3 6-3v15l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/></svg>`,route:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h3c4 0 2-9 6-9h1"/></svg>`,trash:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>`,clock:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>`,navigation:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3 10.7 13.3"/><path d="m21 3-6.6 17-3.7-6.7L4 9.6 21 3Z"/></svg>`,stop:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>`,sun:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>`,rain:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16h10a4 4 0 0 0 .5-7.97A6 6 0 0 0 6.2 6.2 4.5 4.5 0 0 0 7 16z"/><path d="M9 19l-1 2M13 19l-1 2M17 19l-1 2"/></svg>`,receipt:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z"/><path d="M9 7h6M9 11h6M9 15h4"/></svg>`};return i[name]||i.route};
 
 const App = {
   data: null,
@@ -1104,16 +1132,21 @@ const App = {
     this.checkTimeBasedSuggest();
     setTimeout(() => Weather.refresh(false), 900);
     window.addEventListener('resize', () => this.detectDevice(), {passive:true});
+    setTimeout(() => this.hideSplash(), 3500);
   },
+  hideSplash() { const el=document.getElementById('rh-splash'); if(el) el.classList.add('hide'); },
   detectDevice() {
     const w = window.innerWidth || document.documentElement.clientWidth || 9999;
     const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
     const mobile = w <= 900 || (coarse && w <= 1024);
     document.body.classList.toggle('device-mobile', mobile);
-    const ios = /iPad|iPhone|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    const android = /Android/i.test(navigator.userAgent);
+    const ua = navigator.userAgent || '';
+    const ios = /iPad|iPhone|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const android = /Android/i.test(ua);
+    const native = !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
     document.body.classList.toggle('device-ios', ios);
     document.body.classList.toggle('device-android', android);
+    document.body.classList.toggle('device-native', native);
     const badge=document.getElementById('mobile-device-badge');
     if (badge) badge.textContent = ios ? 'iOS' : android ? 'ANDROID' : (mobile ? 'MOBILE' : 'WEB');
   },
@@ -1146,10 +1179,12 @@ const App = {
       this.config = r && r.config ? r.config : (this.config || {});
       if (status) status.textContent = 'Connected';
       this.render();
+      this.hideSplash();
     }).withFailureHandler(e => {
       clearTimeout(timeout);
       done();
       this.error(e);
+      this.hideSplash();
     }).getBootstrap();
   },
   render() {
@@ -1169,7 +1204,7 @@ const App = {
     const wf=d.weekFuel||{}; const wfEl=document.getElementById('week-fuel-summary'); if(wfEl) wfEl.innerHTML=`<div class="route-row"><div><div class="route-name">${Icon('fuel',15)} BBM 7 hari</div><div class="route-sub">${wf.transactionCount||0} transaksi • ${Num(wf.liters||0,2)} L • ${Num(wf.distanceKm||0,1)} km</div></div><div class="eta"><strong>${Money(wf.amount||0)}</strong><span>${wf.avgKmL?Num(wf.avgKmL,1)+' km/L':'Belum cukup data'}</span></div></div>`;
     const habits = d.habits || [];
     document.getElementById('route-habits').innerHTML = habits.length ? habits.slice(0, 4).map(h => `<div class="habit"><b>${Esc(h.routeName)}</b><span>${h.freq}x perjalanan • rata-rata ${Num(h.avgDur)} menit • ${Num(h.avgDistance, 1)} km</span></div>`).join('') : '<div class="empty">Belum ada route habit. Mulai perjalanan GPS untuk membangun kebiasaan.</div>';
-    document.getElementById('system-info').innerHTML = `Sheets: <b>terhubung</b><br>GPS: <b>${this.nativeMode ? 'native mobile' : 'browser device'}</b><br>OCR: <b>Google Drive + arsip struk</b><br>Traffic Google: <b>${this.config.trafficConfigured ? 'aktif' : 'belum dikonfigurasi'}</b><br>Device: <b>${document.body.classList.contains('device-ios') ? 'iOS' : document.body.classList.contains('device-android') ? 'Android' : 'Desktop/Tablet'}</b>`;
+    document.getElementById('system-info').innerHTML = `Sheets: <b>terhubung</b><br>GPS: <b>${GPS.isNative() ? 'native mobile' : 'browser device'}</b><br>OCR: <b>Google Drive + arsip struk</b><br>Traffic Google: <b>${this.config.trafficConfigured ? 'aktif' : 'belum dikonfigurasi'}</b><br>Device: <b>${document.body.classList.contains('device-ios') ? 'iOS' : document.body.classList.contains('device-android') ? 'Android' : 'Desktop/Tablet'}</b>`;
     if (this.config.krlFare) document.getElementById('krl-fare').value = this.config.krlFare;
     if (this.config.tjFare) document.getElementById('tj-fare').value = this.config.tjFare;
   },
@@ -1337,7 +1372,7 @@ const GPS = {
     this.watch=navigator.geolocation.watchPosition(p=>this.position(p,false),e=>this.gpsError(e),{enableHighAccuracy:true,timeout:15000,maximumAge:1000});
     navigator.geolocation.getCurrentPosition(p=>this.position(p,false),()=>{},{enableHighAccuracy:true,timeout:10000,maximumAge:0});
   },
-  updateButton(on){const btn=document.getElementById('gps-toggle');if(!btn)return;btn.innerHTML=on?`${Icon('clock',16)} Berhenti &amp; Catat`:`${Icon('route',16)} Mulai Jalan`;btn.className=on?'btn red full':'btn primary full';document.getElementById('gps-floating')?.classList.toggle('show',on);},
+  updateButton(on){const btn=document.getElementById('gps-toggle');if(!btn)return;btn.innerHTML=on?`${Icon('stop',16)} Berhenti &amp; Catat`:`${Icon('navigation',16)} Mulai Jalan`;btn.className=on?'btn red full':'btn primary full';document.getElementById('gps-floating')?.classList.toggle('show',on);},
   async startTracking(){
     if(!window.isSecureContext){App.toast('GPS membutuhkan Web App HTTPS.');return;}
     if(this.active)return;
@@ -1412,11 +1447,13 @@ const GPS = {
   confirmSave(){
     if(!this.pending)return;
     const p=this.pending,btn=document.querySelector('#trip-modal .btn.primary');if(btn)btn.disabled=true;
+    const webPoints = Array.isArray(p.gpsPoints) ? p.gpsPoints.filter((_,i,a)=> i===0 || i===a.length-1 || i%3===0).slice(0,700) : [];
+    const payload={id:p.id,date:p.date,origin:p.origin,destination:p.destination,routeName:p.routeName,distanceKm:p.distance,durationMin:p.durationMin,avgSpeed:p.avgSpeed,maxSpeed:p.maxSpeed,note:p.note,source:GPS.isNative()?'gps-native':'gps-browser',vehicle:document.getElementById('trip-vehicle')?.value||'Motor',startTime:p.startTime,endTime:p.endTime,gpsPoints:GPS.isNative()?[]:webPoints};
     google.script.run.withSuccessHandler(()=>{
       const sid=p.id;
       google.script.run.withSuccessHandler(()=>{}).withFailureHandler(()=>{}).deleteNativeTripPoints(sid);
-      if(btn)btn.disabled=false;App.closeModal('trip-modal');this.reset();App.toast('Perjalanan + jalur GPS tersimpan ke Google Sheets.');App.refresh();
-    }).withFailureHandler(e=>{if(btn)btn.disabled=false;App.error(e);}).addTrip({id:p.id,date:p.date,origin:p.origin,destination:p.destination,routeName:p.routeName,distanceKm:p.distance,durationMin:p.durationMin,avgSpeed:p.avgSpeed,maxSpeed:p.maxSpeed,note:p.note,source:'gps-native',vehicle:document.getElementById('trip-vehicle')?.value||'Motor',startTime:p.startTime,endTime:p.endTime,gpsPoints:p.gpsPoints});
+      if(btn)btn.disabled=false;App.closeModal('trip-modal');this.reset();App.toast('Perjalanan + jalur GPS tersimpan ke Google Sheets.');App.refresh(true);
+    }).withFailureHandler(e=>{if(btn)btn.disabled=false;App.error(e);}).addTrip(payload);
   },
   cancelSave(){App.closeModal('trip-modal');this.reset();App.toast('Perjalanan dibatalkan.');},
   stats(endMs){let distance=0;for(let i=1;i<this.points.length;i++)distance+=Haversine(this.points[i-1].lat,this.points[i-1].lng,this.points[i].lat,this.points[i].lng);const end=endMs||Date.now(),durationMin=this.start?Math.max(0,(end-this.start)/60000):0,valid=this.points.map(p=>Number(p.speed)).filter(s=>isFinite(s)&&s>=0),avgByDistance=durationMin>0?distance/(durationMin/60):0,avgSpeed=avgByDistance>0?avgByDistance:(valid.reduce((a,b)=>a+b,0)/(valid.length||1)),maxSpeed=Math.max(0,...valid);return{distance,durationMin,avgSpeed,maxSpeed};},
@@ -1439,7 +1476,8 @@ const OCR = {
         await this.processBase64(picked.base64, 'image/' + (picked.format === 'png' ? 'png' : 'jpeg'));
       } catch (e) {
         console.error('[RHNativeMedia]', e);
-        App.toast('Kamera/galeri gagal dibuka: ' + ((e && e.message) || e));
+        App.toast('Kamera/galeri native gagal. Membuka picker alternatif...');
+        document.getElementById(source === 'camera' ? 'receipt-file-camera' : 'receipt-file-gallery').click();
       }
       return;
     }
