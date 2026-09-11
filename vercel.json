@@ -1,38 +1,23 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "node scripts/repair-index.mjs index.html",
   "headers": [
     {
       "source": "/api/rpc",
       "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-store, no-cache, must-revalidate, max-age=0"
-        },
-        {
-          "key": "Access-Control-Allow-Origin",
-          "value": "*"
-        },
-        {
-          "key": "Access-Control-Allow-Methods",
-          "value": "GET,POST,OPTIONS"
-        },
-        {
-          "key": "Access-Control-Allow-Headers",
-          "value": "Content-Type, Accept"
-        }
+        {"key":"Cache-Control","value":"no-store, no-cache, must-revalidate, max-age=0"},
+        {"key":"Access-Control-Allow-Origin","value":"*"},
+        {"key":"Access-Control-Allow-Methods","value":"GET,POST,OPTIONS"},
+        {"key":"Access-Control-Allow-Headers","value":"Content-Type, Accept"}
       ]
     },
     {
       "source": "/api/native-location",
       "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-store, no-cache, must-revalidate, max-age=0"
-        },
-        {
-          "key": "Access-Control-Allow-Origin",
-          "value": "*"
-        }
+        {"key":"Cache-Control","value":"no-store, no-cache, must-revalidate, max-age=0"},
+        {"key":"Access-Control-Allow-Origin","value":"*"},
+        {"key":"Access-Control-Allow-Methods","value":"POST,OPTIONS"},
+        {"key":"Access-Control-Allow-Headers","value":"Content-Type, Accept"}
       ]
     }
   ]
