@@ -1,28 +1,30 @@
-RH Habits FULL FIX — 11 Sep 2026 — v2.4.0
+RH Habits FULL FIX — 11 Sep 2026 — v2.4.1
 
 APPS SCRIPT
-1) Replace Code.gs with this package's Code.gs.
-2) Keep the existing HTML file for direct Apps Script Web App fallback. It is not used by Vercel/Captactor native UI.
-3) maps-helpers.gs is NO LONGER REQUIRED when its functions duplicate Code.gs. Remove duplicate getTripMapsUrl/getGoogleMapsUrlForTrip/getGoogleMapsUrl/getRouteSuggestion definitions from maps-helpers.gs, or remove that helper file entirely.
-4) Deploy new Web App version using the existing deployment URL. Execute as your account; access can remain whoever already works in your setup.
-5) No TripPoints sheet creation is required manually; Code.gs creates TripPoints on first native GPS point.
+1) Apps Script backend must use the current Code.gs from this repository.
+2) Keep the existing HTML file only if you still want the Apps Script Web App fallback. Vercel/native UI uses the GitHub web bundle.
+3) maps-helpers.gs is NOT required when it duplicates functions already present in Code.gs. Remove duplicate getTripMapsUrl/getGoogleMapsUrlForTrip/getGoogleMapsUrl/getRouteSuggestion definitions, or remove the helper file.
+4) Deploy the latest Code.gs as a NEW Web App version. The current GitHub proxy points to the latest deployment URL below.
+5) No TripPoints sheet needs to be created manually; Code.gs creates it on the first native GPS point.
 
-VERCEL/GITHUB
-- Replace index.html, gas-bridge.js, rh-native-gps.js, rh-native-media.js, api/rpc.js, api/native-location.js, vercel.json, package.json, capacitor.config.ts, scripts/setup-native.mjs.
-- Run npm install then npx cap sync.
-- iOS: enable Signing & Capabilities > Background Modes > Location updates. Apple requires UIBackgroundModes=location and allowsBackgroundLocationUpdates for continuous background updates.
+CURRENT APPS SCRIPT WEB APP
+https://script.google.com/macros/s/AKfycbyi6yqLiKwjpoy9TclZycH6KOPi0GXlPHc7iHGAA5srKCV6TVWOlSyTr-1V-JOiwlr2MQ/exec
 
-WHY THIS FIX
-- Restores renderTrend/renderPublicTransport (the exact desktop error was caused by those App methods missing).
-- Vercel no longer rewrites directly to stale Apps Script; /api/rpc is now a real proxy with CORS + OPTIONS handling and the latest GAS deployment.
-- Native GPS POST uses latest GAS deployment.
-- Speed uses native/OS speed when valid, otherwise segment-distance/time fallback; no display smoothing.
-- Trip Save retains movingTimeMin/stopTimeMin/stopCount/routeVariant.
-- Saved GPS compression keeps up to 900 representative points instead of every fifth point, reducing route jumps.
-- Map can request getTripGpsPoints() and renders actual stored points with Leaflet.
-- iOS date inputs are width constrained to prevent the control from overflowing the column.
+VERCEL / GITHUB
+- /api/rpc and /api/native-location now point to the deployment above.
+- Vercel runs scripts/repair-index.mjs before deployment and fails the build if the inline index JavaScript is invalid.
+- npm run cap:sync runs scripts/setup-native.mjs, which repairs/validates index.html and rebuilds ./www before Capacitor sync.
+- gas-bridge.js keeps browser calls on /api/rpc and native calls on https://rhhabits.vercel.app/api/rpc.
+- Native GPS posts to https://rhhabits.vercel.app/api/native-location and that proxy forwards to Apps Script.
+
+CURRENT KNOWN FIXES
+- Repairs the malformed App object separators that previously caused the entire index script to fail parsing (including renderTrend/renderPublicTransport/renderFuelPrediction).
+- Repairs the duplicate `},,` separator in the Trip object.
+- RPC proxy follows Apps Script redirects while preserving POST and reports the actual upstream status/body on failure.
+- Native GPS proxy validates tripId and coordinates before forwarding.
+- Native assets are rebuilt from the root source so Android/iOS do not use stale HTML/JS copies.
 - OCR uses native Camera/Photos on native builds and the same analyzeReceipt() backend path.
-- App.error no longer falsely marks the whole backend offline on OCR/GPS/UI errors.
+- TripPoints are server-side buffered for native background GPS and merged into the saved Trip.
 
-IMPORTANT LIMIT
-No software can force iOS to deliver GPS after the user explicitly terminates the app or disables location services. Background tracking depends on iOS permission/capability and system policy. The app can keep recording while locked/backgrounded when properly configured and the OS continues the location session.
+IMPORTANT
+After Apps Script is redeployed, do not change the deployment URL unless the proxy files are updated too. iOS background GPS still depends on Location permission, Background Modes > Location updates, signing, and the OS continuing the location session. Explicitly force-quitting the app can stop background delivery.
