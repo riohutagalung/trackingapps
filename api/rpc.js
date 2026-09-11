@@ -1,4 +1,4 @@
-const GAS_URL='https://script.google.com/macros/s/AKfycbyjlNgxe9du_ro9SxO6oJFpGaxDdPaV3dhcBP-2Zz9ff0HDawllvAw9YTWS2kkm5aXnIA/exec';
+const GAS_URL='https://script.google.com/macros/s/AKfycbyi6yqLiKwjpoy9TclZycH6KOPi0GXlPHc7iHGAA5srKCV6TVWOlSyTr-1V-JOiwlr2MQ/exec';
 function cors(res){res.setHeader('Access-Control-Allow-Origin','*');res.setHeader('Access-Control-Allow-Methods','GET,POST,OPTIONS');res.setHeader('Access-Control-Allow-Headers','Content-Type, Accept');res.setHeader('Vary','Origin');res.setHeader('Cache-Control','no-store, no-cache, must-revalidate, max-age=0');}
 function json(res,status,data){cors(res);res.statusCode=status;res.setHeader('Content-Type','application/json; charset=utf-8');res.end(JSON.stringify(data));}
 async function readBody(req){const chunks=[];for await(const c of req)chunks.push(Buffer.from(c));const text=Buffer.concat(chunks).toString('utf8');if(!text)return {};try{return JSON.parse(text);}catch(e){throw new Error('Invalid JSON body');}}
