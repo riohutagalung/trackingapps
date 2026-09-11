@@ -151,8 +151,8 @@ function doPost(e) {
 
     // Native Android/iOS GPS ingestion. The native plugin POSTs one Location
     // object directly, including while the WebView is backgrounded/locked.
-    if (body && (body.latitude !== undefined || body.longitude !== undefined) && (body.tripId || (e && e.parameter && e.parameter.nativeTrip))) {
-      var nativeTripId = String(body.tripId || e.parameter.nativeTrip || '').trim();
+    if (body && (body.latitude !== undefined || body.longitude !== undefined) && (body.tripId || (e && e.parameter && (e.parameter.nativeTrip || e.parameter.tripId)))) {
+      var nativeTripId = String(body.tripId || e.parameter.nativeTrip || e.parameter.tripId || '').trim();
       return ingestNativeLocation_(nativeTripId, body);
     }
 
@@ -182,6 +182,8 @@ function getRpcMap_() {
     getExpensesSince: getExpensesSince,
     addTrip: addTrip,
     getNativeTripPoints: getNativeTripPoints,
+    getTripGpsPoints: getTripGpsPoints,
+    saveTripPointsBatch: saveTripPointsBatch,
     deleteNativeTripPoints: deleteNativeTripPoints,
     deleteTrip: deleteTrip,
     getTripMapsUrl: getTripMapsUrl,
@@ -555,18 +557,10 @@ function addTrip(data) {
   var startTime = data.startTime || nowISO_();
   var endTime = data.endTime || nowISO_();
   var routeName = data.routeName || generateRouteName_(data.origin, data.destination, data.note);
-  var gpsPoints = Array.isArray(data.gpsPoints) ? compressGpsPoints_(data.gpsPoints) : [];
-  // Native Android/iOS stores background points in TripPoints. Do not send the
-  // whole track back through the WebView/RPC payload when saving the trip.
-  if (!gpsPoints.length && id) {
-    try {
-      var nativeRows = getNativeTripPoints(id);
-      if (Array.isArray(nativeRows) && nativeRows.length) gpsPoints = compressGpsPoints_(nativeRows);
-    } catch (nativeReadErr) {
-      // Keep the trip save usable even if the temporary TripPoints sheet is unavailable.
-    }
-  }
-  var variant = data.routeVariant || makeRouteVariantSignature_(gpsPoints.length ? gpsPoints : data.gpsPoints);
+  var rawGpsPoints = Array.isArray(data.gpsPoints) ? data.gpsPoints : [];
+  if (!rawGpsPoints.length && id) { try { rawGpsPoints = getNativeTripPoints(id); } catch (e) { rawGpsPoints = []; } }
+  var gpsPoints = compressGpsPoints_(rawGpsPoints);
+  var variant = data.routeVariant || makeRouteVariantSignature_(gpsPoints.length ? gpsPoints : rawGpsPoints);
   var fuelGrade = String(data.fuelGrade || '');
   var fuelEff = Number(data.fuelEfficiency || 0);
   var fuelEstL = Number(data.fuelEstimatedL || (fuelEff>0 ? distanceKm/fuelEff : 0));
@@ -736,19 +730,24 @@ function generateRouteName_(origin, destination, note) {
 
 function compressGpsPoints_(points) {
   if (!Array.isArray(points)) return [];
+  var clean = points.map(function(point, index) {
+    var lat = Number(point.lat !== undefined ? point.lat : point.latitude);
+    var lng = Number(point.lng !== undefined ? point.lng : point.longitude);
+    if (!isFinite(lat) || !isFinite(lng)) return null;
+    var rawTs = point.ts !== undefined ? point.ts : (point.time !== undefined ? point.time : point.timestamp);
+    var ts = rawTs ? (typeof rawTs === 'number' ? new Date(rawTs).toISOString() : String(rawTs)) : nowISO_();
+    return {lat:lat,lng:lng,speed:Number(point.speedKmh !== undefined ? point.speedKmh : (point.speed || 0)),ts:ts,index:index};
+  }).filter(function(x){return !!x;});
+  if (!clean.length) return [];
+  var maxPoints = 900;
+  var step = Math.max(1, Math.ceil(clean.length / maxPoints));
   var output = [];
-  points.forEach(function(point, index) {
-    if (index === 0 || index === points.length - 1 || index % 5 === 0) {
-      output.push({
-        lat: Number(point.lat),
-        lng: Number(point.lng),
-        speed: Number(point.speed || 0),
-        ts: point.ts || nowISO_()
-      });
-    }
+  clean.forEach(function(p, i) {
+    if (i === 0 || i === clean.length - 1 || i % step === 0) output.push({lat:p.lat,lng:p.lng,speed:p.speed,ts:p.ts});
   });
   return output;
 }
+
 
 
 function saveReceiptImage_(bytes, mimeType) {
@@ -1840,8 +1839,9 @@ function ingestNativeLocation_(tripId, body) {
 
   var accuracy = Number(body.accuracy); if (!isFinite(accuracy)) accuracy = 0;
   var speed = Number(body.speed); if (!isFinite(speed) || speed < 0) speed = 0;
-  // Native plugin exposes speed in m/s; keep the backend storage/UI in km/h.
-  speed = speed * 3.6;
+  // Native plugin exposes speed in m/s. Accept speedKmh when already converted.
+  if (body.speedKmh !== undefined && isFinite(Number(body.speedKmh))) speed = Number(body.speedKmh);
+  else speed = speed * 3.6;
   var bearing = Number(body.bearing); if (!isFinite(bearing)) bearing = '';
   var altitude = Number(body.altitude); if (!isFinite(altitude)) altitude = '';
   var t = Number(body.time); if (!isFinite(t) || t <= 0) t = Date.now();
@@ -1863,6 +1863,33 @@ function ingestNativeLocation_(tripId, body) {
   }
 
   return jsonOut_({ok:true,result:{tripId:tripId,saved:true,time:t}});
+}
+
+function saveTripPointsBatch(tripId, points) {
+  tripId = String(tripId || '').trim();
+  if (!tripId) throw new Error('TripID kosong.');
+  points = Array.isArray(points) ? points : [];
+  if (!points.length) return {ok:true,saved:0};
+  var sh = nativeTripSheet_();
+  var rows = [];
+  var now = new Date();
+  for (var i=0;i<points.length;i++) {
+    var p = points[i] || {};
+    var lat = Number(p.lat !== undefined ? p.lat : p.latitude);
+    var lng = Number(p.lng !== undefined ? p.lng : p.longitude);
+    if (!isFinite(lat) || !isFinite(lng)) continue;
+    var accuracy = Number(p.accuracy); if (!isFinite(accuracy)) accuracy = 0;
+    var speed = Number(p.speedKmh !== undefined ? p.speedKmh : p.speed); if (!isFinite(speed) || speed < 0) speed = 0;
+    var bearing = Number(p.bearing); if (!isFinite(bearing)) bearing = '';
+    var altitude = Number(p.altitude); if (!isFinite(altitude)) altitude = '';
+    var t = Number(p.time); if (!isFinite(t) || t <= 0) t = Date.now();
+    rows.push([tripId,t,new Date(t).toISOString(),lat,lng,accuracy,speed,bearing,altitude,p.simulated===true,now,String(p.vehicle||'Motor'),String(p.source||'web')]);
+  }
+  if (!rows.length) return {ok:true,saved:0};
+  var lock=LockService.getScriptLock(); lock.waitLock(15000);
+  try { sh.getRange(sh.getLastRow()+1,1,rows.length,NATIVE_TRIP_H.length).setValues(rows); }
+  finally { try{lock.releaseLock();}catch(e){} }
+  return {ok:true,saved:rows.length};
 }
 
 function getNativeTripPoints(tripId) {
@@ -1892,7 +1919,38 @@ function getNativeTripPoints(tripId) {
     });
   }
   out.sort(function(a,b){ return (a.time||0) - (b.time||0); });
-  return out;
+  var seen = {}, unique = [];
+  out.forEach(function(p){
+    var key = String(p.time||0) + '|' + Number(p.latitude).toFixed(6) + '|' + Number(p.longitude).toFixed(6);
+    if (!seen[key]) { seen[key] = true; unique.push(p); }
+  });
+  return unique;
+}
+
+function getTripGpsPoints(tripId) {
+  tripId = String(tripId || '').trim();
+  if (!tripId) return [];
+  var sh = ss_().getSheetByName('Trips');
+  if (!sh || sh.getLastRow() < 2) return [];
+  var values = sh.getDataRange().getValues();
+  var headers = values[0], map = getHeaderMap_(headers);
+  var gpsCol = map['GPSPoints'];
+  var idCol = map['ID'];
+  if (gpsCol === undefined || idCol === undefined) return [];
+  for (var i=1;i<values.length;i++) {
+    if (String(values[i][idCol]) !== tripId) continue;
+    try {
+      var parsed = JSON.parse(values[i][gpsCol] || '[]');
+      if (Array.isArray(parsed)) {
+        return parsed.map(function(p){
+          if (Array.isArray(p)) return {lat:Number(p[0]),lng:Number(p[1]),speedKmh:Number(p[2]||0),time:Number(p[3]||0)};
+          return {lat:Number(p.lat),lng:Number(p.lng),speedKmh:Number(p.speedKmh!==undefined?p.speedKmh:p.speed||0),time:p.time||p.ts||p.timestamp||0};
+        }).filter(function(p){return isFinite(p.lat)&&isFinite(p.lng);});
+      }
+    } catch(e) {}
+    return [];
+  }
+  return [];
 }
 
 function deleteNativeTripPoints(tripId) {

@@ -4,4 +4,6 @@
     <string name="title_activity_main">RH Habits</string>
     <string name="package_name">com.rhhabits.app</string>
     <string name="custom_url_scheme">com.rhhabits.app</string>
+    <string name="capacitor_background_geolocation_notification_channel_name">RH Habits Tracking</string>
+    <string name="capacitor_background_geolocation_notification_icon">ic_launcher</string>
 </resources>

@@ -47,5 +47,19 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>RH Habits menggunakan lokasi saat Trip Tracking aktif untuk menghitung jarak, kecepatan, dan rute perjalanan.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>RH Habits menggunakan lokasi saat Trip Tracking aktif, termasuk ketika layar dikunci, untuk merekam perjalanan.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>RH Habits membutuhkan akses kamera saat mengambil foto struk.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>RH Habits membutuhkan akses foto saat memilih struk dari galeri.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>RH Habits membutuhkan izin tambahan foto untuk Camera API.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
 </dict>
 </plist>

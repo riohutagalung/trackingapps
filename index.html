@@ -281,6 +281,7 @@ button { cursor: pointer; border: none; background: none; }
 .eta strong { font-family: 'Space Grotesk'; font-size: 20px; color: var(--green); }
 .eta span { display: block; font-size: 9px; color: var(--dim); margin-top: 1px; font-weight: 700; }
 
+.btn > svg { flex:0 0 auto; display:block; width:1em; height:1em; }
 .btn {
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.05);
@@ -402,6 +403,15 @@ button { cursor: pointer; border: none; background: none; }
 }
 .input:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(46, 204, 113, 0.15); }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.field, .form-grid > .field { min-width:0; width:100%; }
+.input { width:100%; max-width:100%; min-width:0; display:block; }
+input[type="date"].input { width:100%; min-width:0; max-width:100%; overflow:hidden; }
+@media (max-width:900px), (pointer:coarse) and (max-width:1024px) {
+  .form-grid { min-width:0; }
+  .form-grid > * { min-width:0; }
+  input[type="date"].input { padding-left:12px; padding-right:12px; }
+}
+
 
 .drop {
   padding: 28px 16px;
@@ -515,7 +525,7 @@ button { cursor: pointer; border: none; background: none; }
 
 
 .item-main { min-width: 0; flex: 1; }
-.item-actions { display:flex; align-items:center; gap:8px; }
+.item-actions { display:flex; align-items:center; gap:8px; min-width:0; flex-wrap:wrap; justify-content:flex-end; }
 .cat-icon { width:30px; height:30px; border-radius:10px; display:grid; place-items:center; flex:0 0 30px; margin-right:10px; background:rgba(255,255,255,.05); font-size:15px; }
 .item-row { display:flex; align-items:center; min-width:0; flex:1; }
 .item-row .item-text { min-width:0; }
@@ -603,7 +613,7 @@ body.device-mobile .card:hover { border-color:var(--line); }
 .mobile-refresh-btn { border:1px solid var(--line); background:rgba(255,255,255,.05); color:var(--text); width:34px; height:34px; border-radius:12px; font-size:18px; display:grid; place-items:center; }
 .mobile-device-badge { display:none; }
 .modal-close-x { position:absolute; top:14px; right:14px; width:34px; height:34px; border-radius:11px; border:1px solid var(--line); background:rgba(255,255,255,.05); color:var(--muted); }
-.item { min-width:0; }
+.item { min-width:0; width:100%; }
 .item-text { overflow:hidden; }
 .item-title { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .item-sub { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -770,6 +780,7 @@ body.device-android .mobile-header { padding-top:12px; }
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
+<script>if(!window.L){document.write('<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"><\/script>');}</script>
 </head>
 <body>
 <div id="rh-splash" aria-hidden="true">
@@ -1155,7 +1166,7 @@ body.device-android .mobile-header { padding-top:12px; }
 <script src="rh-native-gps.js"></script>
 <script src="rh-native-media.js"></script>
 <script>
-const Icon=(name,size=16)=>{const i={fuel:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 21V4a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v17M5 21h14M9 6h6M17 7h2l2 2v7.5a2.5 2.5 0 0 1-5 0V14h3"/></svg>`,map:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l-6 3V6l6-3 6 3 6-3v15l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/></svg>`,route:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h3c4 0 2-9 6-9h1"/></svg>`,trash:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>`,clock:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>`,navigation:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3 10.7 13.3"/><path d="m21 3-6.6 17-3.7-6.7L4 9.6 21 3Z"/></svg>`,stop:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>`,sun:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>`,rain:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16h10a4 4 0 0 0 .5-7.97A6 6 0 0 0 6.2 6.2 4.5 4.5 0 0 0 7 16z"/><path d="M9 19l-1 2M13 19l-1 2M17 19l-1 2"/></svg>`,receipt:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z"/><path d="M9 7h6M9 11h6M9 15h4"/></svg>`};return i[name]||i.route};
+const Icon=(name,size=16)=>{const i={fuel:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 21V4a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v17M5 21h14M9 6h6M17 7h2l2 2v7.5a2.5 2.5 0 0 1-5 0V14h3"/></svg>`,map:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l-6 3V6l6-3 6 3 6-3v15l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/></svg>`,route:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h3c4 0 2-9 6-9h1"/></svg>`,trash:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>`,clock:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>`,navigation:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3 10.7 13.3"/><path d="m21 3-6.6 17-3.7-6.7L4 9.6 21 3Z"/></svg>`,stop:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>`,play:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="currentColor"><path d="M8 5.5a1 1 0 0 1 1.55-.83l9.1 6.5a1 1 0 0 1 0 1.66l-9.1 6.5A1 1 0 0 1 8 18.5z"/></svg>`,sun:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>`,rain:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16h10a4 4 0 0 0 .5-7.97A6 6 0 0 0 6.2 6.2 4.5 4.5 0 0 0 7 16z"/><path d="M9 19l-1 2M13 19l-1 2M17 19l-1 2"/></svg>`,receipt:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z"/><path d="M9 7h6M9 11h6M9 15h4"/></svg>`};return i[name]||i.route};
 
 const App = {
   data: null,
@@ -1176,11 +1187,11 @@ const App = {
     this.restoreDraft();
     this.refresh();
     this.checkTimeBasedSuggest();
-    setTimeout(() => Weather.refresh(false), 900);
+    setTimeout(() => { try { Weather.refresh(false); } catch(e) { console.warn('[RH] weather:', e); } }, 1600);
     window.addEventListener('resize', () => this.detectDevice(), {passive:true});
-    setTimeout(() => this.hideSplash(), 3500);
+    setTimeout(() => this.hideSplash(), 1400);
   },
-  hideSplash() { const el=document.getElementById('rh-splash'); if(el) el.classList.add('hide'); },
+  hideSplash() { const el=document.getElementById('rh-splash'); if(el) el.classList.add('hide'); try { const Splash=window.Capacitor?.Plugins?.SplashScreen; if(Splash?.hide) Splash.hide(); } catch(e){} },
   setConnection(state, text) { const el=document.getElementById('mobile-connection'), tx=document.getElementById('mobile-status-text'); if(!el)return; el.classList.remove('connected','error'); if(state==='connected')el.classList.add('connected'); else if(state==='error')el.classList.add('error'); if(tx)tx.textContent=text||'Connected'; },
   detectDevice() {
     const w = window.innerWidth || document.documentElement.clientWidth || 9999;
@@ -1228,7 +1239,10 @@ const App = {
       this.config = r && r.config ? r.config : (this.config || {});
       this.setConnection('connected', 'Connected');
       if (status) status.textContent = 'Connected';
-      this.render();
+      try { this.render(); } catch (renderErr) {
+        console.error('[RH] render error:', renderErr);
+        this.toast('Data terhubung, tetapi ada error pada tampilan.');
+      }
       this.hideSplash();
     }).withFailureHandler(e => {
       clearTimeout(timeout);
@@ -1255,7 +1269,7 @@ const App = {
     const wf=d.weekFuel||{}; const wfEl=document.getElementById('week-fuel-summary'); if(wfEl) wfEl.innerHTML=`<div class="route-row"><div><div class="route-name">${Icon('fuel',15)} BBM 7 hari</div><div class="route-sub">${wf.transactionCount||0} transaksi • ${Num(wf.liters||0,2)} L • ${Num(wf.distanceKm||0,1)} km</div></div><div class="eta"><strong>${Money(wf.amount||0)}</strong><span>${wf.avgKmL?Num(wf.avgKmL,1)+' km/L':'Belum cukup data'}</span></div></div>`;
     const habits = d.habits || [];
     document.getElementById('route-habits').innerHTML = habits.length ? habits.slice(0, 4).map(h => `<div class="habit"><b>${Esc(h.routeName)}</b><span>${h.freq}x perjalanan • rata-rata ${Num(h.avgDur)} menit • ${Num(h.avgDistance, 1)} km</span></div>`).join('') : '<div class="empty">Belum ada route habit. Mulai perjalanan GPS untuk membangun kebiasaan.</div>';
-    document.getElementById('system-info').innerHTML = `Sheets: <b>terhubung</b><br>GPS: <b>${GPS.isNative() ? 'native mobile' : 'browser device'}</b><br>OCR: <b>Google Drive + arsip struk</b><br>Traffic Google: <b>${this.config.trafficConfigured ? 'aktif' : 'belum dikonfigurasi'}</b><br>Device: <b>${document.body.classList.contains('device-ios') ? 'iOS' : document.body.classList.contains('device-android') ? 'Android' : 'Desktop/Tablet'}</b>`;
+    document.getElementById('system-info').innerHTML = `Sheets: <b>terhubung</b><br>RPC: <b>${window.RHBridge?.endpoint ? 'aktif' : 'bridge tidak ditemukan'}</b><br>GPS: <b>${GPS.isNative() ? 'native mobile' : 'browser device'}</b><br>OCR: <b>Google Drive + arsip struk</b><br>Traffic Google: <b>${this.config.trafficConfigured ? 'aktif' : 'belum dikonfigurasi'}</b><br>Device: <b>${document.body.classList.contains('device-ios') ? 'iOS' : document.body.classList.contains('device-android') ? 'Android' : 'Desktop/Tablet'}</b>`;
     if (this.config.krlFare) document.getElementById('krl-fare').value = this.config.krlFare;
     if (this.config.tjFare) document.getElementById('tj-fare').value = this.config.tjFare;
   },
@@ -1303,7 +1317,7 @@ const App = {
           <div class="trip-sub" style="margin-top:10px">${pts.length?pts.length+' titik GPS • jalur aktual tersimpan':'Jalur GPS tidak tersedia pada trip ini'} • ${Esc(src)}</div>
           <div class="habit" style="margin-top:10px"><b>${Icon('route',15)} ${Esc(habitLabel)}</b><span>${repeat}x endpoint ${Esc(t.origin||'GPS')} → ${Esc(t.destination||'Tujuan')}. Jalur aktual dibandingkan dari titik GPS yang tersimpan.</span></div>
           <div class="trip-actions">
-            <button class="btn small" type="button" onclick="Trip.openMap('${EscAttr(t.id)}')" ${pts.length<2?'disabled':''}>${Icon('map',15)} Lihat jalur GPS</button>
+            <button class="btn small" type="button" onclick="Trip.openMap('${EscAttr(t.id)}')">${Icon('map',15)} Lihat jalur GPS</button>
             <button class="btn small" type="button" onclick="Trip.openGoogleMaps('${EscAttr(t.id)}')">${Icon('route',15)} Google Maps</button>
             <button class="btn small" type="button" onclick="Trip.remove('${EscAttr(t.id)}')">${Icon('trash',15)} Hapus</button>
           </div>
@@ -1312,6 +1326,19 @@ const App = {
     }).join('');
   },
 
+  renderTrend(arr, changePct) {
+    const el = document.getElementById('month-trend'); if (!el) return;
+    const max = Math.max(...arr.map(x => Number(x.total || 0)), 1);
+    el.innerHTML = arr.map(x => `<div class="chart-bar-wrap"><div class="chart-value">${Money(x.total)}</div><div class="chart-bar" style="height:${Math.max(10, (Number(x.total||0)/max)*100)}%"></div><div class="chart-label">${Esc(x.month)}</div></div>`).join('');
+    const ce = document.getElementById('month-change');
+    if (changePct === null || changePct === undefined) ce.textContent = 'Belum ada data bulan pembanding.';
+    else ce.innerHTML = `Bulan ini ${changePct > 0 ? 'naik' : changePct < 0 ? 'turun' : 'sama'} <b>${Math.abs(changePct).toFixed(1)}%</b> dibanding bulan sebelumnya.`;
+  }
+  renderPublicTransport(p) {
+    const el = document.getElementById('public-transport-compare'); if (!el) return;
+    if (!p.commuteTrips) { el.textContent = 'Belum cukup trip commute bulan ini untuk membandingkan estimasi KRL / TransJakarta.'; return; }
+    el.innerHTML = `Untuk sekitar <b>${p.commuteTrips} trip commute</b>: KRL ≈ <b>${Money(p.krlMonthly)}</b>, TransJakarta ≈ <b>${Money(p.tjMonthly)}</b>. Tarif pembanding bisa diubah di Pengaturan.`;
+  }
   renderFuelPrediction(fuel) {
     const el = document.getElementById('fuel-prediction'); if (!el) return;
     const vehicles = fuel && fuel.vehicles ? Object.values(fuel.vehicles) : [];
@@ -1347,7 +1374,7 @@ const App = {
   quickFuel() { this.closeQuickMenu(); this.switchView('expenses'); const cat=document.getElementById('exp-category'); if(cat){cat.value='Bensin'; cat.dispatchEvent(new Event('change'));} setTimeout(()=>document.getElementById('exp-liters')?.focus(),80); },
   quickTrip() { this.closeQuickMenu(); this.switchView('commute'); setTimeout(()=>GPS.startTracking(),80); },
   toast(msg) { const e=document.getElementById('toast'); e.textContent=msg; e.classList.add('show'); clearTimeout(this._t); this._t=setTimeout(()=>e.classList.remove('show'),3000); },
-  error(e) { console.error(e); document.getElementById('status-text').textContent='Error koneksi'; this.toast((e&&e.message)||String(e)); },
+  error(e) { console.error(e); this.toast((e&&e.message)||String(e)); },
   checkTimeBasedSuggest() {
     const now=new Date(); const hour = now.getHours(); const today = TodayLocal();
     if (hour >= 7 && hour < 10 && !sessionStorage.getItem('suggest_morning_'+today)) { sessionStorage.setItem('suggest_morning_'+today,'true'); setTimeout(()=>{ App.toast('Waktu berangkat — memeriksa rute ke Kantor...'); Traffic.check('home-office'); },1500); }
@@ -1410,16 +1437,20 @@ const Traffic = {
 
 const GPS = {
   active:false,watch:null,timer:null,start:null,end:null,points:[],pending:null,wakeLock:null,
-  storageKey:'rh_active_trip_v3',lastPersist:0,resumeBound:false,sessionId:null,nativeMode:false,nativeReady:false,
+  storageKey:'rh_active_trip_v4',lastPersist:0,resumeBound:false,sessionId:null,nativeMode:false,nativeReady:false,
+  stopping:false, lastNativeCount:-1,
   zones:[{name:'Bintaro',lat:-6.273,lng:106.742,r:4.0},{name:'Ciputat',lat:-6.310,lng:106.765,r:4.0}],
   toggle(){this.active?this.stop():this.startTracking();},
   isNative(){return !!(window.RHNativeGPS&&window.RHNativeGPS.isNative&&window.RHNativeGPS.isNative());},
   init(){
     if(this.resumeBound)return;
     this.resumeBound=true;
-    window.addEventListener('rh-native-location',e=>{if(this.active&&e&&e.detail)this.position(e.detail,true);});
+    window.addEventListener('rh-native-location',e=>{if((this.active||this.stopping)&&e&&e.detail)this.position(e.detail,true);});
     window.addEventListener('visibilitychange',()=>{
-      if(document.visibilityState==='visible'&&this.active){this.requestWakeLock();this.ensureWatch();this.refreshNativePoints();}
+      if(document.visibilityState==='visible'){
+        if(this.active){this.requestWakeLock(); this.ensureWatch();}
+        if(this.nativeMode&&this.sessionId)this.refreshNativePoints(this.sessionId);
+      }
     });
     window.addEventListener('pagehide',()=>this.persist());
     window.addEventListener('beforeunload',()=>this.persist());
@@ -1431,14 +1462,14 @@ const GPS = {
       const x=JSON.parse(raw);
       if(!x||!x.active||!x.start||!Array.isArray(x.points))return;
       if(Date.now()-Number(x.start)>12*3600000){localStorage.removeItem(this.storageKey);return;}
-      this.active=true;this.start=Number(x.start);this.sessionId=x.sessionId||('trip_'+Date.now());this.points=x.points;
+      this.active=true;this.start=Number(x.start);this.sessionId=x.sessionId||('trip_'+Date.now());this.points=this.dedupePoints(x.points);
       this.nativeMode=this.isNative();this.updateButton(true);
-      if(this.nativeMode&&window.RHNativeGPS) await window.RHNativeGPS.start(this.sessionId);
+      if(this.nativeMode&&window.RHNativeGPS){ await window.RHNativeGPS.start(this.sessionId); }
       else this.ensureWatch();
       this.timer=setInterval(()=>this.renderLive(),1000);this.requestWakeLock();this.renderLive();
-      if(this.nativeMode)this.refreshNativePoints();
+      if(this.nativeMode)this.refreshNativePoints(this.sessionId);
       App.toast('Perjalanan GPS yang belum selesai dipulihkan dari HP.');
-    }catch(e){try{localStorage.removeItem(this.storageKey);}catch(_){}}
+    }catch(e){try{localStorage.removeItem(this.storageKey);}catch(_){} }
   },
   persist(){
     try{localStorage.setItem(this.storageKey,JSON.stringify({active:this.active,start:this.start,sessionId:this.sessionId,points:this.points.slice(-2500),savedAt:Date.now()}));this.lastPersist=Date.now();}catch(e){}
@@ -1447,97 +1478,210 @@ const GPS = {
   async requestWakeLock(){try{if('wakeLock' in navigator&&document.visibilityState==='visible'&&!this.wakeLock){this.wakeLock=await navigator.wakeLock.request('screen');this.wakeLock.addEventListener('release',()=>{this.wakeLock=null;});}}catch(e){}},
   ensureWatch(){
     if(this.nativeMode||!navigator.geolocation||!this.active||this.watch!==null)return;
-    this.watch=navigator.geolocation.watchPosition(p=>this.position(p,false),e=>this.gpsError(e),{enableHighAccuracy:true,timeout:15000,maximumAge:1000});
-    navigator.geolocation.getCurrentPosition(p=>this.position(p,false),()=>{},{enableHighAccuracy:true,timeout:10000,maximumAge:0});
+    this.watch=navigator.geolocation.watchPosition(p=>this.position(p,false),e=>this.gpsError(e),{enableHighAccuracy:true,timeout:20000,maximumAge:0});
+    navigator.geolocation.getCurrentPosition(p=>this.position(p,false),e=>this.gpsError(e),{enableHighAccuracy:true,timeout:15000,maximumAge:0});
   },
-  updateButton(on){const btn=document.getElementById('gps-toggle');if(!btn)return;btn.innerHTML=on?`${Icon('stop',16)} Berhenti &amp; Catat`:`${Icon('navigation',16)} Mulai Jalan`;btn.className=on?'btn red full':'btn primary full';document.getElementById('gps-floating')?.classList.toggle('show',on);},
+  updateButton(on){
+    const btn=document.getElementById('gps-toggle');if(!btn)return;
+    btn.innerHTML=on?`${Icon('stop',16)} Berhenti &amp; Catat`:`${Icon('play',16)} Mulai Jalan`;
+    btn.className=on?'btn red full':'btn primary full';
+    btn.setAttribute('aria-label',on?'Berhenti dan catat perjalanan':'Mulai jalan');
+    document.getElementById('gps-floating')?.classList.toggle('show',on);
+  },
   async startTracking(){
-    if(!window.isSecureContext){App.toast('GPS membutuhkan Web App HTTPS.');return;}
-    if(this.active)return;
+    if(!window.isSecureContext&&!this.isNative()){App.toast('GPS membutuhkan Web App HTTPS.');return;}
+    if(this.active||this.stopping)return;
     this.nativeMode=this.isNative();
-    if(this.nativeMode&&window.RHNativeGPS&&!window.RHNativeGPS.hasDisclosure()){ 
+    if(this.nativeMode&&window.RHNativeGPS&&!window.RHNativeGPS.hasDisclosure()){
       const ok=window.confirm('RH Habits akan menggunakan lokasi saat Trip Tracking aktif, termasuk ketika layar HP dikunci, untuk merekam jarak, kecepatan, titik rute, dan analisis perjalanan. Data lokasi dipakai untuk fitur perjalanan RH Habits. Lanjutkan?');
       if(!ok)return;
       window.RHNativeGPS.markDisclosure();
     }
     if(!this.nativeMode&&!navigator.geolocation){App.toast('Browser tidak mendukung GPS.');return;}
-    this.active=true;this.start=Date.now();this.end=null;this.points=[];this.pending=null;this.sessionId='trip_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);this.updateButton(true);
+    this.active=true;this.stopping=false;this.start=Date.now();this.end=null;this.points=[];this.pending=null;this.sessionId='trip_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);this.lastNativeCount=-1;this.updateButton(true);this.persist();
     try{
-      if(this.nativeMode&&window.RHNativeGPS)await window.RHNativeGPS.start(this.sessionId);else this.ensureWatch();
-    }catch(e){this.active=false;this.updateButton(false);App.error(e);return;}
-    this.timer=setInterval(()=>this.renderLive(),1000);this.requestWakeLock();this.persist();
+      if(this.nativeMode&&window.RHNativeGPS){
+        await window.RHNativeGPS.start(this.sessionId);
+      } else {
+        this.ensureWatch();
+      }
+    }catch(e){this.active=false;this.clearPersist();this.updateButton(false);App.error(e);return;}
+    this.timer=setInterval(()=>this.renderLive(),1000);this.requestWakeLock();
     App.toast(this.nativeMode?'GPS native aktif. Layar boleh dikunci saat berkendara.':'GPS tracking aktif. Biarkan halaman tetap terbuka saat berkendara.');
   },
-  gpsError(e){console.warn(e);if(e&&e.code===1)App.toast('Izin lokasi ditolak.');else App.toast('GPS belum mendapatkan posisi. Tetap aktif, mencoba lagi.');},
+  gpsError(e){console.warn('[RHGPS]',e);if(e&&e.code===1)App.toast('Izin lokasi ditolak.');else App.toast('GPS belum mendapatkan posisi. Tetap aktif, mencoba lagi.');},
   position(pos,isNative){
-    if(!this.active||!pos)return;
-    const rawLat=isNative?pos.latitude:pos.coords?.latitude, rawLng=isNative?pos.longitude:pos.coords?.longitude;
+    if((!this.active&&!this.stopping)||!pos)return;
+    const rawLat=isNative?(pos.latitude!==undefined?pos.latitude:pos.coords?.latitude):pos.coords?.latitude;
+    const rawLng=isNative?(pos.longitude!==undefined?pos.longitude:pos.coords?.longitude):pos.coords?.longitude;
     const lat=Number(rawLat),lng=Number(rawLng);if(!isFinite(lat)||!isFinite(lng))return;
-    const accuracy=Number(isNative?pos.accuracy:(pos.coords?.accuracy||0));if(accuracy>120)return;
-    let speed=Number(isNative&&pos.speedKmh!==undefined?pos.speedKmh:(isNative?pos.speed:(pos.coords?.speed)));
-    if(isFinite(speed)&&speed>=0){ if(!(isNative&&pos.speedKmh!==undefined)) speed*=3.6; } else speed=0;
-    let bearing=Number(isNative?pos.bearing:pos.coords?.heading); if(!isFinite(bearing))bearing=null;
-    let altitude=Number(isNative?pos.altitude:pos.coords?.altitude); if(!isFinite(altitude))altitude=null;
-    const ts=Number(isNative?pos.time:pos.timestamp)||Date.now();
-    const point={lat,lng,speed,accuracy,time:ts,bearing,altitude,source:isNative?'native':'browser',simulated:!!(isNative&&pos.simulated)};
+    const accuracy=Number(isNative?(pos.accuracy??pos.coords?.accuracy):(pos.coords?.accuracy||0));if(isFinite(accuracy)&&accuracy>100)return;
+
+    // Native + Web Geolocation expose speed in m/s. Convert exactly once to km/h.
+    let rawSpeed = Number(isNative ? (pos.speed ?? pos.coords?.speed) : pos.coords?.speed);
+    let speedKmh = (isFinite(rawSpeed) && rawSpeed >= 0) ? rawSpeed * 3.6 : 0;
+
+    const bearingRaw=isNative?(pos.bearing??pos.coords?.heading):pos.coords?.heading;
+    const bearing=Number(bearingRaw);
+    const altitudeRaw=isNative?(pos.altitude??pos.coords?.altitude):pos.coords?.altitude;
+    const altitude=Number(altitudeRaw);
+    const tsRaw=isNative?(pos.time??pos.timestamp):(pos.timestamp??pos.time);
+    const ts=Number(tsRaw)||Date.now();
+    const point={lat,lng,speed:speedKmh,speedKmh:speedKmh,accuracy:isFinite(accuracy)?accuracy:0,time:ts,bearing:isFinite(bearing)?bearing:null,altitude:isFinite(altitude)?altitude:null,source:isNative?'native':'browser',simulated:!!(isNative&&pos.simulated)};
     const prev=this.points[this.points.length-1];
     if(prev){
-      const gap=Haversine(prev.lat,prev.lng,lat,lng),dt=Math.max(.1,(ts-prev.time)/1000);
-      if(gap<.0025&&dt<2)return;
+      const gap=Haversine(prev.lat,prev.lng,lat,lng);
+      const dt=Math.max(.2,(ts-prev.time)/1000);
+      if(gap<.003&&dt<1.5)return;
       if(gap>2&&dt<20)return;
-      if(!speed&&dt>0&&gap>.005)point.speed=Math.min(180,gap/dt*3600);
-      if(speed&&prev.speed){point.speed=prev.speed*.35+point.speed*.65;}
+      // When the OS provider gives null/zero speed, calculate a segment speed from
+      // actual GPS movement. This is fallback only; valid provider speed wins.
+      if(!(speedKmh>0)&&gap>.003&&dt<=180){
+        speedKmh=Math.min(220,Math.max(0,gap/dt*3600));
+        point.speedKmh=speedKmh; point.speed=speedKmh;
+      }
     }
     this.points.push(point);
-    if(this.points.length%3===0||Date.now()-this.lastPersist>5000)this.persist();
+    if(this.points.length%5===0||Date.now()-this.lastPersist>5000)this.persist();
     this.renderLive();
   },
-  async refreshNativePoints(){
-    if(!this.active||!this.nativeMode||!this.sessionId||!window.google?.script?.run)return;
+  async refreshNativePoints(sessionIdOverride){
+    const sid=String(sessionIdOverride||this.sessionId||'').trim();
+    if(!this.nativeMode||!sid||!window.google?.script?.run)return [];
     return new Promise(resolve=>{
-      google.script.run.withSuccessHandler(rows=>{try{(rows||[]).forEach(r=>this.position(r,true));}catch(e){}resolve();}).withFailureHandler(()=>resolve()).getNativeTripPoints(this.sessionId);
+      google.script.run.withSuccessHandler(rows=>{
+        try{
+          const valid=this.dedupePoints(Array.isArray(rows)?rows:[]);
+          this.lastNativeCount=valid.length;
+          // Pull server-only points into the live UI even when WebView missed callbacks.
+          const merged=this.dedupePoints(this.points.concat(valid));
+          this.points=merged;
+          this.renderLive();
+          this.persist();
+          resolve(valid);
+        }catch(e){resolve([]);}
+      }).withFailureHandler(()=>resolve([])).getNativeTripPoints(sid);
     });
   },
+  async waitForNativeFlush(sid, timeoutMs=8000){
+    const started=Date.now();let stable=0;let lastCount=-1;let best=[];
+    while(Date.now()-started<timeoutMs){
+      const rows=await this.refreshNativePoints(sid);
+      const count=rows.length;
+      if(count>0)best=rows;
+      if(count===lastCount)stable++; else stable=0;
+      lastCount=count;
+      if(count>=2&&stable>=2)break;
+      await new Promise(r=>setTimeout(r,650));
+    }
+    return best;
+  },
   async stop(){
-    if(!this.active)return;
-    this.active=false;this.end=Date.now();
+    if(!this.active||this.stopping)return;
+    const sid=this.sessionId;
+    const wasNative=this.nativeMode;
+    this.stopping=true;
+    this.end=Date.now();
     if(this.watch!==null){navigator.geolocation.clearWatch(this.watch);this.watch=null;}
-    if(this.nativeMode&&window.RHNativeGPS){try{await window.RHNativeGPS.stop();}catch(e){}}
     clearInterval(this.timer);this.timer=null;
-    if(this.wakeLock){this.wakeLock.release().catch(()=>{});this.wakeLock=null;}
-    if(this.nativeMode)await new Promise(r=>setTimeout(r,500));
-    if(this.nativeMode)await this.refreshNativePoints();
+    if(this.wakeLock){try{await this.wakeLock.release();}catch(e){}this.wakeLock=null;}
+
+    if(wasNative&&window.RHNativeGPS){try{await window.RHNativeGPS.stop();}catch(e){console.warn('[RHGPS] native stop',e);} }
+    if(wasNative){
+      // Do NOT set active=false before fetching; refreshNativePoints intentionally
+      // works while stopping so iOS can flush the last native location(s).
+      await this.waitForNativeFlush(sid,8000);
+    }
+
     this.points=this.dedupePoints(this.points);
+    this.active=false;
     this.updateButton(false);
+
     const stats=this.stats(this.end);
-    if(stats.distance<.05||stats.durationMin<1||this.points.length<2){this.reset();App.toast('Perjalanan terlalu singkat untuk disimpan.');return;}
+    if(stats.distance<.05||stats.durationMin<1||this.points.length<2){
+      this.stopping=false;this.reset();App.toast('Perjalanan terlalu singkat untuk disimpan.');return;
+    }
     const route=this.detectRoute();
-    this.pending={...stats,...route,startTime:new Date(this.start).toISOString(),endTime:new Date(this.end).toISOString(),date:new Date(this.start).toISOString().slice(0,10),gpsPoints:this.points.slice(),id:this.sessionId};
+    this.pending={...stats,...route,startTime:new Date(this.start).toISOString(),endTime:new Date(this.end).toISOString(),date:new Date(this.start).toISOString().slice(0,10),gpsPoints:this.points.slice(),id:sid};
     document.getElementById('modal-distance').textContent=Num(stats.distance,2)+' km';
     document.getElementById('modal-duration').textContent=Num(stats.durationMin,1)+' mnt';
     document.getElementById('modal-avg').textContent=Num(stats.avgSpeed,1)+' km/h';
     document.getElementById('modal-max').textContent=Num(stats.maxSpeed,1)+' km/h';
     document.getElementById('trip-modal-sub').textContent=route.routeName;
     document.getElementById('modal-habit').innerHTML=`<b>${Icon('route',15)} Habit &amp; route detection</b><span>${Esc(route.note)} • ${this.points.length} titik GPS tersimpan</span>`;
-    document.getElementById('trip-modal').classList.add('active');this.persist();
+    document.getElementById('trip-modal').classList.add('active');
+    this.stopping=false;
+    this.persist();
   },
-  dedupePoints(arr){const seen=new Set(),out=[];(arr||[]).sort((a,b)=>(Number(a.time)||0)-(Number(b.time)||0)).forEach(p=>{const k=[Number(p.time)||0,Number(p.lat).toFixed(6),Number(p.lng).toFixed(6)].join('|');if(!seen.has(k)){seen.add(k);out.push(p);}});return out;},
-  confirmSave(){
+  dedupePoints(arr){
+    const seen=new Set(),out=[];
+    (arr||[]).slice().sort((a,b)=>(Number(a.time)||0)-(Number(b.time)||0)).forEach(p=>{
+      const lat=Number(p.lat!==undefined?p.lat:p.latitude),lng=Number(p.lng!==undefined?p.lng:p.longitude),time=Number(p.time||p.timestamp||0);
+      if(!isFinite(lat)||!isFinite(lng))return;
+      const k=[time,lat.toFixed(6),lng.toFixed(6)].join('|');
+      if(!seen.has(k)){seen.add(k);out.push({...p,lat,lng,time,speed:Number(p.speedKmh!==undefined?p.speedKmh:(p.speed||0))});}
+    });
+    return out;
+  },
+  async confirmSave(){
     if(!this.pending)return;
-    const p=this.pending,btn=document.querySelector('#trip-modal .btn.primary');if(btn)btn.disabled=true;
-    const webPoints = Array.isArray(p.gpsPoints) ? p.gpsPoints.filter((_,i,a)=> i===0 || i===a.length-1 || i%3===0).slice(0,700) : [];
-    const payload={id:p.id,date:p.date,origin:p.origin,destination:p.destination,routeName:p.routeName,distanceKm:p.distance,durationMin:p.durationMin,avgSpeed:p.avgSpeed,maxSpeed:p.maxSpeed,note:p.note,source:GPS.isNative()?'gps-native':'gps-browser',vehicle:document.getElementById('trip-vehicle')?.value||'Motor',startTime:p.startTime,endTime:p.endTime,gpsPoints:GPS.isNative()?[]:webPoints};
-    google.script.run.withSuccessHandler(()=>{
-      const sid=p.id;
+    const p=this.pending, sid=p.id, btn=document.querySelector('#trip-modal .btn.primary');if(btn)btn.disabled=true;
+    const allPoints=this.dedupePoints(p.gpsPoints||[]);
+    const payload={id:sid,date:p.date,origin:p.origin,destination:p.destination,routeName:p.routeName,distanceKm:p.distance,durationMin:p.durationMin,avgSpeed:p.avgSpeed,maxSpeed:p.maxSpeed,movingTimeMin:p.movingTimeMin,stopTimeMin:p.stopTimeMin,stopCount:p.stopCount,routeVariant:p.routeVariant,note:p.note,source:GPS.nativeMode?'gps-native':'gps-browser',vehicle:document.getElementById('trip-vehicle')?.value||'Motor',startTime:p.startTime,endTime:p.endTime,gpsPoints:allPoints.slice(0,900)};
+
+    const fail=(e)=>{if(btn)btn.disabled=false;App.error(e);};
+    const save=()=>google.script.run.withSuccessHandler(()=>{
       google.script.run.withSuccessHandler(()=>{}).withFailureHandler(()=>{}).deleteNativeTripPoints(sid);
       if(btn)btn.disabled=false;App.closeModal('trip-modal');this.reset();App.toast('Perjalanan + jalur GPS tersimpan ke Google Sheets.');App.refresh(true);
-    }).withFailureHandler(e=>{if(btn)btn.disabled=false;App.error(e);}).addTrip(payload);
+    }).withFailureHandler(fail).addTrip(payload);
+
+    // Upload the client-side points too. This is a redundancy for native/iOS where
+    // a final native POST may still be in-flight when the user taps Save.
+    if(allPoints.length){
+      google.script.run.withSuccessHandler(()=>save()).withFailureHandler(fail).saveTripPointsBatch(sid,allPoints);
+    } else {
+      save();
+    }
   },
   cancelSave(){App.closeModal('trip-modal');this.reset();App.toast('Perjalanan dibatalkan.');},
-  stats(endMs){let distance=0;for(let i=1;i<this.points.length;i++)distance+=Haversine(this.points[i-1].lat,this.points[i-1].lng,this.points[i].lat,this.points[i].lng);const end=endMs||Date.now(),durationMin=this.start?Math.max(0,(end-this.start)/60000):0,valid=this.points.map(p=>Number(p.speed)).filter(s=>isFinite(s)&&s>=0),avgByDistance=durationMin>0?distance/(durationMin/60):0,avgSpeed=avgByDistance>0?avgByDistance:(valid.reduce((a,b)=>a+b,0)/(valid.length||1)),maxSpeed=Math.max(0,...valid);return{distance,durationMin,avgSpeed,maxSpeed};},
-  detectRoute(){if(!this.points.length||!App.config)return{origin:'GPS Track',destination:'Tujuan',routeName:'Perjalanan GPS',note:'Belum ada titik GPS.'};const first=this.points[0],last=this.points[this.points.length-1],hs=Haversine(first.lat,first.lng,App.config.home.lat,App.config.home.lng),os=Haversine(first.lat,first.lng,App.config.office.lat,App.config.office.lng),he=Haversine(last.lat,last.lng,App.config.home.lat,App.config.home.lng),oe=Haversine(last.lat,last.lng,App.config.office.lat,App.config.office.lng);let origin=hs<os?App.config.home.name:App.config.office.name,destination=he<oe?App.config.home.name:App.config.office.name;if(Math.min(hs,os)>4)origin='GPS Track';if(Math.min(he,oe)>4)destination='GPS Track';const hits=this.zones.filter(z=>this.points.some(p=>Haversine(p.lat,p.lng,z.lat,z.lng)<=z.r)).map(z=>z.name),via=hits.length?' via '+hits.join(' & '):'',routeName=(origin==='GPS Track'||destination==='GPS Track')?'Perjalanan GPS':origin+' → '+destination+via,note=hits.length?'Jalur terdeteksi melalui area '+hits.join(', ')+'.':'Rute tersimpan dari titik GPS awal sampai akhir.';return{origin,destination,routeName,note};},
-  renderLive(){const s=this.stats(),route=this.points.length?this.detectRoute():{routeName:'GPS STANDBY',note:'Menunggu titik GPS...'},last=this.points[this.points.length-1];document.getElementById('gps-speed').textContent=Num(last?.speed||0,1);document.getElementById('gps-distance').textContent=Num(s.distance,2);document.getElementById('gps-time').textContent=TimeFmt(s.durationMin*60);document.getElementById('gps-avg').textContent=Num(s.avgSpeed,1);document.getElementById('gps-route').textContent=route.routeName;document.getElementById('live-route-preview').innerHTML=`<b>${Esc(route.routeName)}</b><span>${Esc(route.note)} • ${this.points.length} titik GPS</span>`;document.getElementById('float-route').textContent=route.routeName;document.getElementById('float-speed').textContent=Num(last?.speed||0,1);document.getElementById('float-distance').textContent=Num(s.distance,2)+' km';document.getElementById('float-time').textContent=TimeFmt(s.durationMin*60);document.getElementById('float-avg').textContent=Num(s.avgSpeed,1)+' km/h';},
-  reset(){this.active=false;this.points=[];this.start=null;this.end=null;this.pending=null;this.sessionId=null;this.nativeMode=false;this.clearPersist();if(this.watch!==null){navigator.geolocation.clearWatch(this.watch);this.watch=null;}clearInterval(this.timer);this.timer=null;this.updateButton(false);['gps-speed','gps-distance','gps-avg'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=id==='gps-distance'?'0.00':'0';});const tm=document.getElementById('gps-time');if(tm)tm.textContent='00:00';const rt=document.getElementById('gps-route');if(rt)rt.textContent='GPS STANDBY';document.getElementById('gps-floating')?.classList.remove('show');}
+  stats(endMs){
+    let distance=0,movingMs=0,stopCount=0,stopStart=null,lastMoveTime=null;
+    for(let i=1;i<this.points.length;i++){
+      const a=this.points[i-1],b=this.points[i];
+      const d=Haversine(a.lat,a.lng,b.lat,b.lng);
+      const dt=Math.max(0,(Number(b.time)||0)-(Number(a.time)||0));
+      if(d>=0&&d<=2.0)distance+=d;
+      const sp=Number(b.speedKmh!==undefined?b.speedKmh:(b.speed||0));
+      const moving=(isFinite(sp)&&sp>=3)||d>=0.004;
+      if(moving){
+        movingMs+=Math.min(dt,120000);
+        if(lastMoveTime!==null&&stopStart!==null && (b.time-stopStart)>=60000)stopCount++;
+        stopStart=null;
+        lastMoveTime=b.time;
+      }else if(dt>0){
+        if(stopStart===null)stopStart=a.time;
+      }
+    }
+    const end=endMs||Date.now();
+    const durationMin=this.start?Math.max(0,(end-this.start)/60000):0;
+    const movingTimeMin=Math.min(durationMin,movingMs/60000);
+    const stopTimeMin=Math.max(0,durationMin-movingTimeMin);
+    const speeds=this.points.map(p=>Number(p.speedKmh!==undefined?p.speedKmh:p.speed)).filter(s=>isFinite(s)&&s>=0);
+    const avgSpeed=movingTimeMin>0?distance/(movingTimeMin/60):(durationMin>0?distance/(durationMin/60):0);
+    const maxSpeed=Math.max(0,...speeds);
+    return{distance,durationMin,movingTimeMin,stopTimeMin,stopCount,avgSpeed,maxSpeed};
+  },
+  detectRoute(){
+    if(!this.points.length||!App.config)return{origin:'GPS Track',destination:'Tujuan',routeName:'Perjalanan GPS',note:'Belum ada titik GPS.'};
+    const first=this.points[0],last=this.points[this.points.length-1],hs=Haversine(first.lat,first.lng,App.config.home.lat,App.config.home.lng),os=Haversine(first.lat,first.lng,App.config.office.lat,App.config.office.lng),he=Haversine(last.lat,last.lng,App.config.home.lat,App.config.home.lng),oe=Haversine(last.lat,last.lng,App.config.office.lat,App.config.office.lng);
+    let origin=hs<os?App.config.home.name:App.config.office.name,destination=he<oe?App.config.home.name:App.config.office.name;if(Math.min(hs,os)>4)origin='GPS Track';if(Math.min(he,oe)>4)destination='GPS Track';
+    const hits=this.zones.filter(z=>this.points.some(p=>Haversine(p.lat,p.lng,z.lat,z.lng)<=z.r)).map(z=>z.name),via=hits.length?' via '+hits.join(' & '):'',routeName=(origin==='GPS Track'||destination==='GPS Track')?'Perjalanan GPS':origin+' → '+destination+via,note=hits.length?'Jalur terdeteksi melalui area '+hits.join(', ')+'.':'Rute tersimpan dari titik GPS awal sampai akhir.';return{origin,destination,routeName,note};
+  },
+  renderLive(){
+    const s=this.stats(),route=this.points.length?this.detectRoute():{routeName:'GPS STANDBY',note:'Menunggu titik GPS...'},last=this.points[this.points.length-1];
+    document.getElementById('gps-speed').textContent=Num(last?.speedKmh!==undefined?last.speedKmh:(last?.speed||0),1);document.getElementById('gps-distance').textContent=Num(s.distance,2);document.getElementById('gps-time').textContent=TimeFmt(s.durationMin*60);document.getElementById('gps-avg').textContent=Num(s.avgSpeed,1);document.getElementById('gps-route').textContent=route.routeName;document.getElementById('live-route-preview').innerHTML=`<b>${Esc(route.routeName)}</b><span>${Esc(route.note)} • ${this.points.length} titik GPS</span>`;document.getElementById('float-route').textContent=route.routeName;document.getElementById('float-speed').textContent=Num(last?.speedKmh!==undefined?last.speedKmh:(last?.speed||0),1);document.getElementById('float-distance').textContent=Num(s.distance,2)+' km';document.getElementById('float-time').textContent=TimeFmt(s.durationMin*60);document.getElementById('float-avg').textContent=Num(s.avgSpeed,1)+' km/h';
+  },
+  reset(){this.active=false;this.stopping=false;this.points=[];this.start=null;this.end=null;this.pending=null;this.sessionId=null;this.nativeMode=false;this.clearPersist();if(this.watch!==null){navigator.geolocation.clearWatch(this.watch);this.watch=null;}clearInterval(this.timer);this.timer=null;this.updateButton(false);['gps-speed','gps-distance','gps-avg'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=id==='gps-distance'?'0.00':'0';});const tm=document.getElementById('gps-time');if(tm)tm.textContent='00:00';const rt=document.getElementById('gps-route');if(rt)rt.textContent='GPS STANDBY';document.getElementById('gps-floating')?.classList.remove('show');}
 };
 
 const OCR = {
@@ -1680,10 +1824,13 @@ const Expense = {
 
 const Trip = {
   _map:null,
-  openMap(id){
+  async openMap(id){
     const t=(App.data.trips||[]).find(x=>String(x.id)===String(id));
     if(!t){App.toast('Data perjalanan tidak ditemukan.');return;}
-    const points=(Array.isArray(t.gpsPoints)?t.gpsPoints:[]).filter(p=>p&&isFinite(Number(p.lat))&&isFinite(Number(p.lng)));
+    let points=this.normalizeMapPoints(Array.isArray(t.gpsPoints)?t.gpsPoints:[]);
+    if(points.length<2 && t.id && window.google?.script?.run){
+      points=await new Promise(resolve=>{google.script.run.withSuccessHandler(r=>resolve(this.normalizeMapPoints(r))).withFailureHandler(()=>resolve([])).getTripGpsPoints(t.id);});
+    }
     if(points.length<2){App.toast('Trip ini belum memiliki cukup titik GPS aktual untuk dibuatkan jalur.');return;}
     const modal=document.getElementById('trip-map-modal');
     const title=document.getElementById('trip-map-title');
@@ -1691,36 +1838,35 @@ const Trip = {
     const note=document.getElementById('trip-map-note');
     if(title)title.textContent=t.routeName||'Jalur GPS Aktual';
     if(sub)sub.textContent=`${t.date||''} • ${t.vehicle||'Motor'} • ${points.length} titik GPS`;
-    if(note)note.textContent='Menampilkan jalur berdasarkan titik GPS yang benar-benar direkam. Google Maps tidak menggambar ulang rute ini.';
+    if(note)note.textContent='Jalur mengikuti titik GPS yang benar-benar tersimpan pada trip ini.';
     modal.classList.add('active');
     setTimeout(()=>this.renderActualMap(points,t),50);
+  },,
+  normalizeMapPoints(arr){
+    return (Array.isArray(arr)?arr:[]).map(p=>{
+      if(Array.isArray(p)) return {lat:Number(p[0]),lng:Number(p[1]),speedKmh:Number(p[2]||0),time:Number(p[3]||0)};
+      return {lat:Number(p?.lat??p?.latitude),lng:Number(p?.lng??p?.longitude),speedKmh:Number(p?.speedKmh??p?.speed??0),time:Number(p?.time??p?.timestamp??0)};
+    }).filter(p=>isFinite(p.lat)&&isFinite(p.lng));
   },
   async renderActualMap(points,t){
-    const el=document.getElementById('trip-map'); if(!el)return;
-    if(this._map){try{this._map.remove();}catch(e){} this._map=null;}
+    const el=document.getElementById('trip-map');if(!el)return;
+    if(this._map){try{this._map.remove();}catch(e){}this._map=null;}
     if(!window.L){
-      el.innerHTML=this.fallbackSvg(points);
+      el.innerHTML=`<div class="empty" style="padding:30px;text-align:center"><b>Peta belum tersedia offline.</b><div style="margin-top:8px">Koordinat GPS tetap tersimpan. Gunakan tombol Google Maps untuk membuka jalur berdasarkan titik awal/akhir.</div><div style="margin-top:14px"><button class="btn small" type="button" onclick="Trip.openGoogleMaps('${EscAttr(t.id)}')">${Icon('route',15)} Buka Google Maps</button></div></div>`;
       return;
     }
-    const latlngs=points.map(p=>[Number(p.lat),Number(p.lng)]);
-    this._map=L.map(el,{zoomControl:true,attributionControl:true});
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(this._map);
-    const line=L.polyline(latlngs,{weight:5,opacity:.9,smoothFactor:.25}).addTo(this._map);
-    L.circleMarker(latlngs[0],{radius:6}).addTo(this._map).bindTooltip('Mulai',{permanent:false});
-    L.circleMarker(latlngs[latlngs.length-1],{radius:6}).addTo(this._map).bindTooltip('Selesai',{permanent:false});
+    const latlngs=points.map(p=>[Number(p.lat!==undefined?p.lat:p.latitude),Number(p.lng!==undefined?p.lng:p.longitude)]);
+    this._map=L.map(el,{zoomControl:true,attributionControl:true,preferCanvas:true});
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,crossOrigin:true,attribution:'© OpenStreetMap contributors'}).addTo(this._map);
+    const line=L.polyline(latlngs,{weight:5,opacity:.9,smoothFactor:.12}).addTo(this._map);
+    L.circleMarker(latlngs[0],{radius:6}).addTo(this._map).bindTooltip('Mulai');
+    L.circleMarker(latlngs[latlngs.length-1],{radius:6}).addTo(this._map).bindTooltip('Selesai');
     try{this._map.fitBounds(line.getBounds().pad(.12));}catch(e){this._map.setView(latlngs[0],15);}
-    setTimeout(()=>{try{this._map.invalidateSize();}catch(e){}},120);
-  },
-  fallbackSvg(points){
-    let minLat=Infinity,maxLat=-Infinity,minLng=Infinity,maxLng=-Infinity; points.forEach(p=>{minLat=Math.min(minLat,Number(p.lat));maxLat=Math.max(maxLat,Number(p.lat));minLng=Math.min(minLng,Number(p.lng));maxLng=Math.max(maxLng,Number(p.lng));});
-    const W=900,H=320,pad=28,dx=Math.max(1e-9,maxLng-minLng),dy=Math.max(1e-9,maxLat-minLat);
-    const pts=points.map(p=>{const x=pad+((Number(p.lng)-minLng)/dx)*(W-pad*2);const y=H-pad-((Number(p.lat)-minLat)/dy)*(H-pad*2);return [x,y];});
-    const poly=pts.map(x=>x.map(v=>v.toFixed(1)).join(',')).join(' ');
-    return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Jalur GPS aktual"><rect x="0" y="0" width="${W}" height="${H}" fill="#08111d"/><path d="M${pad} ${H/2}H${W-pad}M${W/2} ${pad}V${H-pad}" stroke="#1a2a3c" stroke-width="1"/><polyline points="${poly}" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${pts[0][0]}" cy="${pts[0][1]}" r="7" fill="currentColor"/><circle cx="${pts[pts.length-1][0]}" cy="${pts[pts.length-1][1]}" r="7" fill="currentColor"/></svg>`;
+    setTimeout(()=>{try{this._map.invalidateSize(true);}catch(e){}},150);
   },
   openGoogleMaps(id){
-    const t=(App.data.trips||[]).find(x=>String(x.id)===String(id)); if(!t)return;
-    google.script.run.withSuccessHandler(url=>window.open(url,'_blank','noopener')).withFailureHandler(e=>App.error(e)).getGoogleMapsUrlForTrip({origin:t.origin,destination:t.destination});
+    const t=(App.data.trips||[]).find(x=>String(x.id)===String(id));if(!t)return;
+    google.script.run.withSuccessHandler(url=>{if(url)window.open(url,'_blank','noopener');}).withFailureHandler(e=>App.error(e)).getGoogleMapsUrlForTrip({origin:t.origin,destination:t.destination});
   },
   remove(id){if(!confirm('Hapus perjalanan ini dari Sheets?'))return;google.script.run.withSuccessHandler(()=>{App.refresh();App.toast('Perjalanan dihapus.');}).withFailureHandler(e=>App.error(e)).deleteTrip(id);}
 };

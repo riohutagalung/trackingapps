@@ -1,11 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "rewrites": [
-    {
-      "source": "/api/rpc",
-      "destination": "https://script.google.com/macros/s/AKfycbxaQw9ZoU5hvV_zzO8HY-R0LbD9MBlqVmkSwBUeReE_-TJgkja9LQvaplWa-WYVF51QyQ/exec"
-    }
-  ],
   "headers": [
     {
       "source": "/api/rpc",
@@ -13,6 +7,18 @@
         {
           "key": "Cache-Control",
           "value": "no-store, no-cache, must-revalidate, max-age=0"
+        },
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET,POST,OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type, Accept"
         }
       ]
     },
@@ -22,6 +28,10 @@
         {
           "key": "Cache-Control",
           "value": "no-store, no-cache, must-revalidate, max-age=0"
+        },
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
         }
       ]
     }

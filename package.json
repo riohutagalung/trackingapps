@@ -1,6 +1,6 @@
 {
   "name": "rh-habits",
-  "version": "2.3.2",
+  "version": "2.4.0",
   "private": true,
   "scripts": {
     "cap:add:android": "npx cap add android",
@@ -12,15 +12,15 @@
     "cap:open:ios": "npx cap open ios"
   },
   "dependencies": {
-    "@capacitor/android": "^8.0.0",
-    "@capacitor/core": "^8.0.0",
-    "@capacitor/ios": "^8.0.0",
-    "@capacitor/splash-screen": "^8.0.0",
-    "@capacitor/camera": "^8.0.0",
-    "@capgo/background-geolocation": "^8.3.2"
+    "@capacitor/android": "^8.5.1",
+    "@capacitor/core": "^8.5.1",
+    "@capacitor/ios": "^8.5.1",
+    "@capacitor/splash-screen": "^8.1.1",
+    "@capacitor/camera": "^8.2.4",
+    "@capgo/background-geolocation": "^8.4.5"
   },
   "devDependencies": {
-    "@capacitor/cli": "^8.0.0",
+    "@capacitor/cli": "^8.5.1",
     "typescript": "^5.9.3"
   }
 }

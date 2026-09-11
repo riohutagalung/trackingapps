@@ -1,0 +1,28 @@
+RH Habits FULL FIX — 11 Sep 2026 — v2.4.0
+
+APPS SCRIPT
+1) Replace Code.gs with this package's Code.gs.
+2) Keep the existing HTML file for direct Apps Script Web App fallback. It is not used by Vercel/Captactor native UI.
+3) maps-helpers.gs is NO LONGER REQUIRED when its functions duplicate Code.gs. Remove duplicate getTripMapsUrl/getGoogleMapsUrlForTrip/getGoogleMapsUrl/getRouteSuggestion definitions from maps-helpers.gs, or remove that helper file entirely.
+4) Deploy new Web App version using the existing deployment URL. Execute as your account; access can remain whoever already works in your setup.
+5) No TripPoints sheet creation is required manually; Code.gs creates TripPoints on first native GPS point.
+
+VERCEL/GITHUB
+- Replace index.html, gas-bridge.js, rh-native-gps.js, rh-native-media.js, api/rpc.js, api/native-location.js, vercel.json, package.json, capacitor.config.ts, scripts/setup-native.mjs.
+- Run npm install then npx cap sync.
+- iOS: enable Signing & Capabilities > Background Modes > Location updates. Apple requires UIBackgroundModes=location and allowsBackgroundLocationUpdates for continuous background updates.
+
+WHY THIS FIX
+- Restores renderTrend/renderPublicTransport (the exact desktop error was caused by those App methods missing).
+- Vercel no longer rewrites directly to stale Apps Script; /api/rpc is now a real proxy with CORS + OPTIONS handling and the latest GAS deployment.
+- Native GPS POST uses latest GAS deployment.
+- Speed uses native/OS speed when valid, otherwise segment-distance/time fallback; no display smoothing.
+- Trip Save retains movingTimeMin/stopTimeMin/stopCount/routeVariant.
+- Saved GPS compression keeps up to 900 representative points instead of every fifth point, reducing route jumps.
+- Map can request getTripGpsPoints() and renders actual stored points with Leaflet.
+- iOS date inputs are width constrained to prevent the control from overflowing the column.
+- OCR uses native Camera/Photos on native builds and the same analyzeReceipt() backend path.
+- App.error no longer falsely marks the whole backend offline on OCR/GPS/UI errors.
+
+IMPORTANT LIMIT
+No software can force iOS to deliver GPS after the user explicitly terminates the app or disables location services. Background tracking depends on iOS permission/capability and system policy. The app can keep recording while locked/backgrounded when properly configured and the OS continues the location session.
