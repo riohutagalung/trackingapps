@@ -1,11 +1,19 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
 const www = path.join(root, 'www');
 
-// www is a generated Capacitor asset folder. Always rebuild it from root
-// so native builds can never run stale HTML/JS copies.
+// Repair + validate the root HTML before it is copied into native assets.
+const repair = spawnSync(process.execPath, [path.join(root, 'scripts/repair-index.mjs'), path.join(root, 'index.html')], { encoding: 'utf8' });
+if (repair.status !== 0) {
+  process.stderr.write(repair.stderr || repair.stdout || '[RH] index repair failed\n');
+  process.exit(repair.status || 1);
+}
+process.stdout.write(repair.stdout || '');
+
+// www is generated; never allow native builds to use stale web assets.
 fs.rmSync(www, { recursive: true, force: true });
 fs.mkdirSync(www, { recursive: true });
 
