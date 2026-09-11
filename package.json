@@ -1,6 +1,6 @@
 {
   "name": "rh-habits",
-  "version": "2.4.0",
+  "version": "2.4.1",
   "private": true,
   "scripts": {
     "cap:add:android": "npx cap add android",
@@ -15,7 +15,7 @@
     "@capacitor/android": "^8.5.1",
     "@capacitor/core": "^8.5.1",
     "@capacitor/ios": "^8.5.1",
-    "@capacitor/splash-screen": "^8.1.1",
+    "@capacitor/splash-screen": "^8.0.2",
     "@capacitor/camera": "^8.2.4",
     "@capgo/background-geolocation": "^8.4.5"
   },
