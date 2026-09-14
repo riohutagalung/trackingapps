@@ -14,16 +14,75 @@ html = html.replace(/\},\,/g, '},');
 html = html.replace(/\n  \}\n  renderPublicTransport\(/g, '\n  },\n  renderPublicTransport(');
 html = html.replace(/\n  \}\n  renderFuelPrediction\(/g, '\n  },\n  renderFuelPrediction(');
 html = html.replace(/\n  \}\,\,\n/g, '\n  },\n');
-html = html.replace(/<link\s+rel=["']manifest["']\s+href=["']\?manifest=1["']\s*\/?>/i,
-  '<link rel="manifest" href="/manifest.json">');
+html = html.replace(/<link\s+rel=["']manifest["']\s+href=["']\?manifest=1["']\s*\/?>/i, '<link rel="manifest" href="/manifest.json">');
 
-// Repair the accidentally corrupted sparkline interpolation without changing the route logic.
+// Repair the previously corrupted SVG sparkline interpolation without changing route logic.
 html = html.replace(
   /const poly=sample\.map\(p=>`\$\{sx\(Number\(p\.lng\)\)\|\|0\)\.toFixed\(1\),\$\{'\}sy\(Number\(p\.lat\)\|\|0\)\.toFixed\(1\)\$\{'\}\)\.join\(' '\);/,
   "const poly=sample.map(p=>`${sx(Number(p.lng)||0).toFixed(1)},${sy(Number(p.lat)||0).toFixed(1)}`).join(' ');"
 );
 
-// The current source must contain the lightweight Weather module used during startup.
+// Keep exactly one connection indicator on small/touch layouts.
+html = html.replace(
+  /(@media \(max-width:900px\), \(pointer:coarse\) and \(max-width:1024px\) \{[\s\S]*?)(\n  \.topbar \{)/,
+  '$1\n  .topbar .status { display:none; }$2'
+);
+
+// Standardize splash screen on every platform: RH logo, then only "habits" underneath.
+html = html.replace(
+  /<div class="rh-splash-title">RH Habits<\/div>\s*<div class="rh-splash-sub">Personal commute & expense tracker<\/div>/,
+  '<div class="rh-splash-title">habits</div>'
+);
+html = html.replace(/\.rh-splash-inner \{[^}]*\}/, '.rh-splash-inner { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; transform:translateY(4px); }');
+html = html.replace(/\.rh-splash-title \{[^}]*\}/, '.rh-splash-title { font-family:\'Space Grotesk\',sans-serif; font-size:20px; font-weight:600; letter-spacing:.2px; color:#f5f8fc; text-transform:lowercase; }');
+html = html.replace(/\.rh-splash-sub \{[^}]*\}/, '.rh-splash-sub { display:none; }');
+
+// Compact GPS history: the list starts with five latest trips. A button can expand it to all trips returned by bootstrap.
+// This wrapper does not modify trip data, save logic, GPS logic, or API contracts.
+if (!/__rhTripHistoryPatch/.test(html)) {
+  const historyPatch = `
+<script id="__rhTripHistoryPatch">
+window.addEventListener('load', function () {
+  try {
+    if (!window.App || typeof App.renderTrips !== 'function') return;
+    if (App.__rhTripHistoryPatch) return;
+    App.__rhTripHistoryPatch = true;
+    var originalRenderTrips = App.renderTrips.bind(App);
+    var expanded = false;
+    var allTrips = [];
+    App.toggleTripHistory = function () {
+      expanded = !expanded;
+      App.renderTrips(allTrips);
+    };
+    App.renderTrips = function (arr) {
+      allTrips = Array.isArray(arr) ? arr.slice() : [];
+      var shown = expanded ? allTrips : allTrips.slice(0, 5);
+      originalRenderTrips(shown);
+      var box = document.getElementById('trip-history');
+      if (!box) return;
+      var more = document.getElementById('trip-history-more');
+      if (!more) {
+        more = document.createElement('button');
+        more.id = 'trip-history-more';
+        more.className = 'btn small full';
+        more.type = 'button';
+        more.style.marginTop = '12px';
+        box.parentNode.insertBefore(more, box.nextSibling);
+      }
+      more.style.display = allTrips.length > 5 ? 'block' : 'none';
+      more.textContent = expanded ? 'Tampilkan lebih sedikit' : 'Lihat lebih banyak';
+      more.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      more.onclick = App.toggleTripHistory;
+    };
+  } catch (e) {
+    console.warn('[RH] trip history UI patch skipped:', e);
+  }
+});
+</script>`;
+  html = html.replace(/<\/body>/i, historyPatch + '\n</body>');
+}
+
+// Add the lightweight Weather module if the source does not already contain one.
 if (!/\b(const|let|var)\s+Weather\s*=/.test(html)) {
   const weatherCode = `
 const Weather = {
@@ -67,14 +126,13 @@ while ((match = scriptRe.exec(html))) {
   i++;
 }
 
-// Runtime-safe assertions for known required startup modules.
 if (!/\bconst\s+Weather\s*=/.test(html)) throw new Error('[RH] Weather module missing from index.html.');
 if (!/\bconst\s+App\s*=/.test(html)) throw new Error('[RH] App module missing from index.html.');
 if (!/\bconst\s+GPS\s*=/.test(html)) throw new Error('[RH] GPS module missing from index.html.');
 
 if (html !== before) {
   fs.writeFileSync(file, html);
-  console.log('[RH] Repaired known index.html source issues.');
+  console.log('[RH] Repaired known index.html source/UI issues.');
 } else {
   console.log('[RH] No known index.html repair was necessary.');
 }
