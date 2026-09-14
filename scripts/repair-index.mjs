@@ -9,21 +9,24 @@ if (!fs.existsSync(file)) throw new Error(`[RH] index file not found: ${file}`);
 let html = fs.readFileSync(file, 'utf8');
 const before = html;
 
-// Narrow repairs for syntax corruption found in the current index.html.
-// This does not change application logic.
+// Narrow repairs for the known source corruption only.
+// These replacements do not alter application logic; they only restore
+// valid JavaScript punctuation and the correct PWA manifest URL for Vercel.
 html = html.replace(/\},\,/g, '},');
 html = html.replace(/\n  \}\n  renderPublicTransport\(/g, '\n  },\n  renderPublicTransport(');
 html = html.replace(/\n  \}\n  renderFuelPrediction\(/g, '\n  },\n  renderFuelPrediction(');
 html = html.replace(/\n  \}\,\,\n/g, '\n  },\n');
+html = html.replace(/<link\s+rel=["']manifest["']\s+href=["']\?manifest=1["']\s*\/?>/i,
+  '<link rel="manifest" href="/manifest.json">');
 
 if (html !== before) {
   fs.writeFileSync(file, html);
-  console.log('[RH] Repaired known index.html syntax corruption.');
+  console.log('[RH] Repaired known index.html source issues.');
 } else {
-  console.log('[RH] No index.html syntax repair was necessary.');
+  console.log('[RH] No known index.html repair was necessary.');
 }
 
-// Fail the build/native preparation if any inline JS block is still invalid.
+// Hard fail the build/native preparation if any inline JS remains invalid.
 const scriptRe = /<script(?:[^>]*)>([\s\S]*?)<\/script>/gi;
 let match;
 let i = 0;
