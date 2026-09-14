@@ -5,8 +5,8 @@ import { spawnSync } from 'node:child_process';
 const root = process.cwd();
 const www = path.join(root, 'www');
 
-// Repair + validate the root HTML before it is copied into native assets.
-const repair = spawnSync(process.execPath, [path.join(root, 'scripts/repair-index.mjs'), path.join(root, 'index.html')], { encoding: 'utf8' });
+// Use the same Vercel-safe repair/validation script for native builds.
+const repair = spawnSync(process.execPath, [path.join(root, 'scripts/repair-vercel.mjs'), path.join(root, 'index.html')], { encoding: 'utf8' });
 if (repair.status !== 0) {
   process.stderr.write(repair.stderr || repair.stdout || '[RH] index repair failed\n');
   process.exit(repair.status || 1);
@@ -20,7 +20,7 @@ fs.mkdirSync(www, { recursive: true });
 function copyRequired(name) {
   const src = path.join(root, name);
   const dst = path.join(www, name);
-  if (!fs.existsSync(src)) throw new Error(`[RH] Required web asset missing: ${name}`);
+  if (!fs.existsSync(src)) throw new Error('[RH] Required web asset missing: ' + name);
   fs.copyFileSync(src, dst);
 }
 
@@ -50,8 +50,8 @@ if (fs.existsSync(androidManifest)) {
   ];
   const missing = permissions.filter(p => !s.includes(p));
   if (missing.length) {
-    const lines = missing.map(p => `    <uses-permission android:name="${p}" />`).join('\n');
-    s = s.replace(/<application\b/, `${lines}\n\n    <application`);
+    const lines = missing.map(p => '    <uses-permission android:name="' + p + '" />').join('\n');
+    s = s.replace(/<application\b/, lines + '\n\n    <application');
     fs.writeFileSync(androidManifest, s);
   }
 }
@@ -64,7 +64,7 @@ if (fs.existsSync(strings)) {
     '<string name="capacitor_background_geolocation_notification_icon">ic_launcher</string>'
   ];
   for (const line of additions) {
-    if (!s.includes(line)) s = s.replace('</resources>', `    ${line}\n</resources>`);
+    if (!s.includes(line)) s = s.replace('</resources>', '    ' + line + '\n</resources>');
   }
   fs.writeFileSync(strings, s);
 }
@@ -81,12 +81,12 @@ if (fs.existsSync(plist)) {
   ];
   const insert = [];
   for (const [key, value] of additions) {
-    if (!s.includes(`<key>${key}</key>`)) insert.push(`\t<key>${key}</key>\n\t${value}`);
+    if (!s.includes('<key>' + key + '</key>')) insert.push('\t<key>' + key + '</key>\n\t' + value);
   }
   if (!s.includes('<key>UIBackgroundModes</key>')) {
     insert.push('\t<key>UIBackgroundModes</key>\n\t<array>\n\t\t<string>location</string>\n\t</array>');
   }
-  if (insert.length) s = s.replace('</dict>', `${insert.join('\n')}\n</dict>`);
+  if (insert.length) s = s.replace('</dict>', insert.join('\n') + '\n</dict>');
   fs.writeFileSync(plist, s);
 }
 
