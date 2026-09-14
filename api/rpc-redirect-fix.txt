@@ -1,0 +1,1 @@
+Apps Script POST redirect fix documented here. The actual rpc.js must follow the Apps Script 302 target with GET because the redirected script.googleusercontent.com endpoint accepts GET. See commit changes in api/rpc.js.
