@@ -6,7 +6,7 @@
 <title>RH Habits</title>
 
 <!-- PWA: biar bisa "Install app" beneran (standalone, tanpa address bar Chrome) -->
-<link rel="manifest" href="?manifest=1">
+<link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#060c15">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1166,6 +1166,26 @@ body.device-android .mobile-header { padding-top:12px; }
 <script src="rh-native-gps.js"></script>
 <script src="rh-native-media.js"></script>
 <script>
+const Weather = {
+  refresh(force) {
+    const box = document.getElementById('weather-banner');
+    const content = document.getElementById('weather-content');
+    if (!box || !content) return;
+    box.classList.add('show');
+    content.textContent = 'Memeriksa prakiraan hujan...';
+    google.script.run
+      .withSuccessHandler(r => {
+        const s = r && r.summary;
+        if (!s) { content.textContent = 'Prakiraan belum tersedia.'; return; }
+        const m = s.morning || {}, e = s.evening || {};
+        const txt = x => `${x.probability || 0}}% kemungkinan hujan${x.precipitation ? ` • ${Num(x.precipitation,1)} mm/jam` : ''}`;
+        content.innerHTML = `<div class="route-list"><div class="route-row"><div><div class="route-name">${Icon('sun',15)} Pagi 07:00</div><div class="route-sub">${txt(m)}</div></div><div class="eta"><strong>${Icon(m.caution ? 'rain' : 'sun',16)}</strong></div></div><div class="route-row"><div><div class="route-name">${Icon('sun',15)} Sore 18:00</div><div class="route-sub">${txt(e)}</div></div><div class="eta"><strong>${Icon(e.caution ? 'rain' : 'sun',16)}</strong></div></div></div>`;
+        if (m.caution || e.caution) App.toast('Ada potensi hujan di jam commute.');
+      })
+      .withFailureHandler(e => { content.textContent = 'Cuaca tidak tersedia.'; })
+      .getCommuteWeather();
+  }
+};
 const Icon=(name,size=16)=>{const i={fuel:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 21V4a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v17M5 21h14M9 6h6M17 7h2l2 2v7.5a2.5 2.5 0 0 1-5 0V14h3"/></svg>`,map:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l-6 3V6l6-3 6 3 6-3v15l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/></svg>`,route:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h3c4 0 2-9 6-9h1"/></svg>`,trash:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>`,clock:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>`,navigation:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3 10.7 13.3"/><path d="m21 3-6.6 17-3.7-6.7L4 9.6 21 3Z"/></svg>`,stop:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>`,play:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="currentColor"><path d="M8 5.5a1 1 0 0 1 1.55-.83l9.1 6.5a1 1 0 0 1 0 1.66l-9.1 6.5A1 1 0 0 1 8 18.5z"/></svg>`,sun:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>`,rain:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16h10a4 4 0 0 0 .5-7.97A6 6 0 0 0 6.2 6.2 4.5 4.5 0 0 0 7 16z"/><path d="M9 19l-1 2M13 19l-1 2M17 19l-1 2"/></svg>`,receipt:`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z"/><path d="M9 7h6M9 11h6M9 15h4"/></svg>`};return i[name]||i.route};
 
 const App = {
@@ -1326,6 +1346,17 @@ const App = {
     }).join('');
   },
 
+  tripSparkline(points){
+    if(!points||points.length<2)return '';
+    const xs=points.map(p=>Number(p.lng)||0), ys=points.map(p=>Number(p.lat)||0);
+    const minX=Math.min(...xs), maxX=Math.max(...xs), minY=Math.min(...ys), maxY=Math.max(...ys);
+    const sx=x=>maxX===minX?50:8+84*(x-minX)/(maxX-minX);
+    const sy=y=>maxY===minY?40:70-54*(y-minY)/(maxY-minY);
+    const step=Math.max(1,Math.ceil(points.length/160));
+    const sample=points.filter((_,i)=>i%step===0);
+    const poly=sample.map(p=>`${sx(Number(p.lng)||0).toFixed(1)},${'}sy(Number(p.lat)||0).toFixed(1)${'}`).join(' ');
+    return `<svg class="trip-route-svg" viewBox="0 0 100 78" preserveAspectRatio="none"><polyline points="${poly}" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${sx(xs[0]).toFixed(1)}" cy="${sy(ys[0]).toFixed(1)}" r="3" fill="currentColor"/><circle cx="${sx(xs[xs.length-1]).toFixed(1)}" cy="${sy(ys[ys.length-1]).toFixed(1)}" r="3" fill="currentColor"/></svg>`;
+  },
   renderTrend(arr, changePct) {
     const el = document.getElementById('month-trend'); if (!el) return;
     const max = Math.max(...arr.map(x => Number(x.total || 0)), 1);
@@ -1333,12 +1364,12 @@ const App = {
     const ce = document.getElementById('month-change');
     if (changePct === null || changePct === undefined) ce.textContent = 'Belum ada data bulan pembanding.';
     else ce.innerHTML = `Bulan ini ${changePct > 0 ? 'naik' : changePct < 0 ? 'turun' : 'sama'} <b>${Math.abs(changePct).toFixed(1)}%</b> dibanding bulan sebelumnya.`;
-  }
+  },
   renderPublicTransport(p) {
     const el = document.getElementById('public-transport-compare'); if (!el) return;
     if (!p.commuteTrips) { el.textContent = 'Belum cukup trip commute bulan ini untuk membandingkan estimasi KRL / TransJakarta.'; return; }
     el.innerHTML = `Untuk sekitar <b>${p.commuteTrips} trip commute</b>: KRL ≈ <b>${Money(p.krlMonthly)}</b>, TransJakarta ≈ <b>${Money(p.tjMonthly)}</b>. Tarif pembanding bisa diubah di Pengaturan.`;
-  }
+  },
   renderFuelPrediction(fuel) {
     const el = document.getElementById('fuel-prediction'); if (!el) return;
     const vehicles = fuel && fuel.vehicles ? Object.values(fuel.vehicles) : [];
@@ -1841,7 +1872,7 @@ const Trip = {
     if(note)note.textContent='Jalur mengikuti titik GPS yang benar-benar tersimpan pada trip ini.';
     modal.classList.add('active');
     setTimeout(()=>this.renderActualMap(points,t),50);
-  },,
+  },
   normalizeMapPoints(arr){
     return (Array.isArray(arr)?arr:[]).map(p=>{
       if(Array.isArray(p)) return {lat:Number(p[0]),lng:Number(p[1]),speedKmh:Number(p[2]||0),time:Number(p[3]||0)};
