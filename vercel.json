@@ -1,6 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "node scripts/repair-index.mjs index.html",
+  "buildCommand": null,
+  "outputDirectory": ".",
   "headers": [
     {
       "source": "/api/rpc",
@@ -16,7 +17,7 @@
       "headers": [
         {"key":"Cache-Control","value":"no-store, no-cache, must-revalidate, max-age=0"},
         {"key":"Access-Control-Allow-Origin","value":"*"},
-        {"key":"Access-Control-Allow-Methods","value":"POST,OPTIONS"},
+        {"key":"Access-Control-Allow-Methods","value":"GET,POST,OPTIONS"},
         {"key":"Access-Control-Allow-Headers","value":"Content-Type, Accept"}
       ]
     }
