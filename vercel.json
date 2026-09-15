@@ -2,7 +2,6 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "buildCommand": "node scripts/repair-vercel.mjs index.html",
-  "outputDirectory": ".",
   "headers": [
     {
       "source": "/api/rpc",
