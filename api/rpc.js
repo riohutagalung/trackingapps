@@ -2,34 +2,32 @@ const GAS_URL='https://script.google.com'+'/macros/s/'+'AKfycbyi6yqLiKwjpoy9TclZ
 function cors(res){res.setHeader('Access-Control-Allow-Origin','*');res.setHeader('Access-Control-Allow-Methods','GET,POST,OPTIONS');res.setHeader('Access-Control-Allow-Headers','Content-Type, Accept');res.setHeader('Vary','Origin');res.setHeader('Cache-Control','no-store, no-cache, must-revalidate, max-age=0');}
 function json(res,status,data){cors(res);res.statusCode=status;res.setHeader('Content-Type','application/json; charset=utf-8');res.end(JSON.stringify(data));}
 async function readBody(req){const chunks=[];for await(const c of req)chunks.push(Buffer.from(c));const text=Buffer.concat(chunks).toString('utf8');if(!text)return {};try{return JSON.parse(text);}catch(e){throw new Error('Invalid JSON body');}}
-async function forward(body){
-  const payload=JSON.stringify(body);
-  let target=GAS_URL;
-  for(let i=0;i<5;i++){
-    const r=await fetch(target,{method:'POST',redirect:'manual',headers:{'Content-Type':'application/json; charset=utf-8','Accept':'application/json'},body:payload});
-    if([301,302,303].includes(r.status)){
-      const loc=r.headers.get('location');
-      if(!loc)throw new Error('Apps Script redirect tanpa Location.');
-      target=new URL(loc,target).toString();
-      const rr=await fetch(target,{method:'GET',redirect:'manual',headers:{'Accept':'application/json'}});
-      if([301,302,303,307,308].includes(rr.status)){
-        const next=rr.headers.get('location');
-        if(next){target=new URL(next,target).toString();continue;}
-      }
-      const t=await rr.text(); let p=null; try{p=t?JSON.parse(t):null;}catch(e){}
-      if(!rr.ok)throw new Error('Apps Script HTTP '+rr.status+': '+(p?.error||t?.slice(0,500)||('HTTP '+rr.status)));
-      return p||{ok:true};
-    }
-    if([307,308].includes(r.status)){
-      const loc=r.headers.get('location');
-      if(!loc)throw new Error('Apps Script redirect tanpa Location.');
-      target=new URL(loc,target).toString();
-      continue;
-    }
-    const t=await r.text(); let p=null; try{p=t?t.length?JSON.parse(t):null:null;}catch(e){}
-    if(!r.ok)throw new Error('Apps Script HTTP '+r.status+': '+(p?.error||t?.slice(0,500)||('HTTP '+r.status)));
-    return p||{ok:true};
-  }
-  throw new Error('Terlalu banyak redirect Apps Script.');
+async function fetchJson(target){
+  const r=await fetch(target,{method:'GET',redirect:'follow',headers:{'Accept':'application/json'},cache:'no-store'});
+  const t=await r.text(); let p=null; try{p=t?JSON.parse(t):null;}catch(e){}
+  if(!r.ok) throw new Error('Apps Script HTTP '+r.status+': '+(p?.error||t?.slice(0,500)||('HTTP '+r.status)));
+  if(!p) throw new Error('Apps Script response bukan JSON.');
+  return p;
 }
-module.exports=async function handler(req,res){try{cors(res);if(req.method==='OPTIONS'){res.statusCode=204;return res.end();}let body=req.method==='POST'?await readBody(req):{fn:req.query?.fn,args:req.query?.args?JSON.parse(req.query.args):[]};if(!body||!body.fn)return json(res,400,{ok:false,error:'fn wajib diisi'});return json(res,200,await forward(body));}catch(e){console.error('[RH rpc]',e);return json(res,502,{ok:false,error:e?.message||String(e)});}};
+async function forward(body){
+  const fn=String(body?.fn||'').trim();
+  if(!fn) throw new Error('fn wajib diisi');
+  const args=Array.isArray(body?.args)?body.args:[];
+  const query='?fn='+encodeURIComponent(fn)+'&args='+encodeURIComponent(JSON.stringify(args));
+  return fetchJson(GAS_URL+query);
+}
+module.exports=async function handler(req,res){
+  try{
+    cors(res);
+    if(req.method==='OPTIONS'){res.statusCode=204;return res.end();}
+    let body;
+    if(req.method==='POST') body=await readBody(req);
+    else if(req.method==='GET') body={fn:req.query?.fn,args:req.query?.args?JSON.parse(req.query.args):[]};
+    else return json(res,405,{ok:false,error:'Method GET/POST only'});
+    if(!body||!body.fn)return json(res,400,{ok:false,error:'fn wajib diisi'});
+    return json(res,200,await forward(body));
+  }catch(e){
+    console.error('[RH rpc]',e);
+    return json(res,502,{ok:false,error:e?.message||String(e)});
+  }
+};
