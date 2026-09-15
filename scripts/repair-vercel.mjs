@@ -34,7 +34,7 @@ html = html.replace(
   "if(wasNative){\n      await this.waitForNativeFlush(sid,6500);\n      if(window.RHNativeGPS){try{await window.RHNativeGPS.stop();}catch(e){console.warn('[RHGPS] native stop',e);}}\n    }"
 );
 
-// Preserve raw provider speed for analytics and use a separate display speed.
+// Preserve raw provider speed and use a separate display speed.
 html = html.replace(
   "const point={lat,lng,speed:speedKmh,speedKmh:speedKmh,accuracy:isFinite(accuracy)?accuracy:0,time:ts,bearing:isFinite(bearing)?bearing:null,altitude:isFinite(altitude)?altitude:null,source:isNative?'native':'browser',simulated:!!(isNative&&pos.simulated)};",
   "const point={lat,lng,speed:speedKmh,speedKmh:speedKmh,displaySpeedKmh:speedKmh,accuracy:isFinite(accuracy)?accuracy:0,time:ts,bearing:isFinite(bearing)?bearing:null,altitude:isFinite(altitude)?altitude:null,source:isNative?'native':'browser',simulated:!!(isNative&&pos.simulated)};"
@@ -44,15 +44,18 @@ html = html.replace(
   "point.speedKmh=speedKmh; point.speed=speedKmh; point.displaySpeedKmh=speedKmh;"
 );
 
+// Remove accidental duplicate display-speed assignments introduced by older patches.
+html = html.replace(
+  /point\.displaySpeedKmh=speedKmh;(?:\s*point\.displaySpeedKmh=speedKmh;)+/g,
+  'point.displaySpeedKmh=speedKmh;'
+);
+
 // The repair script is intentionally idempotent. Remove every existing
 // prevDisplay declaration, then add exactly one immediately before its use.
 html = html.replace(/^\s*const prevDisplay=prev&&Number\(prev\.displaySpeedKmh\);\s*$/gm, '');
 const displayBlend = "if(isFinite(prevDisplay)&&speedKmh>0){ point.displaySpeedKmh=Math.max(0,Math.min(220,prevDisplay*0.72+speedKmh*0.28)); }";
 if (html.includes(displayBlend) && !/const prevDisplay=prev&&Number\(prev\.displaySpeedKmh\);\s*\n\s*if\(isFinite\(prevDisplay\)/.test(html)) {
-  html = html.replace(
-    displayBlend,
-    "const prevDisplay=prev&&Number(prev.displaySpeedKmh);\n    " + displayBlend
-  );
+  html = html.replace(displayBlend, "const prevDisplay=prev&&Number(prev.displaySpeedKmh);\n    " + displayBlend);
 }
 
 html = html.replace(
@@ -63,6 +66,9 @@ html = html.replace(
   "document.getElementById('float-speed').textContent=Num(last?.speedKmh!==undefined?last.speedKmh:(last?.speed||0),1);",
   "document.getElementById('float-speed').textContent=Num(last?.displaySpeedKmh!==undefined?last.displaySpeedKmh:(last?.speedKmh!==undefined?last.speedKmh:(last?.speed||0)),1);"
 );
+
+// Fix a harmless but incorrect extra brace in the weather percentage template.
+html = html.replace('${x.probability || 0}}% kemungkinan hujan', '${x.probability || 0}% kemungkinan hujan');
 
 // App.init() calls Weather.refresh(). Ensure Weather always exists even in the
 // Vercel/native build, where Apps Script's HTML partials are not present.
