@@ -34,7 +34,7 @@ Build native memakai Capacitor + `@capgo/background-geolocation` + `@capacitor/c
 
 Pastikan backend yang dipakai Vercel adalah deployment terbaru:
 
-`https://script.google.com/macros/s/AKfycbyi6yqLiKwjpoy9TclZycH6KOPi0GXlPHc7iHGAA5srKCV6TVWOlSyTr-1V-JOiwlr2MQ/exec`
+`https://script.google.com/macros/s/AKfycbyHREf-8F0Dd8G7hXtw_cyQskLkCzmkATDmOeBBovQWe9SeRw49ZIGxIzdSNTvScfn5qg/exec`
 
 Bila project Apps Script kamu masih memakai `maps-helpers.gs` terpisah, file itu harus tetap berada dalam project yang sama dengan `code.gs`.
 
