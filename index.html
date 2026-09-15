@@ -1575,7 +1575,7 @@ const GPS = {
       // actual GPS movement. This is fallback only; valid provider speed wins.
       if(!(speedKmh>0)&&gap>.003&&dt<=180){
         speedKmh=Math.min(220,Math.max(0,gap/dt*3600));
-        point.speedKmh=speedKmh; point.speed=speedKmh; point.displaySpeedKmh=speedKmh; point.displaySpeedKmh=speedKmh;
+        point.speedKmh=speedKmh; point.speed=speedKmh; point.displaySpeedKmh=speedKmh; point.displaySpeedKmh=speedKmh; point.displaySpeedKmh=speedKmh; point.displaySpeedKmh=speedKmh;
       }
     }
     this.points.push(point);
