@@ -1184,7 +1184,7 @@ const Weather = {
         const s = r && r.summary;
         if (!s) { content.textContent = 'Prakiraan belum tersedia.'; return; }
         const m = s.morning || {}, e = s.evening || {};
-        const txt = x => `${x.probability || 0}}% kemungkinan hujan${x.precipitation ? ` • ${Num(x.precipitation,1)} mm/jam` : ''}`;
+        const txt = x => `${x.probability || 0}% kemungkinan hujan${x.precipitation ? ` • ${Num(x.precipitation,1)} mm/jam` : ''}`;
         content.innerHTML = `<div class="route-list"><div class="route-row"><div><div class="route-name">${Icon('sun',15)} Pagi 07:00</div><div class="route-sub">${txt(m)}</div></div><div class="eta"><strong>${Icon(m.caution ? 'rain' : 'sun',16)}</strong></div></div><div class="route-row"><div><div class="route-name">${Icon('sun',15)} Sore 18:00</div><div class="route-sub">${txt(e)}</div></div><div class="eta"><strong>${Icon(e.caution ? 'rain' : 'sun',16)}</strong></div></div></div>`;
         if (m.caution || e.caution) App.toast('Ada potensi hujan di jam commute.');
       })
@@ -1575,7 +1575,7 @@ const GPS = {
       // actual GPS movement. This is fallback only; valid provider speed wins.
       if(!(speedKmh>0)&&gap>.003&&dt<=180){
         speedKmh=Math.min(220,Math.max(0,gap/dt*3600));
-        point.speedKmh=speedKmh; point.speed=speedKmh; point.displaySpeedKmh=speedKmh; point.displaySpeedKmh=speedKmh; point.displaySpeedKmh=speedKmh; point.displaySpeedKmh=speedKmh;
+        point.speedKmh=speedKmh; point.speed=speedKmh; point.displaySpeedKmh=speedKmh;
       }
     }
     this.points.push(point);
