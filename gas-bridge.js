@@ -7,7 +7,7 @@
   function callRpc(fn,args,handlers){
     var controller=typeof AbortController!=='undefined'?new AbortController():null;
     var timeout=setTimeout(function(){if(controller)controller.abort();},30000);
-    fetch(endpoint(),{method:'POST',credentials:'include',cache:'no-store',signal:controller?controller.signal:undefined,headers:{'Accept':'application/json','Content-Type':'application/json'},body:JSON.stringify({fn:fn,args:Array.isArray(args)?args:[]})})
+    fetch(endpoint(),{method:'POST',credentials:'omit',cache:'no-store',signal:controller?controller.signal:undefined,headers:{'Accept':'application/json','Content-Type':'application/json'},body:JSON.stringify({fn:fn,args:Array.isArray(args)?args:[]})})
       .then(function(res){return res.text().then(function(text){var payload=null;try{payload=text?JSON.parse(text):null;}catch(e){} if(!res.ok)throw new Error(payload?.error||('HTTP '+res.status+' dari /api/rpc')); if(!payload)throw new Error('Respons RPC bukan JSON yang valid.'); return payload;});})
       .then(function(payload){if(payload?.ok){if(handlers.success)handlers.success(payload.result,handlers.userObject);}else{var e=new Error(payload?.error||'RPC gagal.');if(handlers.failure)handlers.failure(e,handlers.userObject);}})
       .catch(function(err){var msg=err?.name==='AbortError'?'Request timeout (30 detik).':(err?.message||String(err));if(handlers.failure)handlers.failure(new Error(msg),handlers.userObject);else console.error('[RH RPC] '+fn+': '+msg);})
