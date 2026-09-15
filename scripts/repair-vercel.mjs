@@ -8,28 +8,33 @@ if (!fs.existsSync(file)) throw new Error('[RH] index.html not found: ' + file);
 
 let html = fs.readFileSync(file, 'utf8');
 
-// Repair only known source-level corruption; do not change business logic.
+// -----------------------------------------------------------------------------
+// SOURCE-ONLY REPAIRS
+// These repairs restore syntax/runtime modules that were accidentally corrupted
+// in earlier source copies. They do not change business/data logic.
+// -----------------------------------------------------------------------------
 html = html.replace(/\},\,/g, '},');
 html = html.replace(/\n  \}\n  renderPublicTransport\(/g, '\n  },\n  renderPublicTransport(');
 html = html.replace(/\n  \}\n  renderFuelPrediction\(/g, '\n  },\n  renderFuelPrediction(');
 html = html.replace(/\n  \}\,\,\n/g, '\n  },\n');
-html = html.replace(/<link\s+rel=["']manifest["']\s+href=["']\?manifest=1["']\s*\/?>/i, '<link rel="manifest" href="/manifest.json">');
+html = html.replace(
+  /<link\s+rel=["']manifest["']\s+href=["']\?manifest=1["']\s*\/?>/i,
+  '<link rel="manifest" href="/manifest.json">'
+);
 
-// Repair the corrupted sparkline template expression found in an older source copy.
+// Repair corrupted sparkline template expression from an older source copy.
 html = html.replace(
   /const poly=sample\.map\(p=>`\$\{sx\(Number\(p\.lng\)\|\|0\)\.toFixed\(1\)\},\$\{'}sy\(Number\(p\.lat\)\|\|0\)\.toFixed\(1\)\$\{'\}`\)\.join\(' '\);/g,
   "const poly=sample.map(p=>`${sx(Number(p.lng)||0).toFixed(1)},${sy(Number(p.lat)||0).toFixed(1)}`).join(' ');"
 );
 
-// Native GPS: flush server-side points BEFORE stopping the native provider.
-// The native URL delivery is independent of the WebView, so this keeps points
-// recorded while the phone is locked available when the user taps Stop.
+// Native GPS: flush points while the provider is still alive, then stop it.
 html = html.replace(
   /if\(wasNative&&window\.RHNativeGPS\)\{try\{await window\.RHNativeGPS\.stop\(\);\}catch\(e\)\{console\.warn\('\[RHGPS\] native stop',e\);\}\s*\}\s*if\(wasNative\)\{\s*\/\/ Do NOT set active=false before fetching; refreshNativePoints intentionally\s*\/\/ works while stopping so iOS can flush the last native location\(s\)\.\s*await this\.waitForNativeFlush\(sid,8000\);\s*\}/,
-  "if(wasNative){\n      // Pull points while native tracking is still alive, then stop it.\n      await this.waitForNativeFlush(sid,6500);\n      if(window.RHNativeGPS){try{await window.RHNativeGPS.stop();}catch(e){console.warn('[RHGPS] native stop',e);}}\n    }"
+  "if(wasNative){\n      await this.waitForNativeFlush(sid,6500);\n      if(window.RHNativeGPS){try{await window.RHNativeGPS.stop();}catch(e){console.warn('[RHGPS] native stop',e);}}\n    }"
 );
 
-// Smooth only the displayed speed; preserve raw provider speed for analytics.
+// Preserve raw provider speed for analytics and use a separate display speed.
 html = html.replace(
   "const point={lat,lng,speed:speedKmh,speedKmh:speedKmh,accuracy:isFinite(accuracy)?accuracy:0,time:ts,bearing:isFinite(bearing)?bearing:null,altitude:isFinite(altitude)?altitude:null,source:isNative?'native':'browser',simulated:!!(isNative&&pos.simulated)};",
   "const point={lat,lng,speed:speedKmh,speedKmh:speedKmh,displaySpeedKmh:speedKmh,accuracy:isFinite(accuracy)?accuracy:0,time:ts,bearing:isFinite(bearing)?bearing:null,altitude:isFinite(altitude)?altitude:null,source:isNative?'native':'browser',simulated:!!(isNative&&pos.simulated)};"
@@ -39,17 +44,14 @@ html = html.replace(
   "point.speedKmh=speedKmh; point.speed=speedKmh; point.displaySpeedKmh=speedKmh;"
 );
 
-const prevDisplayLine = 'const prevDisplay=prev&&Number(prev.displaySpeedKmh);';
-// The repair script runs repeatedly. Collapse any duplicate declaration first.
-html = html.replace(
-  /const prevDisplay=prev&&Number\(prev\.displaySpeedKmh\);\s*const prevDisplay=prev&&Number\(prev\.displaySpeedKmh\);/g,
-  prevDisplayLine
-);
-// Only insert the declaration when the source does not already contain it.
-if (!html.includes(prevDisplayLine)) {
+// The repair script is intentionally idempotent. Remove every existing
+// prevDisplay declaration, then add exactly one immediately before its use.
+html = html.replace(/^\s*const prevDisplay=prev&&Number\(prev\.displaySpeedKmh\);\s*$/gm, '');
+const displayBlend = "if(isFinite(prevDisplay)&&speedKmh>0){ point.displaySpeedKmh=Math.max(0,Math.min(220,prevDisplay*0.72+speedKmh*0.28)); }";
+if (html.includes(displayBlend) && !/const prevDisplay=prev&&Number\(prev\.displaySpeedKmh\);\s*\n\s*if\(isFinite\(prevDisplay\)/.test(html)) {
   html = html.replace(
-    "this.points.push(point);\n    if(this.points.length%5===0||Date.now()-this.lastPersist>5000)this.persist();",
-    "const prevDisplay=prev&&Number(prev.displaySpeedKmh);\n    if(isFinite(prevDisplay)&&speedKmh>0){ point.displaySpeedKmh=Math.max(0,Math.min(220,prevDisplay*0.72+speedKmh*0.28)); }\n    this.points.push(point);\n    if(this.points.length%5===0||Date.now()-this.lastPersist>5000)this.persist();"
+    displayBlend,
+    "const prevDisplay=prev&&Number(prev.displaySpeedKmh);\n    " + displayBlend
   );
 }
 
@@ -62,7 +64,8 @@ html = html.replace(
   "document.getElementById('float-speed').textContent=Num(last?.displaySpeedKmh!==undefined?last.displaySpeedKmh:(last?.speedKmh!==undefined?last.speedKmh:(last?.speed||0)),1);"
 );
 
-// Weather is called by App.init(), so guarantee a runtime module exists.
+// App.init() calls Weather.refresh(). Ensure Weather always exists even in the
+// Vercel/native build, where Apps Script's HTML partials are not present.
 if (!/\bconst\s+Weather\s*=/.test(html)) {
   const weatherCode = [
     'const Weather = {',
@@ -88,11 +91,16 @@ if (!/\bconst\s+Weather\s*=/.test(html)) {
     '};',
     ''
   ].join('\n');
+
   const marker = /<script[^>]*>\s*const\s+Icon\s*=/i;
   if (marker.test(html)) html = html.replace(marker, '<script>' + weatherCode + 'const Icon=');
   else html = html.replace(/<\/body>/i, '<script>' + weatherCode + '</script>\n</body>');
 }
 
+// -----------------------------------------------------------------------------
+// HARD VALIDATION
+// Every inline JS block must parse before Vercel/native preparation succeeds.
+// -----------------------------------------------------------------------------
 const scriptRe = /<script(?:[^>]*)>([\s\S]*?)<\/script>/gi;
 let match;
 let count = 0;
