@@ -8,11 +8,42 @@ if (!fs.existsSync(file)) throw new Error('[RH] index.html not found: ' + file);
 
 let html = fs.readFileSync(file, 'utf8');
 
+// Repair only known source-level corruption; do not change business logic.
 html = html.replace(/\},\,/g, '},');
 html = html.replace(/\n  \}\n  renderPublicTransport\(/g, '\n  },\n  renderPublicTransport(');
 html = html.replace(/\n  \}\n  renderFuelPrediction\(/g, '\n  },\n  renderFuelPrediction(');
 html = html.replace(/\n  \}\,\,\n/g, '\n  },\n');
 html = html.replace(/<link\s+rel=["']manifest["']\s+href=["']\?manifest=1["']\s*\/?>/i, '<link rel="manifest" href="/manifest.json">');
+
+// Native GPS: flush server-side points BEFORE stopping the native provider.
+// The native URL delivery is independent of the WebView, so this keeps points
+// recorded while the phone is locked available when the user taps Stop.
+html = html.replace(
+  /if\(wasNative&&window\.RHNativeGPS\)\{try\{await window\.RHNativeGPS\.stop\(\);\}catch\(e\)\{console\.warn\('\[RHGPS\] native stop',e\);\}\s*\}\s*if\(wasNative\)\{\s*\/\/ Do NOT set active=false before fetching; refreshNativePoints intentionally\s*\/\/ works while stopping so iOS can flush the last native location\(s\)\.\s*await this\.waitForNativeFlush\(sid,8000\);\s*\}/,
+  "if(wasNative){\n      // Pull points while native tracking is still alive, then stop it.\n      await this.waitForNativeFlush(sid,6500);\n      if(window.RHNativeGPS){try{await window.RHNativeGPS.stop();}catch(e){console.warn('[RHGPS] native stop',e);}}\n    }"
+);
+
+// Smooth only the displayed speed; preserve raw provider speed for analytics.
+html = html.replace(
+  "const point={lat,lng,speed:speedKmh,speedKmh:speedKmh,accuracy:isFinite(accuracy)?accuracy:0,time:ts,bearing:isFinite(bearing)?bearing:null,altitude:isFinite(altitude)?altitude:null,source:isNative?'native':'browser',simulated:!!(isNative&&pos.simulated)};",
+  "const point={lat,lng,speed:speedKmh,speedKmh:speedKmh,displaySpeedKmh:speedKmh,accuracy:isFinite(accuracy)?accuracy:0,time:ts,bearing:isFinite(bearing)?bearing:null,altitude:isFinite(altitude)?altitude:null,source:isNative?'native':'browser',simulated:!!(isNative&&pos.simulated)};"
+);
+html = html.replace(
+  "point.speedKmh=speedKmh; point.speed=speedKmh;",
+  "point.speedKmh=speedKmh; point.speed=speedKmh; point.displaySpeedKmh=speedKmh;"
+);
+html = html.replace(
+  "this.points.push(point);\n    if(this.points.length%5===0||Date.now()-this.lastPersist>5000)this.persist();",
+  "const prevDisplay=prev&&Number(prev.displaySpeedKmh);\n    if(isFinite(prevDisplay)&&speedKmh>0){ point.displaySpeedKmh=Math.max(0,Math.min(220,prevDisplay*0.72+speedKmh*0.28)); }\n    this.points.push(point);\n    if(this.points.length%5===0||Date.now()-this.lastPersist>5000)this.persist();"
+);
+html = html.replace(
+  "document.getElementById('gps-speed').textContent=Num(last?.speedKmh!==undefined?last.speedKmh:(last?.speed||0),1);",
+  "document.getElementById('gps-speed').textContent=Num(last?.displaySpeedKmh!==undefined?last.displaySpeedKmh:(last?.speedKmh!==undefined?last.speedKmh:(last?.speed||0)),1);"
+);
+html = html.replace(
+  "document.getElementById('float-speed').textContent=Num(last?.speedKmh!==undefined?last.speedKmh:(last?.speed||0),1);",
+  "document.getElementById('float-speed').textContent=Num(last?.displaySpeedKmh!==undefined?last.displaySpeedKmh:(last?.speedKmh!==undefined?last.speedKmh:(last?.speed||0)),1);"
+);
 
 // Weather is called by App.init(), so guarantee a runtime module exists.
 if (!/\bconst\s+Weather\s*=/.test(html)) {
