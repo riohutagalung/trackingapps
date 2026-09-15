@@ -1360,7 +1360,7 @@ const App = {
     const sy=y=>maxY===minY?40:70-54*(y-minY)/(maxY-minY);
     const step=Math.max(1,Math.ceil(points.length/160));
     const sample=points.filter((_,i)=>i%step===0);
-    const poly=sample.map(p=>`${sx(Number(p.lng)||0).toFixed(1)},${'}sy(Number(p.lat)||0).toFixed(1)${'}`).join(' ');
+    const poly=sample.map(p=>`${sx(Number(p.lng)||0).toFixed(1)},${sy(Number(p.lat)||0).toFixed(1)}`).join(' ');
     return `<svg class="trip-route-svg" viewBox="0 0 100 78" preserveAspectRatio="none"><polyline points="${poly}" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${sx(xs[0]).toFixed(1)}" cy="${sy(ys[0]).toFixed(1)}" r="3" fill="currentColor"/><circle cx="${sx(xs[xs.length-1]).toFixed(1)}" cy="${sy(ys[ys.length-1]).toFixed(1)}" r="3" fill="currentColor"/></svg>`;
   },
   renderTrend(arr, changePct) {
@@ -1564,7 +1564,7 @@ const GPS = {
     const altitude=Number(altitudeRaw);
     const tsRaw=isNative?(pos.time??pos.timestamp):(pos.timestamp??pos.time);
     const ts=Number(tsRaw)||Date.now();
-    const point={lat,lng,speed:speedKmh,speedKmh:speedKmh,accuracy:isFinite(accuracy)?accuracy:0,time:ts,bearing:isFinite(bearing)?bearing:null,altitude:isFinite(altitude)?altitude:null,source:isNative?'native':'browser',simulated:!!(isNative&&pos.simulated)};
+    const point={lat,lng,speed:speedKmh,speedKmh:speedKmh,displaySpeedKmh:speedKmh,accuracy:isFinite(accuracy)?accuracy:0,time:ts,bearing:isFinite(bearing)?bearing:null,altitude:isFinite(altitude)?altitude:null,source:isNative?'native':'browser',simulated:!!(isNative&&pos.simulated)};
     const prev=this.points[this.points.length-1];
     if(prev){
       const gap=Haversine(prev.lat,prev.lng,lat,lng);
@@ -1575,7 +1575,7 @@ const GPS = {
       // actual GPS movement. This is fallback only; valid provider speed wins.
       if(!(speedKmh>0)&&gap>.003&&dt<=180){
         speedKmh=Math.min(220,Math.max(0,gap/dt*3600));
-        point.speedKmh=speedKmh; point.speed=speedKmh;
+        point.speedKmh=speedKmh; point.speed=speedKmh; point.displaySpeedKmh=speedKmh; point.displaySpeedKmh=speedKmh;
       }
     }
     this.points.push(point);
@@ -1623,11 +1623,9 @@ const GPS = {
     clearInterval(this.timer);this.timer=null;
     if(this.wakeLock){try{await this.wakeLock.release();}catch(e){}this.wakeLock=null;}
 
-    if(wasNative&&window.RHNativeGPS){try{await window.RHNativeGPS.stop();}catch(e){console.warn('[RHGPS] native stop',e);} }
     if(wasNative){
-      // Do NOT set active=false before fetching; refreshNativePoints intentionally
-      // works while stopping so iOS can flush the last native location(s).
-      await this.waitForNativeFlush(sid,8000);
+      await this.waitForNativeFlush(sid,6500);
+      if(window.RHNativeGPS){try{await window.RHNativeGPS.stop();}catch(e){console.warn('[RHGPS] native stop',e);}}
     }
 
     this.points=this.dedupePoints(this.points);
@@ -1716,7 +1714,7 @@ const GPS = {
   },
   renderLive(){
     const s=this.stats(),route=this.points.length?this.detectRoute():{routeName:'GPS STANDBY',note:'Menunggu titik GPS...'},last=this.points[this.points.length-1];
-    document.getElementById('gps-speed').textContent=Num(last?.speedKmh!==undefined?last.speedKmh:(last?.speed||0),1);document.getElementById('gps-distance').textContent=Num(s.distance,2);document.getElementById('gps-time').textContent=TimeFmt(s.durationMin*60);document.getElementById('gps-avg').textContent=Num(s.avgSpeed,1);document.getElementById('gps-route').textContent=route.routeName;document.getElementById('live-route-preview').innerHTML=`<b>${Esc(route.routeName)}</b><span>${Esc(route.note)} • ${this.points.length} titik GPS</span>`;document.getElementById('float-route').textContent=route.routeName;document.getElementById('float-speed').textContent=Num(last?.speedKmh!==undefined?last.speedKmh:(last?.speed||0),1);document.getElementById('float-distance').textContent=Num(s.distance,2)+' km';document.getElementById('float-time').textContent=TimeFmt(s.durationMin*60);document.getElementById('float-avg').textContent=Num(s.avgSpeed,1)+' km/h';
+    document.getElementById('gps-speed').textContent=Num(last?.displaySpeedKmh!==undefined?last.displaySpeedKmh:(last?.speedKmh!==undefined?last.speedKmh:(last?.speed||0)),1);document.getElementById('gps-distance').textContent=Num(s.distance,2);document.getElementById('gps-time').textContent=TimeFmt(s.durationMin*60);document.getElementById('gps-avg').textContent=Num(s.avgSpeed,1);document.getElementById('gps-route').textContent=route.routeName;document.getElementById('live-route-preview').innerHTML=`<b>${Esc(route.routeName)}</b><span>${Esc(route.note)} • ${this.points.length} titik GPS</span>`;document.getElementById('float-route').textContent=route.routeName;document.getElementById('float-speed').textContent=Num(last?.displaySpeedKmh!==undefined?last.displaySpeedKmh:(last?.speedKmh!==undefined?last.speedKmh:(last?.speed||0)),1);document.getElementById('float-distance').textContent=Num(s.distance,2)+' km';document.getElementById('float-time').textContent=TimeFmt(s.durationMin*60);document.getElementById('float-avg').textContent=Num(s.avgSpeed,1)+' km/h';
   },
   reset(){this.active=false;this.stopping=false;this.points=[];this.start=null;this.end=null;this.pending=null;this.sessionId=null;this.nativeMode=false;this.clearPersist();if(this.watch!==null){navigator.geolocation.clearWatch(this.watch);this.watch=null;}clearInterval(this.timer);this.timer=null;this.updateButton(false);['gps-speed','gps-distance','gps-avg'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=id==='gps-distance'?'0.00':'0';});const tm=document.getElementById('gps-time');if(tm)tm.textContent='00:00';const rt=document.getElementById('gps-route');if(rt)rt.textContent='GPS STANDBY';document.getElementById('gps-floating')?.classList.remove('show');}
 };
