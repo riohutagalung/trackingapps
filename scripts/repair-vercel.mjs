@@ -15,6 +15,12 @@ html = html.replace(/\n  \}\n  renderFuelPrediction\(/g, '\n  },\n  renderFuelPr
 html = html.replace(/\n  \}\,\,\n/g, '\n  },\n');
 html = html.replace(/<link\s+rel=["']manifest["']\s+href=["']\?manifest=1["']\s*\/?>/i, '<link rel="manifest" href="/manifest.json">');
 
+// Repair the corrupted sparkline template expression found in an older source copy.
+html = html.replace(
+  /const poly=sample\.map\(p=>`\$\{sx\(Number\(p\.lng\)\|\|0\)\.toFixed\(1\)\},\$\{'}sy\(Number\(p\.lat\)\|\|0\)\.toFixed\(1\)\$\{'\}`\)\.join\(' '\);/g,
+  "const poly=sample.map(p=>`${sx(Number(p.lng)||0).toFixed(1)},${sy(Number(p.lat)||0).toFixed(1)}`).join(' ');"
+);
+
 // Native GPS: flush server-side points BEFORE stopping the native provider.
 // The native URL delivery is independent of the WebView, so this keeps points
 // recorded while the phone is locked available when the user taps Stop.
