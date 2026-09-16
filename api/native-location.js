@@ -1,58 +1,36 @@
-const GAS_URL='https://script.google.com/macros/s/AKfycbyHREf-8F0Dd8G7hXtw_cyQskLkCzmkATDmOeBBovQWe9SeRw49ZIGxIzdSNTvScfn5qg/exec';
-
-function cors(res){
-  res.setHeader('Access-Control-Allow-Origin','*');
-  res.setHeader('Access-Control-Allow-Methods','GET,POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers','Content-Type, Accept');
-  res.setHeader('Vary','Origin');
-  res.setHeader('Cache-Control','no-store, no-cache, must-revalidate, max-age=0');
-}
-
-function json(res,status,data){
-  cors(res);
-  res.statusCode=status;
-  res.setHeader('Content-Type','application/json; charset=utf-8');
-  res.end(JSON.stringify(data));
-}
-
-async function readBody(req){
-  const chunks=[];
-  for await(const c of req) chunks.push(Buffer.from(c));
-  const text=Buffer.concat(chunks).toString('utf8');
-  if(!text) return {};
-  try { return JSON.parse(text); }
-  catch(e){ throw new Error('Invalid JSON body'); }
-}
-
+const GAS_URL='https://script.google.com/macros/s/AKfycbyi6yqLiKwjpoy9TclZycH6KOPi0GXlPHc7iHGAA5srKCV6TVWOlSyTr-1V-JOiwlr2MQ/exec';
+function cors(res){res.setHeader('Access-Control-Allow-Origin','*');res.setHeader('Access-Control-Allow-Methods','GET,POST,OPTIONS');res.setHeader('Access-Control-Allow-Headers','Content-Type, Accept');res.setHeader('Vary','Origin');res.setHeader('Cache-Control','no-store, no-cache, must-revalidate, max-age=0');}
+function json(res,status,data){cors(res);res.statusCode=status;res.setHeader('Content-Type','application/json; charset=utf-8');res.end(JSON.stringify(data));}
+async function readBody(req){const chunks=[];for await(const c of req)chunks.push(Buffer.from(c));const text=Buffer.concat(chunks).toString('utf8');if(!text)return {};try{return JSON.parse(text);}catch(e){throw new Error('Invalid JSON body');}}
 async function forward(body){
-  const r=await fetch(GAS_URL,{
-    method:'POST',
-    redirect:'follow',
-    headers:{'Content-Type':'application/json; charset=utf-8','Accept':'application/json'},
-    body:JSON.stringify(body),
-    cache:'no-store'
-  });
-  const text=await r.text();
-  let payload=null;
-  try { payload=text?JSON.parse(text):null; } catch(e) {}
-  if(!r.ok) throw new Error('Apps Script HTTP '+r.status+': '+(payload?.error||text?.slice(0,800)||('HTTP '+r.status)));
-  if(!payload) throw new Error('Apps Script response bukan JSON: '+text.slice(0,300));
-  return payload;
+  const payload=JSON.stringify(body);let target=GAS_URL;
+  for(let i=0;i<5;i++){
+    const r=await fetch(target,{method:'POST',redirect:'manual',headers:{'Content-Type':'application/json; charset=utf-8','Accept':'application/json'},body:payload,cache:'no-store'});
+    if([301,302,303].includes(r.status)){
+      const loc=r.headers.get('location');if(!loc)throw new Error('Apps Script redirect tanpa Location.');
+      target=new URL(loc,target).toString();
+      const rr=await fetch(target,{method:'GET',redirect:'manual',headers:{'Accept':'application/json'},cache:'no-store'});
+      if([301,302,303,307,308].includes(rr.status)){const next=rr.headers.get('location');if(next){target=new URL(next,target).toString();continue;}}
+      const t=await rr.text();let p=null;try{p=t?JSON.parse(t):null;}catch(e){}
+      if(!rr.ok)throw new Error('Apps Script HTTP '+rr.status+': '+(p?.error||t?.slice(0,800)||('HTTP '+rr.status)));
+      return p||{ok:true};
+    }
+    if([307,308].includes(r.status)){const loc=r.headers.get('location');if(!loc)throw new Error('Apps Script redirect tanpa Location.');target=new URL(loc,target).toString();continue;}
+    const t=await r.text();let p=null;try{p=t?JSON.parse(t):null;}catch(e){}
+    if(!r.ok)throw new Error('Apps Script HTTP '+r.status+': '+(p?.error||t?.slice(0,800)||('HTTP '+r.status)));
+    return p||{ok:true};
+  }
+  throw new Error('Terlalu banyak redirect Apps Script.');
 }
-
 module.exports=async function handler(req,res){
   try{
-    cors(res);
-    if(req.method==='OPTIONS'){res.statusCode=204;return res.end();}
-    if(req.method==='GET') return json(res,200,{ok:true,service:'rh-native-location',status:'ready'});
-    if(req.method!=='POST') return json(res,405,{ok:false,error:'Method GET/POST only'});
+    if(req.method==='OPTIONS'){return json(res,204,{});} 
+    if(req.method==='GET')return json(res,200,{ok:true,service:'rh-native-location',status:'ready'});
+    if(req.method!=='POST')return json(res,405,{ok:false,error:'Method GET/POST only'});
     const body=await readBody(req);
     const tripId=String(req.query?.tripId||body.tripId||'').trim();
-    if(!tripId) return json(res,400,{ok:false,error:'tripId wajib diisi'});
-    if(!Number.isFinite(Number(body.latitude))||!Number.isFinite(Number(body.longitude))) return json(res,400,{ok:false,error:'Koordinat GPS tidak valid'});
+    if(!tripId)return json(res,400,{ok:false,error:'tripId wajib diisi'});
+    if(!Number.isFinite(Number(body.latitude))||!Number.isFinite(Number(body.longitude)))return json(res,400,{ok:false,error:'Koordinat GPS tidak valid'});
     return json(res,200,await forward({...body,tripId,source:'native'}));
-  }catch(e){
-    console.error('[RH native-location]',e);
-    return json(res,502,{ok:false,error:e?.message||String(e)});
-  }
+  }catch(e){console.error('[RH native-location]',e);return json(res,502,{ok:false,error:e?.message||String(e)});}
 };
