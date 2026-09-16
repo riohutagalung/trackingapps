@@ -3,129 +3,59 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 
-const file = path.resolve(process.argv[2] || 'index.html');
-if (!fs.existsSync(file)) throw new Error('[RH] index.html not found: ' + file);
+const file=path.resolve(process.argv[2]||'index.html');
+if(!fs.existsSync(file))throw new Error('[RH] index.html not found: '+file);
+let html=fs.readFileSync(file,'utf8');
 
-let html = fs.readFileSync(file, 'utf8');
+// Only repair known source corruption. No business/GPS calculations are changed here.
+html=html.replace(/\},\,/g,'},');
+html=html.replace(/\n  \}\n  renderPublicTransport\(/g,'\n  },\n  renderPublicTransport(');
+html=html.replace(/\n  \}\n  renderFuelPrediction\(/g,'\n  },\n  renderFuelPrediction(');
+html=html.replace(/\n  \}\,\,\n/g,'\n  },\n');
+html=html.replace(/<link\s+rel=["']manifest["']\s+href=["']\?manifest=1["']\s*\/?>/i,'<link rel="manifest" href="/manifest.json">');
 
-// -----------------------------------------------------------------------------
-// SOURCE-ONLY REPAIRS
-// These repairs restore syntax/runtime modules that were accidentally corrupted
-// in earlier source copies. They do not change business/data logic.
-// -----------------------------------------------------------------------------
-html = html.replace(/\},\,/g, '},');
-html = html.replace(/\n  \}\n  renderPublicTransport\(/g, '\n  },\n  renderPublicTransport(');
-html = html.replace(/\n  \}\n  renderFuelPrediction\(/g, '\n  },\n  renderFuelPrediction(');
-html = html.replace(/\n  \}\,\,\n/g, '\n  },\n');
-html = html.replace(
-  /<link\s+rel=["']manifest["']\s+href=["']\?manifest=1["']\s*\/?>/i,
-  '<link rel="manifest" href="/manifest.json">'
-);
-
-// Repair corrupted sparkline template expression from an older source copy.
-html = html.replace(
-  /const poly=sample\.map\(p=>`\$\{sx\(Number\(p\.lng\)\|\|0\)\.toFixed\(1\)\},\$\{'}sy\(Number\(p\.lat\)\|\|0\)\.toFixed\(1\)\$\{'\}`\)\.join\(' '\);/g,
-  "const poly=sample.map(p=>`${sx(Number(p.lng)||0).toFixed(1)},${sy(Number(p.lat)||0).toFixed(1)}`).join(' ');"
-);
-
-// Native GPS: flush points while the provider is still alive, then stop it.
-html = html.replace(
-  /if\(wasNative&&window\.RHNativeGPS\)\{try\{await window\.RHNativeGPS\.stop\(\);\}catch\(e\)\{console\.warn\('\[RHGPS\] native stop',e\);\}\s*\}\s*if\(wasNative\)\{\s*\/\/ Do NOT set active=false before fetching; refreshNativePoints intentionally\s*\/\/ works while stopping so iOS can flush the last native location\(s\)\.\s*await this\.waitForNativeFlush\(sid,8000\);\s*\}/,
-  "if(wasNative){\n      await this.waitForNativeFlush(sid,6500);\n      if(window.RHNativeGPS){try{await window.RHNativeGPS.stop();}catch(e){console.warn('[RHGPS] native stop',e);}}\n    }"
-);
-
-// Preserve raw provider speed and use a separate display speed.
-html = html.replace(
-  "const point={lat,lng,speed:speedKmh,speedKmh:speedKmh,accuracy:isFinite(accuracy)?accuracy:0,time:ts,bearing:isFinite(bearing)?bearing:null,altitude:isFinite(altitude)?altitude:null,source:isNative?'native':'browser',simulated:!!(isNative&&pos.simulated)};",
-  "const point={lat,lng,speed:speedKmh,speedKmh:speedKmh,displaySpeedKmh:speedKmh,accuracy:isFinite(accuracy)?accuracy:0,time:ts,bearing:isFinite(bearing)?bearing:null,altitude:isFinite(altitude)?altitude:null,source:isNative?'native':'browser',simulated:!!(isNative&&pos.simulated)};"
-);
-html = html.replace(
-  "point.speedKmh=speedKmh; point.speed=speedKmh;",
-  "point.speedKmh=speedKmh; point.speed=speedKmh; point.displaySpeedKmh=speedKmh;"
-);
-
-// Remove accidental duplicate display-speed assignments introduced by older patches.
-html = html.replace(
-  /point\.displaySpeedKmh=speedKmh;(?:\s*point\.displaySpeedKmh=speedKmh;)+/g,
-  'point.displaySpeedKmh=speedKmh;'
-);
-
-// The repair script is intentionally idempotent. Remove every existing
-// prevDisplay declaration, then add exactly one immediately before its use.
-html = html.replace(/^\s*const prevDisplay=prev&&Number\(prev\.displaySpeedKmh\);\s*$/gm, '');
-const displayBlend = "if(isFinite(prevDisplay)&&speedKmh>0){ point.displaySpeedKmh=Math.max(0,Math.min(220,prevDisplay*0.72+speedKmh*0.28)); }";
-if (html.includes(displayBlend) && !/const prevDisplay=prev&&Number\(prev\.displaySpeedKmh\);\s*\n\s*if\(isFinite\(prevDisplay\)/.test(html)) {
-  html = html.replace(displayBlend, "const prevDisplay=prev&&Number(prev.displaySpeedKmh);\n    " + displayBlend);
-}
-
-html = html.replace(
-  "document.getElementById('gps-speed').textContent=Num(last?.speedKmh!==undefined?last.speedKmh:(last?.speed||0),1);",
-  "document.getElementById('gps-speed').textContent=Num(last?.displaySpeedKmh!==undefined?last.displaySpeedKmh:(last?.speedKmh!==undefined?last.speedKmh:(last?.speed||0)),1);"
-);
-html = html.replace(
-  "document.getElementById('float-speed').textContent=Num(last?.speedKmh!==undefined?last.speedKmh:(last?.speed||0),1);",
-  "document.getElementById('float-speed').textContent=Num(last?.displaySpeedKmh!==undefined?last.displaySpeedKmh:(last?.speedKmh!==undefined?last.speedKmh:(last?.speed||0)),1);"
-);
-
-// Fix a harmless but incorrect extra brace in the weather percentage template.
-html = html.replace('${x.probability || 0}}% kemungkinan hujan', '${x.probability || 0}% kemungkinan hujan');
-
-// App.init() calls Weather.refresh(). Ensure Weather always exists even in the
-// Vercel/native build, where Apps Script's HTML partials are not present.
-if (!/\bconst\s+Weather\s*=/.test(html)) {
-  const weatherCode = [
+// App.init() uses Weather.refresh(). Keep a real client module in the Vercel/native app.
+// It calls the existing Apps Script RPC; it does not fabricate weather data.
+if(!/\bconst\s+Weather\s*=/.test(html)){
+  const weatherCode=[
     'const Weather = {',
     '  refresh(force) {',
-    "    const box = document.getElementById('weather-banner');",
-    "    const content = document.getElementById('weather-content');",
-    '    if (!box || !content) return;',
+    "    const box=document.getElementById('weather-banner');",
+    "    const content=document.getElementById('weather-content');",
+    '    if(!box||!content)return;',
     "    box.classList.add('show');",
-    "    content.textContent = 'Memeriksa prakiraan hujan...';",
-    '    google.script.run',
-    '      .withSuccessHandler(r => {',
-    '        const s = r && r.summary;',
-    "        if (!s) { content.textContent = 'Prakiraan belum tersedia.'; return; }",
-    '        const m = s.morning || {};',
-    '        const e = s.evening || {};',
-    "        const txt = x => String(Number(x.probability || 0)) + '% kemungkinan hujan' + (x.precipitation ? (' • ' + Num(x.precipitation, 1) + ' mm/jam') : '');",
-    "        content.innerHTML = '<div class=\"route-list\">' + '<div class=\"route-row\"><div><div class=\"route-name\">' + Icon('sun',15) + ' Pagi 07:00</div><div class=\"route-sub\">' + txt(m) + '</div></div><div class=\"eta\"><strong>' + Icon(m.caution ? 'rain' : 'sun',16) + '</strong></div></div>' + '<div class=\"route-row\"><div><div class=\"route-name\">' + Icon('sun',15) + ' Sore 18:00</div><div class=\"route-sub\">' + txt(e) + '</div></div><div class=\"eta\"><strong>' + Icon(e.caution ? 'rain' : 'sun',16) + '</strong></div></div>' + '</div>';",
-    "        if (m.caution || e.caution) App.toast('Ada potensi hujan di jam commute.');",
-    '      })',
-    "      .withFailureHandler(() => { content.textContent = 'Cuaca tidak tersedia.'; })",
-    '      .getCommuteWeather();',
+    "    content.textContent='Memeriksa prakiraan hujan...';",
+    '    google.script.run.withSuccessHandler(r=>{',
+    '      const s=r&&r.summary;',
+    "      if(!s){content.textContent='Prakiraan belum tersedia.';return;}",
+    "      const text=x=>String(Number(x?.probability||0))+'% kemungkinan hujan'+(x?.precipitation?' • '+Num(x.precipitation,1)+' mm/jam':'');",
+    "      content.innerHTML='<div class=\"route-list\">'+['morning','evening'].map((k,i)=>{const x=s[k]||{};const label=i===0?'Pagi 07:00':'Sore 18:00';return '<div class=\"route-row\"><div><div class=\"route-name\">'+Icon(x.caution?'rain':'sun',15)+' '+label+'</div><div class=\"route-sub\">'+text(x)+'</div></div></div>';}).join('')+'</div>';",
+    '      if((s.morning&&s.morning.caution)||(s.evening&&s.evening.caution))App.toast(\'Ada potensi hujan di jam commute.\');',
+    '    }).withFailureHandler(()=>{content.textContent=\'Cuaca tidak tersedia.\';}).getCommuteWeather();',
     '  }',
     '};',
     ''
   ].join('\n');
-
-  const marker = /<script[^>]*>\s*const\s+Icon\s*=/i;
-  if (marker.test(html)) html = html.replace(marker, '<script>' + weatherCode + 'const Icon=');
-  else html = html.replace(/<\/body>/i, '<script>' + weatherCode + '</script>\n</body>');
+  const marker=/<script[^>]*>\s*const\s+Icon\s*=/i;
+  if(marker.test(html))html=html.replace(marker,'<script>'+weatherCode+'const Icon=');
+  else html=html.replace(/<\/body>/i,'<script>'+weatherCode+'</script>\n</body>');
 }
 
-// -----------------------------------------------------------------------------
-// HARD VALIDATION
-// Every inline JS block must parse before Vercel/native preparation succeeds.
-// -----------------------------------------------------------------------------
-const scriptRe = /<script(?:[^>]*)>([\s\S]*?)<\/script>/gi;
-let match;
-let count = 0;
-while ((match = scriptRe.exec(html))) {
-  const code = match[1];
-  if (!code.trim()) { count++; continue; }
-  const tmp = path.join(os.tmpdir(), 'rh-index-' + process.pid + '-' + count + '.js');
-  fs.writeFileSync(tmp, code);
-  const result = spawnSync(process.execPath, ['--check', tmp], { encoding: 'utf8' });
-  try { fs.unlinkSync(tmp); } catch (_) {}
-  if (result.status !== 0) {
-    throw new Error('[RH] inline script #' + count + ' invalid:\n' + (result.stderr || result.stdout));
-  }
+const scriptRe=/<script(?:[^>]*)>([\s\S]*?)<\/script>/gi;
+let match,count=0;
+while((match=scriptRe.exec(html))){
+  const code=match[1];
+  if(!code.trim()){count++;continue;}
+  const tmp=path.join(os.tmpdir(),'rh-index-'+process.pid+'-'+count+'.js');
+  fs.writeFileSync(tmp,code);
+  const result=spawnSync(process.execPath,['--check',tmp],{encoding:'utf8'});
+  try{fs.unlinkSync(tmp);}catch(_){ }
+  if(result.status!==0)throw new Error('[RH] inline script #'+count+' invalid:\n'+(result.stderr||result.stdout));
   count++;
 }
+if(!/\bconst\s+App\s*=/.test(html))throw new Error('[RH] App module missing from index.html.');
+if(!/\bconst\s+GPS\s*=/.test(html))throw new Error('[RH] GPS module missing from index.html.');
+if(!/\bconst\s+Weather\s*=/.test(html))throw new Error('[RH] Weather module missing from index.html.');
 
-if (!/\bconst\s+App\s*=/.test(html)) throw new Error('[RH] App module missing from index.html.');
-if (!/\bconst\s+GPS\s*=/.test(html)) throw new Error('[RH] GPS module missing from index.html.');
-if (!/\bconst\s+Weather\s*=/.test(html)) throw new Error('[RH] Weather module missing from index.html.');
-
-fs.writeFileSync(file, html);
-console.log('[RH] index.html validated: ' + count + ' script blocks.');
+fs.writeFileSync(file,html);
+console.log('[RH] index.html validated: '+count+' script blocks.');
