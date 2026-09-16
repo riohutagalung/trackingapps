@@ -1,0 +1,47 @@
+name: Repair and validate RH Habits source
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Repair and validate index.html
+        run: node scripts/repair-vercel.mjs index.html
+
+      - name: Validate native/server JavaScript
+        run: |
+          node --check gas-bridge.js
+          node --check rh-native-gps.js
+          node --check rh-native-media.js
+          node --check api/rpc.js
+          node --check api/native-location.js
+
+      - name: Commit repaired source when changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- index.html; then
+            echo "No source repair changes needed."
+          else
+            git add index.html
+            git commit -m "chore: persist validated index source"
+            git push
+          fi
