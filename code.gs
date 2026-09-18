@@ -829,8 +829,8 @@ function computeGpsMetrics_(points, startValue, endValue) {
 
     var acc = Number(p.accuracy)||0;
     var jitterRadius = Math.max(5, Math.min(20, acc > 0 ? acc*0.15 : 5));
-    var stationary = dMeters <= jitterRadius && (segmentSpeed < 15 || (isFinite(provider) && provider < 5));
     var provider = gpsProviderSpeedKmh_(p);
+    var stationary = dMeters <= jitterRadius && (segmentSpeed < 15 || (isFinite(provider) && provider < 5));
     var speed = segmentSpeed;
     if (isFinite(provider) && provider <= 320) {
       var mismatch = Math.abs(provider-segmentSpeed);
