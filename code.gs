@@ -932,7 +932,7 @@ function computeGpsMetrics_(points, startValue, endValue) {
     out.push(b);
   }
 
-  var distance=0, movingSec=0, stopCount=0, stopStart=null, maxSpeed=0, last=null;
+  var distance=0, movingSec=0, stopCount=0, idleStarted=null, maxSpeed=0, last=null, movementWindowMs=10000;
   for (var k=0;k<out.length;k++) {
     var q=out[k], sp=Number(q.filteredSpeedKmh||0);
     if (sp>maxSpeed) maxSpeed=sp;
@@ -940,15 +940,28 @@ function computeGpsMetrics_(points, startValue, endValue) {
       var gap=(q.time-last.time)/1000;
       if (gap>0 && gap<=90) {
         var seg=haversineKm_(last.lat,last.lng,q.lat,q.lng);
-        var segSpeed=seg*3600/gap;
+        var segMeters=seg*1000, segSpeed=seg*3600/gap;
         var jr=Math.max(5,Math.min(20,Number(q.accuracy||0)>0?Number(q.accuracy)*0.15:5));
-        if (!(seg*1000<=jr && segSpeed<15)) distance+=seg;
-        if (sp>=3) {
+        if (!(segMeters<=jr && segSpeed<15)) distance+=seg;
+
+        // Stateful movement detection: short speed dips do not become a stop immediately.
+        // Moving evidence comes from validated speed or >=10m net displacement in ~10s.
+        var anchor=out[Math.max(0,k-1)];
+        for(var w=k-1;w>=0;w--){
+          if(q.time-out[w].time>movementWindowMs)break;
+          anchor=out[w];
+        }
+        var windowMove=anchor?haversineKm_(anchor.lat,anchor.lng,q.lat,q.lng)*1000:0;
+        var movingEvidence=sp>=3 || windowMove>=10;
+
+        if(movingEvidence){
+          if(idleStarted!==null && (q.time-idleStarted)>=60000)stopCount++;
+          idleStarted=null;
           movingSec+=Math.min(gap,90);
-          if (stopStart!==null && (q.time-stopStart)>=60000) stopCount++;
-          stopStart=null;
-        } else if (stopStart===null) {
-          stopStart=last.time;
+        }else{
+          if(idleStarted===null)idleStarted=last.time;
+          var stopConfirmed=(q.time-idleStarted)>=movementWindowMs;
+          if(!stopConfirmed)movingSec+=Math.min(gap,90);
         }
       }
     }
