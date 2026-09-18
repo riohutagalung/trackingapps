@@ -1502,7 +1502,6 @@ function RHGpsProviderSpeedKmh(p) {
   const candidates = [
     p.providerSpeedKmh,
     p.speedKmh,
-    p.filteredSpeedKmh,
     p.speed
   ];
   for (let i=0;i<candidates.length;i++) {
@@ -1664,14 +1663,15 @@ function RHComputeGpsMetrics(points,startMs,endMs){
   const a=Number(startMs)||fallbackStart;
   const b=Number(endMs)||fallbackEnd;
   const durationMin=a&&b&&b>=a?(b-a)/60000:0;
-  const avgSpeed=durationMin>0?distance/(durationMin/60):0;
+  const movingTimeMin=Math.min(durationMin,movingMs/60);
+  const avgSpeed=movingTimeMin>0?distance/(movingTimeMin/60):0;
   return {
     points:track,
     pointCount:track.length,
     distanceKm:distance,
     durationMin:durationMin,
-    movingTimeMin:Math.min(durationMin,movingMs/60),
-    stopTimeMin:Math.max(0,durationMin-movingMs/60),
+    movingTimeMin:movingTimeMin,
+    stopTimeMin:Math.max(0,durationMin-movingTimeMin),
     stopCount:stopCount,
     avgSpeedKmh:avgSpeed,
     maxSpeedKmh:maxSpeed,
