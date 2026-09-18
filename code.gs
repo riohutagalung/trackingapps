@@ -649,30 +649,93 @@ const ROUTE_H = [
   'Frekuensi',
   'AvgDurasi_menit',
   'AvgJarak_km',
+  'AvgMovingTime_menit',
+  'AvgSpeed_kmh',
+  'AvgMaxSpeed_kmh',
+  'AvgStopCount',
   'RouteName',
-  'LastUsed'
+  'LastUsed',
+  'RouteVariant',
+  'RouteVariants_JSON',
+  'HabitLevel'
 ];
 
-function updateRouteHabit_(origin, destination, duration, distance, routeName, routeVariant, movingTimeMin, stopTimeMin) {
-  var sheet=tab_('Routes',ROUTE_H); ensureRouteColumns_(sheet);
-  var headers=sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0]; var map=getHeaderMap_(headers);
+function updateRouteHabit_(origin, destination, duration, distance, routeName, routeVariant, movingTimeMin, stopTimeMin, avgSpeed, maxSpeed) {
+  var sheet=tab_('Routes',ROUTE_H);
+  ensureRouteColumns_(sheet);
+  var headers=sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0];
+  var map=getHeaderMap_(headers);
   var rows=sheet.getDataRange().getValues();
+
+  function num(v){ var n=Number(v); return isFinite(n)?n:0; }
+  function updateVariants(raw, variant){
+    var obj={};
+    try { if(raw) obj=JSON.parse(String(raw))||{}; } catch(e) { obj={}; }
+    variant=String(variant||'').trim();
+    if(variant) obj[variant]=num(obj[variant])+1;
+    return obj;
+  }
+  function habitLevel(freq){
+    return freq>=3?'habit':freq===2?'mulai-habit':'tercatat';
+  }
+
   for(var i=1;i<rows.length;i++){
     if(String(rows[i][map['Asal']])===String(origin)&&String(rows[i][map['Tujuan']])===String(destination)){
-      var freq=Number(rows[i][map['Frekuensi']]||0)+1;
-      var oldD=Number(rows[i][map['AvgDurasi_menit']]||0), oldK=Number(rows[i][map['AvgJarak_km']]||0);
-      var avgD=((oldD*(freq-1))+Number(duration||0))/freq, avgK=((oldK*(freq-1))+Number(distance||0))/freq;
+      var freq=num(rows[i][map['Frekuensi']])+1;
+      var oldD=num(rows[i][map['AvgDurasi_menit']]), oldK=num(rows[i][map['AvgJarak_km']]);
+      var oldM=map['AvgMovingTime_menit']!==undefined?num(rows[i][map['AvgMovingTime_menit']]):0;
+      var oldS=map['AvgSpeed_kmh']!==undefined?num(rows[i][map['AvgSpeed_kmh']]):0;
+      var oldX=map['AvgMaxSpeed_kmh']!==undefined?num(rows[i][map['AvgMaxSpeed_kmh']]):0;
+      var oldC=map['AvgStopCount']!==undefined?num(rows[i][map['AvgStopCount']]):0;
+
+      var avgD=((oldD*(freq-1))+num(duration))/freq;
+      var avgK=((oldK*(freq-1))+num(distance))/freq;
+      var avgM=((oldM*(freq-1))+num(movingTimeMin))/freq;
+      var avgS=((oldS*(freq-1))+num(avgSpeed))/freq;
+      var avgX=((oldX*(freq-1))+num(maxSpeed))/freq;
+      var avgC=((oldC*(freq-1))+num(stopTimeMin>0 ? stopTimeMin : 0))/freq;
+
+      var variants=updateVariants(map['RouteVariants_JSON']!==undefined?rows[i][map['RouteVariants_JSON']]:'',routeVariant);
+      var keys=Object.keys(variants).sort(function(a,b){return num(variants[b])-num(variants[a]);});
+      var dominant=keys.length?keys[0]:String(routeVariant||'');
+
       if(map['Frekuensi']!==undefined) sheet.getRange(i+1,map['Frekuensi']+1).setValue(freq);
       if(map['AvgDurasi_menit']!==undefined) sheet.getRange(i+1,map['AvgDurasi_menit']+1).setValue(avgD);
       if(map['AvgJarak_km']!==undefined) sheet.getRange(i+1,map['AvgJarak_km']+1).setValue(avgK);
+      if(map['AvgMovingTime_menit']!==undefined) sheet.getRange(i+1,map['AvgMovingTime_menit']+1).setValue(avgM);
+      if(map['AvgSpeed_kmh']!==undefined) sheet.getRange(i+1,map['AvgSpeed_kmh']+1).setValue(avgS);
+      if(map['AvgMaxSpeed_kmh']!==undefined) sheet.getRange(i+1,map['AvgMaxSpeed_kmh']+1).setValue(avgX);
+      if(map['AvgStopCount']!==undefined) sheet.getRange(i+1,map['AvgStopCount']+1).setValue(avgC);
       if(map['RouteName']!==undefined) sheet.getRange(i+1,map['RouteName']+1).setValue(routeName||rows[i][map['RouteName']]);
       if(map['LastUsed']!==undefined) sheet.getRange(i+1,map['LastUsed']+1).setValue(nowISO_());
+      if(map['RouteVariant']!==undefined) sheet.getRange(i+1,map['RouteVariant']+1).setValue(dominant);
+      if(map['RouteVariants_JSON']!==undefined) sheet.getRange(i+1,map['RouteVariants_JSON']+1).setValue(JSON.stringify(variants));
+      if(map['HabitLevel']!==undefined) sheet.getRange(i+1,map['HabitLevel']+1).setValue(habitLevel(freq));
       return;
     }
   }
+
   var row=new Array(headers.length).fill('');
-  var vals={'Asal':origin,'Tujuan':destination,'Frekuensi':1,'AvgDurasi_menit':Number(duration||0),'AvgJarak_km':Number(distance||0),'RouteName':routeName||'','LastUsed':nowISO_()};
-  Object.keys(vals).forEach(function(k){if(map[k]!==undefined)row[map[k]]=vals[k];}); sheet.appendRow(row);
+  var variants={};
+  if(String(routeVariant||'').trim()) variants[String(routeVariant).trim()]=1;
+  var vals={
+    'Asal':origin,
+    'Tujuan':destination,
+    'Frekuensi':1,
+    'AvgDurasi_menit':num(duration),
+    'AvgJarak_km':num(distance),
+    'AvgMovingTime_menit':num(movingTimeMin),
+    'AvgSpeed_kmh':num(avgSpeed),
+    'AvgMaxSpeed_kmh':num(maxSpeed),
+    'AvgStopCount':0,
+    'RouteName':routeName||'',
+    'LastUsed':nowISO_(),
+    'RouteVariant':String(routeVariant||''),
+    'RouteVariants_JSON':JSON.stringify(variants),
+    'HabitLevel':'tercatat'
+  };
+  Object.keys(vals).forEach(function(k){if(map[k]!==undefined)row[map[k]]=vals[k];});
+  sheet.appendRow(row);
 }
 
 function ensureRouteColumns_(sheet) {
@@ -713,9 +776,16 @@ function buildRouteSuggestions_(habits, trips) {
         frequency: habit.freq,
         averageDuration: habit.avgDur,
         averageDistance: habit.avgDistance,
-        message: habit.routeName
-          ? 'Rute yang paling sering digunakan: ' + habit.routeName
-          : 'Rute favorit berdasarkan ' + habit.freq + ' perjalanan'
+        averageMovingTime: habit.avgMovingTime,
+        averageSpeed: habit.avgSpeed,
+        averageMaxSpeed: habit.avgMaxSpeed,
+        habitLevel: habit.habitLevel,
+        variantCount: habit.variantCount,
+        message: habit.habitLevel==='habit'
+          ? 'Habit utama: ' + (habit.routeName || 'rute ini')
+          : habit.habitLevel==='mulai-habit'
+            ? 'Rute mulai menjadi habit: ' + (habit.routeName || 'rute ini')
+            : 'Rute baru tercatat: ' + (habit.routeName || 'rute ini')
       });
     }
   });
@@ -1564,10 +1634,32 @@ function getTripsFast_(limit){
   }).reverse();
 }
 function getRouteHabitsFast_(){
-  var sheet=tab_('Routes',ROUTE_H), last=sheet.getLastRow(); if(last<=1)return[];
+  var sheet=tab_('Routes',ROUTE_H), last=sheet.getLastRow();
+  if(last<=1)return[];
   var headers=sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0], map=getHeaderMap_(headers), rows=sheet.getRange(2,1,last-1,headers.length).getValues();
-  return rows.map(function(r){return {origin:r[map['Asal']],destination:r[map['Tujuan']],freq:Number(r[map['Frekuensi']]||0),avgDur:Number(r[map['AvgDurasi_menit']]||0),avgDistance:Number(r[map['AvgJarak_km']]||0),routeName:r[map['RouteName']]||'',last:r[map['LastUsed']]||''};}).filter(function(x){return x.origin||x.destination;}).sort(function(a,b){return b.freq-a.freq;});
+  return rows.map(function(r){
+    var freq=Number(r[map['Frekuensi']]||0);
+    var variants={};
+    if(map['RouteVariants_JSON']!==undefined){try{variants=JSON.parse(String(r[map['RouteVariants_JSON']]||'{}'))||{};}catch(e){}}
+    return {
+      origin:r[map['Asal']],
+      destination:r[map['Tujuan']],
+      freq:freq,
+      avgDur:Number(r[map['AvgDurasi_menit']]||0),
+      avgDistance:Number(r[map['AvgJarak_km']]||0),
+      avgMovingTime:Number(map['AvgMovingTime_menit']!==undefined?r[map['AvgMovingTime_menit']]:0),
+      avgSpeed:Number(map['AvgSpeed_kmh']!==undefined?r[map['AvgSpeed_kmh']]:0),
+      avgMaxSpeed:Number(map['AvgMaxSpeed_kmh']!==undefined?r[map['AvgMaxSpeed_kmh']]:0),
+      avgStopCount:Number(map['AvgStopCount']!==undefined?r[map['AvgStopCount']]:0),
+      routeName:r[map['RouteName']]||'',
+      last:r[map['LastUsed']]||'',
+      routeVariant:map['RouteVariant']!==undefined?String(r[map['RouteVariant']]||''):'',
+      variantCount:Object.keys(variants).length,
+      habitLevel:map['HabitLevel']!==undefined?String(r[map['HabitLevel']]||''):(freq>=3?'habit':freq===2?'mulai-habit':'tercatat')
+    };
+  }).filter(function(x){return x.origin||x.destination;}).sort(function(a,b){return b.freq-a.freq;});
 }
+
 function getExpenseCountFast_(){try{return Math.max(0,tab_('Expenses',EXP_H).getLastRow()-1);}catch(e){return 0;}}
 function getTripCountFast_(){try{return Math.max(0,tab_('Trips',TRIP_H).getLastRow()-1);}catch(e){return 0;}}
 function sumFuelAmountForMonth_(expenses,month){return (expenses||[]).filter(function(e){return e.category==='Bensin'&&e.date.slice(0,7)===month;}).reduce(function(s,e){return s+Number(e.amount||0);},0);}
@@ -1748,10 +1840,13 @@ function getGoogleMapsUrl(direction) {
 function getRouteSuggestion(direction) {
   var origin = direction === 'home-office' ? HOME_CONFIG : OFFICE_CONFIG;
   var destination = direction === 'home-office' ? OFFICE_CONFIG : HOME_CONFIG;
+  var habits = getRouteHabits();
+  var trips = getTrips(100);
 
   return {
     traffic: fetchRealtimeRoutes_(origin, destination),
-    habits: getRouteHabits()
+    habits: habits,
+    recommendation: buildBestRouteRecommendation_(origin,destination,habits,trips)
   };
 }
 
@@ -1762,7 +1857,31 @@ function buildBestRouteRecommendation_(origin,destination,habits,trips){
   var avg=ds.length?ds.reduce(function(a,b){return a+b;},0)/ds.length:(exact?Number(exact.avgDur||0):0);
   var median=ds.length?(ds.length%2?ds[(ds.length-1)/2]:(ds[ds.length/2-1]+ds[ds.length/2])/2):avg;
   var km=recent.length?recent.reduce(function(a,t){return a+Number(t.distanceKm||0);},0)/recent.length:(exact?Number(exact.avgDistance||0):0);
-  return {hasHistory:!!(exact||recent.length),routeName:(exact&&exact.routeName)||origin.name+' → '+destination.name,frequency:(exact&&exact.freq)||recent.length,avgDuration:avg,personalMedianDuration:median,avgDistance:km,personalAdjustmentMin:null,message:exact?'Habit utama: '+(exact.routeName||'rute ini')+' • '+(exact.freq||0)+'x • baseline '+avg.toFixed(1)+' menit.':recent.length?'Baseline pribadi dari '+recent.length+' trip terakhir: '+avg.toFixed(1)+' menit.':'Belum ada habit rute yang cukup.'};
+  var moving=exact?Number(exact.avgMovingTime||0):0;
+  var avgSpeed=exact?Number(exact.avgSpeed||0):0;
+  var avgMax=exact?Number(exact.avgMaxSpeed||0):0;
+  var level=exact&&exact.freq>=3?'habit':exact&&exact.freq===2?'mulai-habit':recent.length?'tercatat':'belum';
+  var message=level==='habit'
+    ? 'Habit rute terbentuk: '+(exact.routeName||'rute ini')+' • '+exact.freq+'x • rata-rata '+avg.toFixed(1)+' menit • '+km.toFixed(1)+' km • '+avgSpeed.toFixed(1)+' km/h.'
+    : level==='mulai-habit'
+      ? 'Rute mulai menjadi habit: '+exact.freq+'x tercatat • rata-rata '+avg.toFixed(1)+' menit • '+km.toFixed(1)+' km.'
+      : recent.length
+        ? 'Baseline pribadi tercatat dari '+recent.length+' trip • '+avg.toFixed(1)+' menit • '+km.toFixed(1)+' km.'
+        : 'Belum ada rekaman rute yang cukup.';
+  return {
+    hasHistory:!!(exact||recent.length),
+    routeName:(exact&&exact.routeName)||origin.name+' → '+destination.name,
+    frequency:(exact&&exact.freq)||recent.length,
+    habitLevel:level,
+    avgDuration:avg,
+    personalMedianDuration:median,
+    avgDistance:km,
+    avgMovingTime:moving,
+    avgSpeed:avgSpeed,
+    avgMaxSpeed:avgMax,
+    personalAdjustmentMin:null,
+    message:message
+  };
 }
 
 function fetchRealtimeRoutes_(origin, destination) {
