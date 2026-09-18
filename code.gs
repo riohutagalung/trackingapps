@@ -889,14 +889,15 @@ function computeGpsMetrics_(points, startValue, endValue) {
   var startMs = gpsPointTimeMs_({time:startValue}) || (out.length?out[0].time:0);
   var endMs = gpsPointTimeMs_({time:endValue}) || (out.length?out[out.length-1].time:0);
   var durationMin = startMs && endMs && endMs>=startMs ? (endMs-startMs)/60000 : 0;
+  var movingTimeMin = Math.min(durationMin,movingSec/60);
   return {
     points:out,
     distanceKm:distance,
     durationMin:durationMin,
-    movingTimeMin:Math.min(durationMin,movingSec/60),
-    stopTimeMin:Math.max(0,durationMin-movingSec/60),
+    movingTimeMin:movingTimeMin,
+    stopTimeMin:Math.max(0,durationMin-movingTimeMin),
     stopCount:stopCount,
-    avgSpeedKmh:durationMin>0?distance/(durationMin/60):0,
+    avgSpeedKmh:movingTimeMin>0?distance/(movingTimeMin/60):0,
     maxSpeedKmh:maxSpeed,
     currentSpeedKmh:out.length?Number(out[out.length-1].filteredSpeedKmh||0):0
   };
