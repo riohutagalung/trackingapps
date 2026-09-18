@@ -1474,7 +1474,7 @@ const Traffic = {
 
 const RH_GPS_CFG = Object.freeze({
   maxAccuracyM: 75,
-  maxSegmentSpeedKmh: 260,
+  maxSegmentSpeedKmh: 320,
   maxProviderSpeedKmh: 320,
   stationaryRadiusM: 5,
   stationarySpeedKmh: 15,
@@ -1573,7 +1573,7 @@ function RHFilterGpsTrack(points) {
       RH_GPS_CFG.stationaryRadiusM,
       Math.min(20, Number(p.accuracy||0)>0 ? Number(p.accuracy)*0.15 : RH_GPS_CFG.stationaryRadiusM)
     );
-    const stationary=dMeters<=jitterRadius && segmentSpeed<RH_GPS_CFG.stationarySpeedKmh;
+    const stationary=dMeters<=jitterRadius && (segmentSpeed<RH_GPS_CFG.stationarySpeedKmh || (isFinite(provider) && provider<5));
 
     let speed=segmentSpeed;
     const provider=p.providerSpeedKmh;
@@ -1665,8 +1665,8 @@ function RHComputeGpsMetrics(points,startMs,endMs){
     pointCount:track.length,
     distanceKm:distance,
     durationMin:durationMin,
-    movingTimeMin:Math.min(durationMin,movingMs/60000),
-    stopTimeMin:Math.max(0,durationMin-movingMs/60000),
+    movingTimeMin:Math.min(durationMin,movingMs/60),
+    stopTimeMin:Math.max(0,durationMin-movingMs/60),
     stopCount:stopCount,
     avgSpeedKmh:avgSpeed,
     maxSpeedKmh:maxSpeed,
