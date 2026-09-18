@@ -2193,12 +2193,55 @@ function installRHAutomation(){
 function rebuildHabitIndex(){
   // Explicit/manual heavy rebuild only. Never called during app startup.
   var trips=getTripsFast_(5000), expenses=getExpensesFast_(5000), sheet=tab_('Routes',ROUTE_H);
-  // Keep sheet rows but recalculate compact route aggregates in place for existing origin/destination pairs.
-  var agg={}; trips.forEach(function(t){var k=String(t.origin||'')+'|'+String(t.destination||'');if(!t.origin||!t.destination)return;if(!agg[k])agg[k]={origin:t.origin,destination:t.destination,freq:0,dur:0,dist:0,name:t.routeName||''};agg[k].freq++;agg[k].dur+=Number(t.durationMin||0);agg[k].dist+=Number(t.distanceKm||0);if(t.routeName)agg[k].name=t.routeName;});
+  var agg={};
+  function num(v){var n=Number(v);return isFinite(n)?n:0;}
+  trips.forEach(function(t){
+    var origin=String(t.origin||''), destination=String(t.destination||''); if(!origin||!destination)return;
+    var k=origin+'|'+destination;
+    if(!agg[k])agg[k]={origin:origin,destination:destination,freq:0,dur:0,dist:0,moving:0,speed:0,max:0,stops:0,name:t.routeName||'',last:t.ts||'',variants:{}};
+    var a=agg[k];
+    a.freq++;
+    a.dur+=num(t.durationMin); a.dist+=num(t.distanceKm); a.moving+=num(t.movingTimeMin);
+    a.speed+=num(t.avgSpeed); a.max+=num(t.maxSpeed); a.stops+=num(t.stopCount);
+    if(t.routeName)a.name=t.routeName;
+    if(t.ts&&String(t.ts)>String(a.last))a.last=String(t.ts);
+    var v=String(t.routeVariant||'').trim(); if(v)a.variants[v]=(a.variants[v]||0)+1;
+  });
+
   var headers=sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0], map=getHeaderMap_(headers), rows=sheet.getDataRange().getValues(), seen={};
-  for(var i=1;i<rows.length;i++){var k2=String(rows[i][map['Asal']]||'')+'|'+String(rows[i][map['Tujuan']]||''); if(agg[k2]){seen[k2]=true;if(map['Frekuensi']!==undefined)sheet.getRange(i+1,map['Frekuensi']+1).setValue(agg[k2].freq);if(map['AvgDurasi_menit']!==undefined)sheet.getRange(i+1,map['AvgDurasi_menit']+1).setValue(agg[k2].dur/agg[k2].freq);if(map['AvgJarak_km']!==undefined)sheet.getRange(i+1,map['AvgJarak_km']+1).setValue(agg[k2].dist/agg[k2].freq);}}
-  Object.keys(agg).forEach(function(k){if(!seen[k]){var a=agg[k];sheet.appendRow([a.origin,a.destination,a.freq,a.dur/a.freq,a.dist/a.freq,a.name,nowISO_()]);}});
-  invalidateEngineCache_(); return {ok:true,tripCount:trips.length,expenseCount:expenses.length,routeGroups:Object.keys(agg).length};
+  Object.keys(agg).forEach(function(k){
+    var a=agg[k], keys=Object.keys(a.variants).sort(function(x,y){return a.variants[y]-a.variants[x];}), dominant=keys.length?keys[0]:'';
+    a.avgDur=a.dur/a.freq; a.avgDist=a.dist/a.freq; a.avgMoving=a.moving/a.freq; a.avgSpeed=a.speed/a.freq; a.avgMax=a.max/a.freq; a.avgStops=a.stops/a.freq;
+    a.level=a.freq>=3?'habit':a.freq===2?'mulai-habit':'tercatat'; a.variantJson=JSON.stringify(a.variants);
+    a.dominant=dominant;
+  });
+
+  for(var i=1;i<rows.length;i++){
+    var k2=String(rows[i][map['Asal']]||'')+'|'+String(rows[i][map['Tujuan']]||'');
+    if(!agg[k2])continue;
+    var a=agg[k2]; seen[k2]=true;
+    var vals={
+      'Frekuensi':a.freq,'AvgDurasi_menit':a.avgDur,'AvgJarak_km':a.avgDist,'AvgMovingTime_menit':a.avgMoving,
+      'AvgSpeed_kmh':a.avgSpeed,'AvgMaxSpeed_kmh':a.avgMax,'AvgStopCount':a.avgStops,'RouteName':a.name,
+      'LastUsed':a.last||nowISO_(),'RouteVariant':a.dominant,'RouteVariants_JSON':a.variantJson,'HabitLevel':a.level
+    };
+    Object.keys(vals).forEach(function(key){if(map[key]!==undefined)sheet.getRange(i+1,map[key]+1).setValue(vals[key]);});
+  }
+
+  Object.keys(agg).forEach(function(k){
+    if(seen[k])return;
+    var a=agg[k], row=new Array(headers.length).fill('');
+    var vals={
+      'Asal':a.origin,'Tujuan':a.destination,'Frekuensi':a.freq,'AvgDurasi_menit':a.avgDur,'AvgJarak_km':a.avgDist,
+      'AvgMovingTime_menit':a.avgMoving,'AvgSpeed_kmh':a.avgSpeed,'AvgMaxSpeed_kmh':a.avgMax,'AvgStopCount':a.avgStops,
+      'RouteName':a.name,'LastUsed':a.last||nowISO_(),'RouteVariant':a.dominant,'RouteVariants_JSON':a.variantJson,'HabitLevel':a.level
+    };
+    Object.keys(vals).forEach(function(key){if(map[key]!==undefined)row[map[key]]=vals[key];});
+    sheet.appendRow(row);
+  });
+
+  invalidateEngineCache_();
+  return {ok:true,tripCount:trips.length,expenseCount:expenses.length,routeGroups:Object.keys(agg).length};
 }
 
 
