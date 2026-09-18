@@ -577,7 +577,11 @@ function addTrip(data) {
     rawGpsPoints = gpsMetrics.points;
   }
   var gpsPoints = compressGpsPoints_(rawGpsPoints);
-  var variant = data.routeVariant || makeRouteVariantSignature_(gpsPoints.length ? gpsPoints : rawGpsPoints);
+  var variant = '';
+  if (gpsPoints.length >= 2 && data.origin && data.destination) {
+    variant = findRouteVariantFromHistory_(data.origin,data.destination,gpsPoints) || '';
+  }
+  variant = variant || data.routeVariant || makeRouteVariantSignature_(gpsPoints.length ? gpsPoints : rawGpsPoints);
   var fuelGrade = String(data.fuelGrade || '');
   var fuelEff = Number(data.fuelEfficiency || 0);
   var fuelEstL = Number(data.fuelEstimatedL || (fuelEff>0 ? distanceKm/fuelEff : 0));
@@ -2018,12 +2022,81 @@ function invalidateEngineCache_(){
 function getEngineState_(){try{return JSON.parse(PropertiesService.getScriptProperties().getProperty(ENGINE_STATE_KEY)||'{}');}catch(e){return{};}}
 function saveEngineState_(state){PropertiesService.getScriptProperties().setProperty(ENGINE_STATE_KEY,JSON.stringify(state||{}));}
 function normalizeText_(s){return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();}
+function routePointsForSimilarity_(points){
+  return (Array.isArray(points)?points:[]).map(function(p){
+    var lat=Number(p&&p.lat!==undefined?p.lat:p&&p.latitude),lng=Number(p&&p.lng!==undefined?p.lng:p&&p.longitude);
+    if(!isFinite(lat)||!isFinite(lng))return null;
+    return {lat:lat,lng:lng};
+  }).filter(function(p){return !!p;});
+}
+function routeDistanceKm_(points){
+  var pts=routePointsForSimilarity_(points); if(pts.length<2)return 0;
+  var total=0;
+  for(var i=1;i<pts.length;i++) total+=haversineKm_(pts[i-1].lat,pts[i-1].lng,pts[i].lat,pts[i].lng);
+  return total;
+}
+function resampleRoute_(points,count){
+  var pts=routePointsForSimilarity_(points), n=Math.max(2,Number(count||24));
+  if(pts.length<2)return pts;
+  var cumulative=[0],total=0;
+  for(var i=1;i<pts.length;i++){total+=haversineKm_(pts[i-1].lat,pts[i-1].lng,pts[i].lat,pts[i].lng);cumulative.push(total);}
+  if(total<=0)return pts.slice(0,Math.min(pts.length,n));
+  var out=[];
+  for(var j=0;j<n;j++){
+    var target=total*(j/(n-1)),idx=1;
+    while(idx<cumulative.length&&cumulative[idx]<target)idx++;
+    if(idx>=cumulative.length){out.push({lat:pts[pts.length-1].lat,lng:pts[pts.length-1].lng});continue;}
+    var a=cumulative[idx-1],seg=cumulative[idx]-a,f=seg>0?(target-a)/seg:0;
+    out.push({lat:pts[idx-1].lat+(pts[idx].lat-pts[idx-1].lat)*f,lng:pts[idx-1].lng+(pts[idx].lng-pts[idx-1].lng)*f});
+  }
+  return out;
+}
+function localXYm_(origin,p){
+  var lat0=Number(origin.lat)*Math.PI/180;
+  return {
+    x:(Number(p.lng)-Number(origin.lng))*111320*Math.cos(lat0),
+    y:(Number(p.lat)-Number(origin.lat))*110540
+  };
+}
+function routeSimilarity_(a,b){
+  var aa=resampleRoute_(a,24),bb=resampleRoute_(b,24);
+  if(aa.length<2||bb.length<2)return {same:false,meanM:Infinity,maxM:Infinity,distanceRatio:Infinity,score:Infinity};
+  var startM=haversineKm_(aa[0].lat,aa[0].lng,bb[0].lat,bb[0].lng)*1000;
+  var endM=haversineKm_(aa[aa.length-1].lat,aa[aa.length-1].lng,bb[bb.length-1].lat,bb[bb.length-1].lng)*1000;
+  var ar=localXYm_(aa[0],aa[aa.length-1]), br=localXYm_(bb[0],bb[bb.length-1]);
+  var dx=ar.x-br.x,dy=ar.y-br.y,endShapeM=Math.sqrt(dx*dx+dy*dy);
+  var sum=0,max=0;
+  for(var i=0;i<Math.min(aa.length,bb.length);i++){
+    var ap=localXYm_(aa[0],aa[i]),bp=localXYm_(bb[0],bb[i]);
+    var ex=ap.x-bp.x,ey=ap.y-bp.y,d=Math.sqrt(ex*ex+ey*ey);
+    sum+=d;if(d>max)max=d;
+  }
+  var mean=sum/Math.min(aa.length,bb.length);
+  var da=routeDistanceKm_(aa),db=routeDistanceKm_(bb);
+  var ratio=(da>0&&db>0)?Math.max(da,db)/Math.min(da,db):Infinity;
+  var same=startM<=120&&endM<=180&&mean<=90&&max<=280&&ratio<=1.35&&endShapeM<=220;
+  var score=mean+max*0.15+Math.abs(Math.log(Math.max(0.01,ratio)))*60+startM*0.25+endM*0.25;
+  return {same:same,meanM:mean,maxM:max,distanceRatio:ratio,startM:startM,endM:endM,score:score};
+}
 function makeRouteVariantSignature_(points){
-  if(!Array.isArray(points)||points.length<2)return '';
-  var pts=points.filter(function(p){return p&&isFinite(Number(p.lat))&&isFinite(Number(p.lng));}); if(pts.length<2)return '';
-  var step=Math.max(1,Math.floor(pts.length/10)), parts=[];
-  for(var i=0;i<pts.length;i+=step){parts.push(Number(pts[i].lat).toFixed(3)+','+Number(pts[i].lng).toFixed(3));}
+  var pts=routePointsForSimilarity_(points); if(pts.length<2)return '';
+  var samples=resampleRoute_(pts,12),parts=samples.map(function(p){return Number(p.lat).toFixed(4)+','+Number(p.lng).toFixed(4);});
   return simpleHash_(parts.join('|'));
+}
+function findRouteVariantFromHistory_(origin,destination,points){
+  var pts=routePointsForSimilarity_(points); if(pts.length<2||!origin||!destination)return '';
+  var trips=getTripsFast_(120).filter(function(t){
+    return String(t.origin)===String(origin)&&String(t.destination)===String(destination)&&Array.isArray(t.gpsPoints)&&t.gpsPoints.length>=2;
+  });
+  var best=null;
+  trips.forEach(function(t){
+    var sim=routeSimilarity_(pts,t.gpsPoints);
+    if(sim.same&&(!best||sim.score<best.sim.score))best={trip:t,sim:sim};
+  });
+  if(best){
+    return String(best.trip.routeVariant||makeRouteVariantSignature_(best.trip.gpsPoints)||'');
+  }
+  return '';
 }
 function simpleHash_(s){var h=2166136261; for(var i=0;i<s.length;i++){h^=s.charCodeAt(i);h+= (h<<1)+(h<<4)+(h<<7)+(h<<8)+(h<<24);} return (h>>>0).toString(16);}
 function buildFuelPriceRegistry_(){
