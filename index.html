@@ -1876,12 +1876,12 @@ const GPS = {
       this.stopping=false;this.reset();App.toast('Perjalanan terlalu singkat untuk disimpan.');return;
     }
     this.pending={distance:stats.distanceKm,durationMin:stats.durationMin,avgSpeed:stats.avgSpeedKmh,maxSpeed:stats.maxSpeedKmh,movingTimeMin:stats.movingTimeMin,stopTimeMin:stats.stopTimeMin,stopCount:stats.stopCount,...route,gpsPoints:stats.points.slice(),startTime:new Date(this.start).toISOString(),endTime:new Date(this.end).toISOString(),date:new Date(this.start).toISOString().slice(0,10),id:sid};
-    document.getElementById('modal-distance').textContent=Num(stats.distance,2)+' km';
+    document.getElementById('modal-distance').textContent=Num(stats.distanceKm,2)+' km';
     document.getElementById('modal-duration').textContent=Num(stats.durationMin,1)+' mnt';
-    document.getElementById('modal-avg').textContent=Num(stats.avgSpeed,1)+' km/h';
-    document.getElementById('modal-max').textContent=Num(stats.maxSpeed,1)+' km/h';
+    document.getElementById('modal-avg').textContent=Num(stats.avgSpeedKmh,1)+' km/h';
+    document.getElementById('modal-max').textContent=Num(stats.maxSpeedKmh,1)+' km/h';
     document.getElementById('trip-modal-sub').textContent=route.routeName;
-    document.getElementById('modal-habit').innerHTML=`<b>${Icon('route',15)} Habit &amp; route detection</b><span>${Esc(route.note)} • ${this.points.length} titik GPS tersimpan</span>`;
+    document.getElementById('modal-habit').innerHTML=`<b>${Icon('route',15)} Habit &amp; route detection</b><span>${Esc(route.note)} • ${stats.pointCount} titik GPS valid tersimpan</span>`;
     document.getElementById('trip-modal').classList.add('active');
     this.stopping=false;
     this.persist();
