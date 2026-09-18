@@ -538,8 +538,18 @@ function deleteExpense(id) {
 
 const TRIP_H = [
   'ID','Tanggal','Asal','Tujuan','Jarak_km','Durasi_menit','AvgSpeed_kmh','Catatan','Sumber','Timestamp',
-  'RouteName','MaxSpeed_kmh','GPSPoints','StartTime','EndTime','Kendaraan', 'MovingTime_menit', 'StopTime_menit', 'StopCount', 'RouteVariant', 'FuelGrade', 'FuelEfficiency_kmL', 'FuelEstimated_L', 'FuelEstimatedCost'
+  'RouteName','MaxSpeed_kmh','GPSPoints','RouteGeoJSON','StartTime','EndTime','Kendaraan', 'MovingTime_menit', 'StopTime_menit', 'StopCount', 'RouteVariant', 'FuelGrade', 'FuelEfficiency_kmL', 'FuelEstimated_L', 'FuelEstimatedCost'
 ];
+
+function buildRouteGeoJSON_(points) {
+  var pts=Array.isArray(points)?points.map(function(p){
+    var lat=Number(p&&p.lat!==undefined?p.lat:p&&p.latitude), lng=Number(p&&p.lng!==undefined?p.lng:p&&p.longitude);
+    if(!isFinite(lat)||!isFinite(lng))return null;
+    return [lng,lat];
+  }).filter(function(x){return !!x;}):[];
+  if(pts.length<2)return '';
+  return JSON.stringify({type:'LineString',coordinates:pts});
+}
 
 function addTrip(data) {
   data = data || {};
@@ -577,6 +587,7 @@ function addTrip(data) {
     rawGpsPoints = gpsMetrics.points;
   }
   var gpsPoints = compressGpsPoints_(rawGpsPoints);
+  var routeGeoJSON = buildRouteGeoJSON_(gpsPoints);
   var variant = '';
   if (gpsPoints.length >= 2 && data.origin && data.destination) {
     variant = findRouteVariantFromHistory_(data.origin,data.destination,gpsPoints) || '';
@@ -588,7 +599,7 @@ function addTrip(data) {
   var fuelEstCost = Number(data.fuelEstimatedCost || 0);
   var values = {
     'ID':id,'Tanggal':data.date||todayStr_(),'Asal':data.origin||'GPS Track','Tujuan':data.destination||'Tujuan','Jarak_km':distanceKm,'Durasi_menit':durationMin,'AvgSpeed_kmh':avgSpeed,
-    'Catatan':data.note||'','Sumber':data.source||'gps','Timestamp':nowISO_(),'RouteName':routeName,'MaxSpeed_kmh':maxSpeed,'GPSPoints':JSON.stringify(gpsPoints),
+    'Catatan':data.note||'','Sumber':data.source||'gps','Timestamp':nowISO_(),'RouteName':routeName,'MaxSpeed_kmh':maxSpeed,'GPSPoints':JSON.stringify(gpsPoints),'RouteGeoJSON':routeGeoJSON,
     'StartTime':startTime,'EndTime':endTime,'Kendaraan':data.vehicle||'Motor','MovingTime_menit':movingTimeMin,'StopTime_menit':stopTimeMin,'StopCount':stopCount,
     'RouteVariant':variant,'FuelGrade':fuelGrade,'FuelEfficiency_kmL':fuelEff,'FuelEstimated_L':fuelEstL,'FuelEstimatedCost':fuelEstCost
   };
@@ -1646,7 +1657,7 @@ function getTripsFast_(limit){
   var rows=sheet.getRange(start,1,n,headers.length).getValues(), map=getHeaderMap_(headers);
   return rows.map(function(r){
     var gps=[]; try{gps=JSON.parse(r[map['GPSPoints']]||'[]');}catch(e){}
-    return {id:r[map['ID']],date:dateStr_(r[map['Tanggal']]),origin:String(r[map['Asal']]||''),destination:String(r[map['Tujuan']]||''),distanceKm:Number(r[map['Jarak_km']]||0),durationMin:Number(r[map['Durasi_menit']]||0),avgSpeed:Number(r[map['AvgSpeed_kmh']]||0),maxSpeed:Number(r[map['MaxSpeed_kmh']]||0),note:String(r[map['Catatan']]||''),source:String(r[map['Sumber']]||''),routeName:String(r[map['RouteName']]||''),gpsPoints:gps,startTime:r[map['StartTime']]||'',endTime:r[map['EndTime']]||'',vehicle:String(r[map['Kendaraan']]||'Motor'),movingTimeMin:Number(map['MovingTime_menit']!==undefined?r[map['MovingTime_menit']]:0),stopTimeMin:Number(map['StopTime_menit']!==undefined?r[map['StopTime_menit']]:0),stopCount:Number(map['StopCount']!==undefined?r[map['StopCount']]:0),routeVariant:String(map['RouteVariant']!==undefined?r[map['RouteVariant']]||'':''),fuelGrade:String(map['FuelGrade']!==undefined?r[map['FuelGrade']]||'':''),fuelEfficiency:Number(map['FuelEfficiency_kmL']!==undefined?r[map['FuelEfficiency_kmL']]||0:0),fuelEstimatedL:Number(map['FuelEstimated_L']!==undefined?r[map['FuelEstimated_L']]||0:0),fuelEstimatedCost:Number(map['FuelEstimatedCost']!==undefined?r[map['FuelEstimatedCost']]||0:0),ts:String(r[map['Timestamp']]||'')};
+    return {id:r[map['ID']],date:dateStr_(r[map['Tanggal']]),origin:String(r[map['Asal']]||''),destination:String(r[map['Tujuan']]||''),distanceKm:Number(r[map['Jarak_km']]||0),durationMin:Number(r[map['Durasi_menit']]||0),avgSpeed:Number(r[map['AvgSpeed_kmh']]||0),maxSpeed:Number(r[map['MaxSpeed_kmh']]||0),note:String(r[map['Catatan']]||''),source:String(r[map['Sumber']]||''),routeName:String(r[map['RouteName']]||''),gpsPoints:gps,routeGeoJSON:String(map['RouteGeoJSON']!==undefined?r[map['RouteGeoJSON']]||'':''),startTime:r[map['StartTime']]||'',endTime:r[map['EndTime']]||'',vehicle:String(r[map['Kendaraan']]||'Motor'),movingTimeMin:Number(map['MovingTime_menit']!==undefined?r[map['MovingTime_menit']]:0),stopTimeMin:Number(map['StopTime_menit']!==undefined?r[map['StopTime_menit']]:0),stopCount:Number(map['StopCount']!==undefined?r[map['StopCount']]:0),routeVariant:String(map['RouteVariant']!==undefined?r[map['RouteVariant']]||'':''),fuelGrade:String(map['FuelGrade']!==undefined?r[map['FuelGrade']]||'':''),fuelEfficiency:Number(map['FuelEfficiency_kmL']!==undefined?r[map['FuelEfficiency_kmL']]||0:0),fuelEstimatedL:Number(map['FuelEstimated_L']!==undefined?r[map['FuelEstimated_L']]||0:0),fuelEstimatedCost:Number(map['FuelEstimatedCost']!==undefined?r[map['FuelEstimatedCost']]||0:0),ts:String(r[map['Timestamp']]||'')};
   }).reverse();
 }
 function getRouteHabitsFast_(){
