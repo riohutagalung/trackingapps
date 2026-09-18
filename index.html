@@ -1485,8 +1485,29 @@ const RH_GPS_CFG = Object.freeze({
   stationarySpeedKmh: 15,
   movingSpeedKmh: 3,
   maxGapForDistanceS: 90,
-  maxGapForMovingS: 90
+  maxGapForMovingS: 90,
+  movementWindowS: 10,
+  movementDistanceM: 10,
+  liveSpeedWindow: 5,
+  liveSpeedMaxAgeMs: 2500
 });
+
+function RHMedian(values) {
+  const v=(values||[]).filter(x=>isFinite(Number(x))).map(Number).sort((a,b)=>a-b);
+  if(!v.length)return NaN;
+  const m=Math.floor(v.length/2);
+  return v.length%2?v[m]:(v[m-1]+v[m])/2;
+}
+
+function RHLiveProviderSpeedKmh(samples, fallback) {
+  const now=Date.now();
+  const fresh=(samples||[]).filter(s=>s&&isFinite(Number(s.speed))&&s.speed>=0&&now-Number(s.time)<=RH_GPS_CFG.liveSpeedMaxAgeMs);
+  if(!fresh.length)return Number(fallback)||0;
+  const last=fresh.slice(-RH_GPS_CFG.liveSpeedWindow).map(s=>Number(s.speed));
+  const med=RHMedian(last);
+  if(!isFinite(med))return Number(fallback)||0;
+  return Math.max(0,med);
+}
 
 function RHGpsTimeMs(p) {
   const raw = p && (p.time !== undefined ? p.time : (p.timestamp !== undefined ? p.timestamp : p.ts));
@@ -1631,7 +1652,8 @@ function RHFilterGpsTrack(points) {
 
 function RHComputeGpsMetrics(points,startMs,endMs){
   const track=RHFilterGpsTrack(points);
-  let distance=0,movingMs=0,stopCount=0,stopStart=null,prev=null,prevSpeed=0,maxSpeed=0;
+  let distance=0,movingMs=0,stopCount=0,idleStarted=null,prev=null,prevSpeed=0,maxSpeed=0;
+  const movementWindowMs=RH_GPS_CFG.movementWindowS*1000;
   for(let i=0;i<track.length;i++){
     const p=track[i],speed=Number(p.filteredSpeedKmh||0);
     if(speed>maxSpeed)maxSpeed=speed;
@@ -1646,16 +1668,33 @@ function RHComputeGpsMetrics(points,startMs,endMs){
           Math.min(20, Number(p.accuracy||0)>0 ? Number(p.accuracy)*0.15 : RH_GPS_CFG.stationaryRadiusM)
         );
         if(!(dMeters<=jitterRadius && segmentSpeed<RH_GPS_CFG.stationarySpeedKmh)) distance+=d;
-        if(speed>=RH_GPS_CFG.movingSpeedKmh) {
+
+        // Stateful moving detection: a short speed dip does not immediately become a stop.
+        // A fix is considered moving when its validated speed is moving-speed OR the net
+        // displacement over the last ~10s reaches 10m (OpenTracks-inspired principle).
+        let anchor=track[Math.max(0,i-1)];
+        for(let w=i-1;w>=0;w--){
+          if(p.time-track[w].time>movementWindowMs)break;
+          anchor=track[w];
+        }
+        const windowMove=anchor?Haversine(anchor.lat,anchor.lng,p.lat,p.lng)*1000:0;
+        const movingEvidence=speed>=RH_GPS_CFG.movingSpeedKmh || windowMove>=RH_GPS_CFG.movementDistanceM;
+        const wasMoving=prevSpeed>=RH_GPS_CFG.movingSpeedKmh || (idleStarted===null);
+
+        if(movingEvidence){
+          if(idleStarted!==null && (p.time-idleStarted)>=60000)stopCount++;
+          idleStarted=null;
           movingMs+=Math.min(dt,RH_GPS_CFG.maxGapForMovingS);
-          if(stopStart!==null && (p.time-stopStart)>=60000) stopCount++;
-          stopStart=null;
-        } else if(stopStart===null) {
-          stopStart=prev.time;
+        }else{
+          if(idleStarted===null)idleStarted=prev.time;
+          // Do not throw away the first seconds of a stop; allow a 10s confirmation window.
+          const stopConfirmed=(p.time-idleStarted)>=movementWindowMs;
+          if(!stopConfirmed)movingMs+=Math.min(dt,RH_GPS_CFG.maxGapForMovingS);
         }
       }
     }
-    prev=p; prevSpeed=speed;
+    prev=p;
+    prevSpeed=speed;
   }
 
   const fallbackStart=track.length?track[0].time:0;
@@ -1681,6 +1720,7 @@ function RHComputeGpsMetrics(points,startMs,endMs){
 
 const GPS = {
   active:false,watch:null,timer:null,start:null,end:null,points:[],pending:null,wakeLock:null,
+  speedSamples:[],
   storageKey:'rh_active_trip_v4',lastPersist:0,resumeBound:false,sessionId:null,nativeMode:false,nativeReady:false,
   stopping:false, lastNativeCount:-1,
   zones:[{name:'Bintaro',lat:-6.273,lng:106.742,r:4.0},{name:'Ciputat',lat:-6.310,lng:106.765,r:4.0}],
@@ -1770,7 +1810,7 @@ const GPS = {
 
     if(!this.nativeMode&&!navigator.geolocation){App.toast('Browser tidak mendukung GPS.');return;}
 
-    this.active=true;this.stopping=false;this.start=Date.now();this.end=null;this.points=[];this.pending=null;this.sessionId='trip_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);this.lastNativeCount=-1;this.updateButton(true);this.persist();
+    this.active=true;this.stopping=false;this.start=Date.now();this.end=null;this.points=[];this.pending=null;this.speedSamples=[];this.sessionId='trip_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);this.lastNativeCount=-1;this.updateButton(true);this.persist();
     try{
       if(this.nativeMode&&window.RHNativeGPS){
         await window.RHNativeGPS.start(this.sessionId);
@@ -1822,6 +1862,10 @@ const GPS = {
     }
 
     this.points.push(point);
+    if(isFinite(speedKmh)&&speedKmh>=0&&(!isFinite(accuracy)||accuracy<=40)){
+      this.speedSamples.push({speed:speedKmh,time:ts});
+      if(this.speedSamples.length>20)this.speedSamples.shift();
+    }
     if(this.points.length%5===0||Date.now()-this.lastPersist>5000)this.persist();
     this.renderLive();
   },
@@ -1935,7 +1979,7 @@ const GPS = {
   },
   renderLive(){
     const s=this.stats(),route=s.points.length?this.detectRoute(s.points):{routeName:'GPS STANDBY',note:'Menunggu titik GPS...'},last=s.points[s.points.length-1];
-    const liveSpeed=Number(s.currentSpeedKmh||0);
+    const liveSpeed=RHLiveProviderSpeedKmh(this.speedSamples,s.currentSpeedKmh);
     document.getElementById('gps-speed').textContent=Num(liveSpeed,1);
     document.getElementById('gps-distance').textContent=Num(s.distanceKm,2);
     document.getElementById('gps-time').textContent=TimeFmt(s.durationMin*60);
@@ -1960,7 +2004,7 @@ const GPS = {
     document.getElementById('float-time').textContent=TimeFmt(s.durationMin*60);
     document.getElementById('float-avg').textContent=Num(s.avgSpeedKmh,1)+' km/h';
   },
-  reset(){this.active=false;this.stopping=false;this.points=[];this.start=null;this.end=null;this.pending=null;this.sessionId=null;this.nativeMode=false;this.clearPersist();if(this.watch!==null){navigator.geolocation.clearWatch(this.watch);this.watch=null;}clearInterval(this.timer);this.timer=null;this.updateButton(false);['gps-speed','gps-distance','gps-avg','gps-max'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=id==='gps-distance'?'0.00':'0';});const tm=document.getElementById('gps-time');if(tm)tm.textContent='00:00';const rt=document.getElementById('gps-route');if(rt)rt.textContent='GPS STANDBY';const q=document.getElementById('gps-quality');if(q){q.textContent='GPS standby';q.className='gps-quality';}document.getElementById('gps-floating')?.classList.remove('show');}
+  reset(){this.active=false;this.stopping=false;this.points=[];this.speedSamples=[];this.start=null;this.end=null;this.pending=null;this.sessionId=null;this.nativeMode=false;this.clearPersist();if(this.watch!==null){navigator.geolocation.clearWatch(this.watch);this.watch=null;}clearInterval(this.timer);this.timer=null;this.updateButton(false);['gps-speed','gps-distance','gps-avg','gps-max'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=id==='gps-distance'?'0.00':'0';});const tm=document.getElementById('gps-time');if(tm)tm.textContent='00:00';const rt=document.getElementById('gps-route');if(rt)rt.textContent='GPS STANDBY';const q=document.getElementById('gps-quality');if(q){q.textContent='GPS standby';q.className='gps-quality';}document.getElementById('gps-floating')?.classList.remove('show');}
 };
 
 const OCR = {
