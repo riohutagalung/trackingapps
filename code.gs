@@ -592,7 +592,7 @@ function addTrip(data) {
   Object.keys(values).forEach(function(k){ if(map[k]!==undefined) row[map[k]]=values[k]; });
   sheet.appendRow(row);
   try { var rr=sheet.getLastRow(); ['Jarak_km','Durasi_menit','AvgSpeed_kmh','MaxSpeed_kmh','MovingTime_menit','StopTime_menit','FuelEfficiency_kmL','FuelEstimated_L','FuelEstimatedCost'].forEach(function(k){if(map[k]!==undefined)sheet.getRange(rr,map[k]+1).setNumberFormat('0.00');}); } catch(e) {}
-  if (data.origin && data.destination) updateRouteHabit_(data.origin,data.destination,durationMin,distanceKm,routeName,variant,movingTimeMin,stopTimeMin);
+  if (data.origin && data.destination) updateRouteHabit_(data.origin,data.destination,durationMin,distanceKm,routeName,variant,movingTimeMin,stopTimeMin,stopCount,avgSpeed,maxSpeed);
   // Calendar logging is intentionally opt-in for performance.
   try {
     var settings = getSettings();
@@ -660,7 +660,7 @@ const ROUTE_H = [
   'HabitLevel'
 ];
 
-function updateRouteHabit_(origin, destination, duration, distance, routeName, routeVariant, movingTimeMin, stopTimeMin, avgSpeed, maxSpeed) {
+function updateRouteHabit_(origin, destination, duration, distance, routeName, routeVariant, movingTimeMin, stopTimeMin, stopCount, avgSpeed, maxSpeed) {
   var sheet=tab_('Routes',ROUTE_H);
   ensureRouteColumns_(sheet);
   var headers=sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0];
@@ -693,7 +693,7 @@ function updateRouteHabit_(origin, destination, duration, distance, routeName, r
       var avgM=((oldM*(freq-1))+num(movingTimeMin))/freq;
       var avgS=((oldS*(freq-1))+num(avgSpeed))/freq;
       var avgX=((oldX*(freq-1))+num(maxSpeed))/freq;
-      var avgC=((oldC*(freq-1))+num(stopTimeMin>0 ? stopTimeMin : 0))/freq;
+      var avgC=((oldC*(freq-1))+num(stopCount))/freq;
 
       var variants=updateVariants(map['RouteVariants_JSON']!==undefined?rows[i][map['RouteVariants_JSON']]:'',routeVariant);
       var keys=Object.keys(variants).sort(function(a,b){return num(variants[b])-num(variants[a]);});
@@ -727,7 +727,7 @@ function updateRouteHabit_(origin, destination, duration, distance, routeName, r
     'AvgMovingTime_menit':num(movingTimeMin),
     'AvgSpeed_kmh':num(avgSpeed),
     'AvgMaxSpeed_kmh':num(maxSpeed),
-    'AvgStopCount':0,
+    'AvgStopCount':num(stopCount),
     'RouteName':routeName||'',
     'LastUsed':nowISO_(),
     'RouteVariant':String(routeVariant||''),
