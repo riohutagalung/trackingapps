@@ -9,6 +9,22 @@ function cors(res){
 }
 function json(res,status,data){cors(res);res.statusCode=status;res.setHeader('Content-Type','application/json; charset=utf-8');res.end(JSON.stringify(data));}
 async function readBody(req){const chunks=[];for await(const c of req)chunks.push(Buffer.from(c));const text=Buffer.concat(chunks).toString('utf8');if(!text)return {};try{return JSON.parse(text);}catch(e){throw new Error('Invalid JSON body');}}
+async function consumeUpstream(res){
+  const text=await res.text();
+  let parsed=null;
+  try{parsed=text?JSON.parse(text):null;}catch(e){}
+  if(!res.ok){
+    let detail='';
+    if(parsed&&parsed.error) detail=': '+String(parsed.error).slice(0,300);
+    else if(res.status===404) detail=': deployment Web App /exec tidak ditemukan atau URL deployment tidak sesuai';
+    else if(res.status===401||res.status===403) detail=': akses Web App ditolak, cek Execute as / Who has access';
+    throw new Error('Apps Script HTTP '+res.status+detail);
+  }
+  if(!parsed||typeof parsed!=='object'){
+    throw new Error('Apps Script mengembalikan respons bukan JSON. Cek Web App /exec dan deployment yang aktif.');
+  }
+  return parsed;
+}
 async function forward(body){
   const payload=JSON.stringify(body);
   let target=GAS_URL;
@@ -23,9 +39,7 @@ async function forward(body){
         const next=rr.headers.get('location');
         if(next){target=new URL(next,target).toString();continue;}
       }
-      const t=await rr.text();let p=null;try{p=t?JSON.parse(t):null;}catch(e){}
-      if(!rr.ok)throw new Error('Apps Script HTTP '+rr.status+': '+(p?.error||t?.slice(0,800)||('HTTP '+rr.status)));
-      return p||{ok:true};
+      return consumeUpstream(rr);
     }
     if([307,308].includes(r.status)){
       const loc=r.headers.get('location');
@@ -33,9 +47,7 @@ async function forward(body){
       target=new URL(loc,target).toString();
       continue;
     }
-    const t=await r.text();let p=null;try{p=t?JSON.parse(t):null;}catch(e){}
-    if(!r.ok)throw new Error('Apps Script HTTP '+r.status+': '+(p?.error||t?.slice(0,800)||('HTTP '+r.status)));
-    return p||{ok:true};
+    return consumeUpstream(r);
   }
   throw new Error('Terlalu banyak redirect Apps Script.');
 }
