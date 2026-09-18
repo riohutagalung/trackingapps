@@ -174,6 +174,7 @@ function doPost(e) {
 function getRpcMap_() {
   return {
     ping: ping,
+    deploymentHealth: deploymentHealth,
     getBootstrap: getBootstrap,
     getDashboard: getDashboard,
     addExpense: addExpense,
@@ -1421,6 +1422,15 @@ function getBootstrap(){
   return {dashboard:getDashboard(),config:{home:{name:HOME_CONFIG.name,lat:HOME_CONFIG.lat,lng:HOME_CONFIG.lng},office:{name:OFFICE_CONFIG.name,lat:OFFICE_CONFIG.lat,lng:OFFICE_CONFIG.lng},trafficConfigured:!!getTrafficApiKey_(),krlFare:Number(getSettings().krlFare||5000),tjFare:Number(getSettings().tjFare||3500),calendarLogging:getSettings().calendarLogging===true}};
 }
 function ping(){return {ok:true,time:nowISO_(),timezone:TZ,spreadsheet:SHEET_ID};}
+function deploymentHealth(){
+  var out={ok:true,time:nowISO_(),timezone:TZ,spreadsheet:SHEET_ID};
+  try{out.spreadsheetName=ss_().getName();}
+  catch(e){out.ok=false;out.spreadsheetError=(e&&e.message)||String(e);}
+  out.rpc=true;
+  out.nativeGps=typeof ingestNativeLocation_==='function';
+  out.tripPoints=typeof getNativeTripPoints==='function';
+  return out;
+}
 
 
 function getCommuteWeather() {
