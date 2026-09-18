@@ -1,42 +1,37 @@
 # RH Habits
 
-Frontend PWA RH Habits hosted on Vercel, dengan Google Apps Script sebagai API/RPC dan Google Sheets sebagai database.
+RH Habits adalah aplikasi tracking perjalanan, kebiasaan rute, pengeluaran, dan analisis perjalanan.
 
-## Arsitektur Web
+## Arsitektur
 
-Browser/HP -> `/api/rpc` -> Vercel rewrite -> Google Apps Script `/exec` -> Google Sheets
+**Web / PWA**
+`index.html` → `/api/rpc` → Google Apps Script → Google Sheets
 
-## Arsitektur Native GPS + Media
-
-Android/iOS -> native background GPS -> `/api/native-location` -> Apps Script `TripPoints` -> saat Trip selesai -> `Trips`
-
-Android/iOS -> Capacitor Camera -> foto diperkecil -> OCR Apps Script. Desktop/Web tetap memakai input kamera/galeri browser. Hasil OCR memakai alur backend yang sama.
-
-Build native memakai Capacitor + `@capgo/background-geolocation` + `@capacitor/camera`. Native location updates dapat tetap dikirim ketika WebView berada di background; Android memakai foreground tracking notification. iOS tetap tunduk pada lifecycle/permission OS.
+**Android / iOS**
+Capacitor → native GPS → `/api/native-location` → Google Apps Script → `TripPoints`
 
 ## File utama
 
-- `index.html` - UI aplikasi + Trip Engine + OCR UI
-- `gas-bridge.js` - bridge `google.script.run` -> `/api/rpc`
-- `rh-native-gps.js` - bridge native GPS Android/iOS
-- `rh-native-media.js` - bridge native Camera/Gallery Android/iOS
-- `api/native-location.js` - Vercel endpoint penerima GPS native
-- `sw.js` - service worker/PWA cache
-- `manifest.json` - PWA metadata
-- `vercel.json` - rewrite `/api/rpc` + cache headers
-- `code.gs` - backend Apps Script utama + native `TripPoints`
-- `maps-helpers.gs` - helper Google Maps jika project Apps Script kamu masih memisahkannya
-- `capacitor.config.ts` - konfigurasi native wrapper
-- `scripts/setup-native.mjs` - patch permission scaffolding Android/iOS setelah `cap add`
-- `package.json` - Capacitor + Camera + background geolocation dependencies
+- `index.html` — UI + Trip Engine
+- `gas-bridge.js` — bridge RPC web/native ke Vercel
+- `rh-native-gps.js` — native GPS Android/iOS
+- `rh-native-media.js` — native Camera/Gallery
+- `api/rpc.js` — proxy RPC ke Apps Script
+- `api/native-location.js` — endpoint GPS native
+- `code.gs` — backend Apps Script
+- `vercel.json` — konfigurasi Vercel
+- `manifest.json` — PWA metadata
+- `capacitor.config.ts` — konfigurasi Capacitor
+- `scripts/setup-native.mjs` — persiapan build native
+- `package.json` — dependency/build script
 
-## Apps Script deployment
+## Apps Script
 
-Pastikan backend yang dipakai Vercel adalah deployment terbaru:
+Vercel memakai deployment Web App:
 
 `https://script.google.com/macros/s/AKfycbyHREf-8F0Dd8G7hXtw_cyQskLkCzmkATDmOeBBovQWe9SeRw49ZIGxIzdSNTvScfn5qg/exec`
 
-Bila project Apps Script kamu masih memakai `maps-helpers.gs` terpisah, file itu harus tetap berada dalam project yang sama dengan `code.gs`.
+Jangan membuat deployment URL baru untuk konfigurasi yang sudah berjalan. Update source `code.gs`, save, lalu deploy **new version** pada deployment Web App yang sama.
 
 ## Test koneksi
 
@@ -44,38 +39,25 @@ Buka:
 
 `https://rhhabits.vercel.app/api/rpc?fn=ping&args=%5B%5D`
 
-Hasil yang benar adalah JSON dengan `ok: true`.
+Respons normal:
+
+`{"ok":true,...}`
 
 ## Build native
 
 ```bash
 npm install
-npx cap add android
-npx cap add ios
 npm run native:prepare
 npx cap sync
-```
-
-Android: buka dengan Android Studio.
-
-```bash
 npx cap open android
 ```
 
-iOS: buka dengan Xcode pada macOS, aktifkan Background Modes > Location updates sebelum release.
+Untuk iOS, buka project dengan Xcode dan aktifkan **Background Modes → Location updates**.
 
-```bash
-npx cap open ios
-```
+## Catatan
 
-## Tracking, OCR & fuel
+Browser tetap memiliki fallback GPS.
 
-Web/PWA tetap punya fallback `navigator.geolocation` dan input kamera/galeri browser.
+Native GPS menyimpan titik sementara di `TripPoints`, lalu mengambilnya saat trip selesai.
 
-Native mode memakai native location stream dengan timestamp, latitude, longitude, accuracy, speed, bearing, altitude, dan source. Jarak dihitung dari titik GPS yang lolos filter. Kecepatan menggunakan GPS speed dan fallback delta distance/time.
-
-Trip points native sementara disimpan di sheet `TripPoints`, lalu digabung ke `addTrip()` ketika perjalanan selesai.
-
-Native Camera/Gallery menggunakan `@capacitor/camera` dan mengirim hasil foto yang sudah diperkecil ke fungsi OCR yang sama. Ini menghindari ketergantungan pada `<input type="file">` di WebView mobile.
-
-Perhitungan BBM mingguan tetap menggunakan data jarak trip + pengisian BBM/efisiensi yang tersedia. GPS tidak dianggap bisa mengukur liter BBM terbakar secara langsung.
+Perhitungan BBM mingguan adalah estimasi dari jarak trip dan data pengisian/efisiensi; GPS tidak mengukur liter bensin secara langsung.
