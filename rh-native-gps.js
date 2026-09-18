@@ -34,8 +34,8 @@
       backgroundTitle:'RH Habits • GPS aktif',
       requestPermissions:true,
       stale:false,
-      distanceFilter:5,
-      minIntervalMs:3000,
+      distanceFilter:3,
+      minIntervalMs:1000,
       url,
       headers:{'Content-Type':'application/json'}
     },(location,error)=>{
