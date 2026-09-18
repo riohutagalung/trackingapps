@@ -857,7 +857,6 @@ function gpsProviderSpeedKmh_(p) {
   var candidates = [
     p.providerSpeedKmh,
     p.speedKmh,
-    p.filteredSpeedKmh,
     p.speed
   ];
   for (var i=0;i<candidates.length;i++) {
