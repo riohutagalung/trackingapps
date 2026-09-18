@@ -1573,10 +1573,10 @@ function RHFilterGpsTrack(points) {
       RH_GPS_CFG.stationaryRadiusM,
       Math.min(20, Number(p.accuracy||0)>0 ? Number(p.accuracy)*0.15 : RH_GPS_CFG.stationaryRadiusM)
     );
+    const provider=p.providerSpeedKmh;
     const stationary=dMeters<=jitterRadius && (segmentSpeed<RH_GPS_CFG.stationarySpeedKmh || (isFinite(provider) && provider<5));
 
     let speed=segmentSpeed;
-    const provider=p.providerSpeedKmh;
     if(isFinite(provider) && provider<=RH_GPS_CFG.maxProviderSpeedKmh){
       const mismatch=Math.abs(provider-segmentSpeed);
       const tolerance=Math.max(35,segmentSpeed*0.50);
