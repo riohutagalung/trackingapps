@@ -12,7 +12,7 @@ https://script.google.com/macros/s/AKfycbyHREf-8F0Dd8G7hXtw_cyQskLkCzmkATDmOeBBo
 
 VERCEL / GITHUB
 - /api/rpc and /api/native-location now point to the deployment above.
-- Vercel runs scripts/repair-index.mjs before deployment and fails the build if the inline index JavaScript is invalid.
+- Vercel runs scripts/repair-vercel.mjs before deployment and fails the build if the inline index JavaScript is invalid.
 - npm run cap:sync runs scripts/setup-native.mjs, which repairs/validates index.html and rebuilds ./www before Capacitor sync.
 - gas-bridge.js keeps browser calls on /api/rpc and native calls on https://rhhabits.vercel.app/api/rpc.
 - Native GPS posts to https://rhhabits.vercel.app/api/native-location and that proxy forwards to Apps Script.
