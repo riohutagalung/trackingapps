@@ -558,8 +558,24 @@ function addTrip(data) {
   var startTime = data.startTime || nowISO_();
   var endTime = data.endTime || nowISO_();
   var routeName = data.routeName || generateRouteName_(data.origin, data.destination, data.note);
-  var rawGpsPoints = Array.isArray(data.gpsPoints) ? data.gpsPoints : [];
-  if (!rawGpsPoints.length && id) { try { rawGpsPoints = getNativeTripPoints(id); } catch (e) { rawGpsPoints = []; } }
+
+  // GPS metrics are recomputed on the server from actual coordinate/time
+  // samples. Client values remain only as a fallback when no usable track exists.
+  var clientGpsPoints = Array.isArray(data.gpsPoints) ? data.gpsPoints : [];
+  var serverGpsPoints = [];
+  if (id) { try { serverGpsPoints = getNativeTripPoints(id); } catch (e) { serverGpsPoints = []; } }
+  var rawGpsPoints = mergeGpsPoints_(serverGpsPoints, clientGpsPoints);
+  var gpsMetrics = computeGpsMetrics_(rawGpsPoints, startTime, endTime);
+  if (gpsMetrics.points.length >= 2) {
+    distanceKm = gpsMetrics.distanceKm;
+    durationMin = gpsMetrics.durationMin > 0 ? gpsMetrics.durationMin : durationMin;
+    avgSpeed = gpsMetrics.avgSpeedKmh;
+    maxSpeed = gpsMetrics.maxSpeedKmh;
+    movingTimeMin = gpsMetrics.movingTimeMin;
+    stopTimeMin = gpsMetrics.stopTimeMin;
+    stopCount = gpsMetrics.stopCount;
+    rawGpsPoints = gpsMetrics.points;
+  }
   var gpsPoints = compressGpsPoints_(rawGpsPoints);
   var variant = data.routeVariant || makeRouteVariantSignature_(gpsPoints.length ? gpsPoints : rawGpsPoints);
   var fuelGrade = String(data.fuelGrade || '');
@@ -729,26 +745,192 @@ function generateRouteName_(origin, destination, note) {
    GPS POINT COMPRESSION
 =============================================================== */
 
+function gpsPointTimeMs_(p) {
+  var raw = p && (p.time !== undefined ? p.time : (p.timestamp !== undefined ? p.timestamp : p.ts));
+  if (typeof raw === 'number') return raw > 0 ? raw : 0;
+  var n = Number(raw);
+  if (isFinite(n) && n > 0) return n;
+  var d = new Date(String(raw || ''));
+  var t = d.getTime();
+  return isNaN(t) ? 0 : t;
+}
+
+function mergeGpsPoints_(primary, secondary) {
+  var seen = {}, out = [];
+  [primary || [], secondary || []].forEach(function(arr) {
+    (Array.isArray(arr) ? arr : []).forEach(function(p) {
+      var lat = Number(p && (p.lat !== undefined ? p.lat : p.latitude));
+      var lng = Number(p && (p.lng !== undefined ? p.lng : p.longitude));
+      var time = gpsPointTimeMs_(p);
+      if (!isFinite(lat) || !isFinite(lng) || !time) return;
+      var key = String(time) + '|' + lat.toFixed(6) + '|' + lng.toFixed(6);
+      if (seen[key]) return;
+      seen[key] = true;
+      out.push(p);
+    });
+  });
+  out.sort(function(a,b){ return gpsPointTimeMs_(a)-gpsPointTimeMs_(b); });
+  return out;
+}
+
+function normalizeGpsPoints_(points) {
+  var merged = mergeGpsPoints_(points, []);
+  return merged.filter(function(p) {
+    if (!p || p.simulated === true) return false;
+    var acc = Number(p.accuracy);
+    return !isFinite(acc) || acc <= 75;
+  });
+}
+
+function gpsProviderSpeedKmh_(p) {
+  if (!p) return NaN;
+  var candidates = [
+    p.providerSpeedKmh,
+    p.speedKmh,
+    p.filteredSpeedKmh,
+    p.speed
+  ];
+  for (var i=0;i<candidates.length;i++) {
+    var n = Number(candidates[i]);
+    if (isFinite(n) && n >= 0) return n;
+  }
+  return NaN;
+}
+
+function computeGpsMetrics_(points, startValue, endValue) {
+  var src = normalizeGpsPoints_(points);
+  if (src.length < 2) return {points:src,distanceKm:0,durationMin:0,movingTimeMin:0,stopTimeMin:0,stopCount:0,avgSpeedKmh:0,maxSpeedKmh:0,currentSpeedKmh:0};
+
+  var accepted = [], prev = null, prevSpeed = 0;
+  for (var i=0;i<src.length;i++) {
+    var p = src[i], t = gpsPointTimeMs_(p);
+    if (!t) continue;
+    if (!prev) {
+      accepted.push({lat:Number(p.lat !== undefined ? p.lat : p.latitude),lng:Number(p.lng !== undefined ? p.lng : p.longitude),time:t,accuracy:Number(p.accuracy)||0,providerSpeedKmh:gpsProviderSpeedKmh_(p),source:p.source||''});
+      prev = p;
+      prevSpeed = 0;
+      continue;
+    }
+
+    var prevT = gpsPointTimeMs_(prev), dt = (t-prevT)/1000;
+    if (!(dt > 0)) continue;
+
+    var lat = Number(p.lat !== undefined ? p.lat : p.latitude), lng = Number(p.lng !== undefined ? p.lng : p.longitude);
+    var d = haversineKm_(Number(prev.lat !== undefined ? prev.lat : prev.latitude), Number(prev.lng !== undefined ? prev.lng : prev.longitude), lat, lng);
+    var dMeters = d*1000, segmentSpeed = d*3600/dt;
+
+    if (dt > 90) {
+      accepted.push({lat:lat,lng:lng,time:t,accuracy:Number(p.accuracy)||0,providerSpeedKmh:gpsProviderSpeedKmh_(p),source:p.source||'',gapAfterPrevious:true});
+      prev = p;
+      prevSpeed = 0;
+      continue;
+    }
+    if (segmentSpeed > 260) continue;
+
+    var acc = Number(p.accuracy)||0;
+    var jitterRadius = Math.max(5, Math.min(20, acc > 0 ? acc*0.15 : 5));
+    var stationary = dMeters <= jitterRadius && segmentSpeed < 15;
+    var provider = gpsProviderSpeedKmh_(p);
+    var speed = segmentSpeed;
+    if (isFinite(provider) && provider <= 320) {
+      var mismatch = Math.abs(provider-segmentSpeed);
+      speed = mismatch <= Math.max(35,segmentSpeed*0.50) ? provider : segmentSpeed;
+    }
+    if (stationary) speed=0;
+
+    if (prevSpeed>0 && dt<=6) {
+      var upLimit=10*dt*3.6+25, downLimit=12*dt*3.6+25;
+      if (speed-prevSpeed>upLimit) speed=segmentSpeed;
+      if (prevSpeed-speed>downLimit) speed=segmentSpeed;
+    }
+    if (!isFinite(speed) || speed<0) speed=0;
+    speed=Math.min(320,speed);
+    accepted.push({lat:lat,lng:lng,time:t,accuracy:acc,providerSpeedKmh:provider,filteredSpeedKmh:speed,source:p.source||''});
+    prev = p;
+    prevSpeed = speed;
+  }
+
+  var out = [];
+  for (var j=0;j<accepted.length;j++) {
+    if (j===0 || j===accepted.length-1) { out.push(accepted[j]); continue; }
+    var a=out[out.length-1], b=accepted[j], c=accepted[j+1];
+    var dt1=(b.time-a.time)/1000, dt2=(c.time-b.time)/1000;
+    if (dt1>0 && dt2>0) {
+      var d1=haversineKm_(a.lat,a.lng,b.lat,b.lng), d2=haversineKm_(b.lat,b.lng,c.lat,c.lng), dc=haversineKm_(a.lat,a.lng,c.lat,c.lng);
+      var s1=d1*3600/dt1, s2=d2*3600/dt2;
+      if (s1>140 && s2>140 && dc>0 && d1+d2>dc*1.8) continue;
+    }
+    out.push(b);
+  }
+
+  var distance=0, movingSec=0, stopCount=0, stopStart=null, maxSpeed=0, last=null;
+  for (var k=0;k<out.length;k++) {
+    var q=out[k], sp=Number(q.filteredSpeedKmh||0);
+    if (sp>maxSpeed) maxSpeed=sp;
+    if (last) {
+      var gap=(q.time-last.time)/1000;
+      if (gap>0 && gap<=90) {
+        var seg=haversineKm_(last.lat,last.lng,q.lat,q.lng);
+        var segSpeed=seg*3600/gap;
+        var jr=Math.max(5,Math.min(20,Number(q.accuracy||0)>0?Number(q.accuracy)*0.15:5));
+        if (!(seg*1000<=jr && segSpeed<15)) distance+=seg;
+        if (sp>=3) {
+          movingSec+=Math.min(gap,90);
+          if (stopStart!==null && (q.time-stopStart)>=60000) stopCount++;
+          stopStart=null;
+        } else if (stopStart===null) {
+          stopStart=last.time;
+        }
+      }
+    }
+    last=q;
+  }
+
+  var startMs = gpsPointTimeMs_({time:startValue}) || (out.length?out[0].time:0);
+  var endMs = gpsPointTimeMs_({time:endValue}) || (out.length?out[out.length-1].time:0);
+  var durationMin = startMs && endMs && endMs>=startMs ? (endMs-startMs)/60000 : 0;
+  return {
+    points:out,
+    distanceKm:distance,
+    durationMin:durationMin,
+    movingTimeMin:Math.min(durationMin,movingSec/60),
+    stopTimeMin:Math.max(0,durationMin-movingSec/60),
+    stopCount:stopCount,
+    avgSpeedKmh:durationMin>0?distance/(durationMin/60):0,
+    maxSpeedKmh:maxSpeed,
+    currentSpeedKmh:out.length?Number(out[out.length-1].filteredSpeedKmh||0):0
+  };
+}
+
+function haversineKm_(lat1,lng1,lat2,lng2) {
+  var R=6371, rad=Math.PI/180, dLat=(lat2-lat1)*rad, dLng=(lng2-lng1)*rad;
+  var a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(lat1*rad)*Math.cos(lat2*rad)*Math.sin(dLng/2)*Math.sin(dLng/2);
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(Math.max(0,1-a)));
+}
+
 function compressGpsPoints_(points) {
   if (!Array.isArray(points)) return [];
   var clean = points.map(function(point, index) {
     var lat = Number(point.lat !== undefined ? point.lat : point.latitude);
     var lng = Number(point.lng !== undefined ? point.lng : point.longitude);
     if (!isFinite(lat) || !isFinite(lng)) return null;
-    var rawTs = point.ts !== undefined ? point.ts : (point.time !== undefined ? point.time : point.timestamp);
-    var ts = rawTs ? (typeof rawTs === 'number' ? new Date(rawTs).toISOString() : String(rawTs)) : nowISO_();
-    return {lat:lat,lng:lng,speed:Number(point.speedKmh !== undefined ? point.speedKmh : (point.speed || 0)),ts:ts,index:index};
+    var ts = gpsPointTimeMs_(point);
+    if (!ts) return null;
+    var speed = Number(point.filteredSpeedKmh !== undefined ? point.filteredSpeedKmh : gpsProviderSpeedKmh_(point));
+    if (!isFinite(speed) || speed < 0) speed = 0;
+    return {lat:lat,lng:lng,speedKmh:speed,time:ts,index:index};
   }).filter(function(x){return !!x;});
   if (!clean.length) return [];
   var maxPoints = 900;
   var step = Math.max(1, Math.ceil(clean.length / maxPoints));
   var output = [];
   clean.forEach(function(p, i) {
-    if (i === 0 || i === clean.length - 1 || i % step === 0) output.push({lat:p.lat,lng:p.lng,speed:p.speed,ts:p.ts});
+    if (i === 0 || i === clean.length - 1 || i % step === 0) {
+      output.push({lat:p.lat,lng:p.lng,speedKmh:p.speedKmh,time:p.time,ts:new Date(p.time).toISOString()});
+    }
   });
   return output;
 }
-
 
 
 function saveReceiptImage_(bytes, mimeType) {
