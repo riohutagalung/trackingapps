@@ -1,4 +1,4 @@
-const GAS_URL='https://script.google.com/macros/s/AKfycbyHREf-8F0Dd8G7hXtw_cyQskLkCzmkATDmOeBBovQWe9SeRw49ZIGxIzdSNTvScfn5qg/exec';
+const GAS_URL='https://script.google.com/macros/s/AKfycbyi6yqLiKwjpoy9TclZycH6KOPi0GXlPHc7iHGAA5srKCV6TVWOlSyTr-1V-JOiwlr2MQ/exec';
 
 async function callGas(fn,args){
   const url=GAS_URL+'?fn='+encodeURIComponent(fn)+'&args='+encodeURIComponent(JSON.stringify(args||[]));
@@ -13,7 +13,7 @@ async function callGas(fn,args){
 module.exports=async function handler(req,res){
   res.setHeader('Content-Type','application/json; charset=utf-8');
   res.setHeader('Cache-Control','no-store, no-cache, must-revalidate, max-age=0');
-  const base={service:'rh-habits-vercel',version:'2026-09-21-r5',build:'public-static',rpc:'redirect-safe'};
+  const base={service:'rh-habits-vercel',version:'2026-09-21-r6',build:'public-static',rpc:'redirect-safe'};
   if(req.query?.probe==='gas'){
     try{
       const ping=await callGas('ping',[]);
