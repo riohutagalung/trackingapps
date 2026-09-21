@@ -24,7 +24,7 @@ if (!/<link\s+rel=["']manifest["']\s+href=["']\/manifest\.json["']\s*\/?>/i.test
   throw new Error('[RH] index.html manifest link must point to /manifest.json');
 }
 
-if (!/gas-bridge\.js\?v=20260921/.test(html)) {
+if (!/gas-bridge\.js\?v=20260921-r5/.test(html)) {
   throw new Error('[RH] index.html must load the cache-busted gas-bridge.js?v=20260921-r5');
 }
 
