@@ -1739,9 +1739,14 @@ function deploymentHealth(){
   var out={ok:true,time:nowISO_(),timezone:TZ,spreadsheet:SHEET_ID};
   try{out.spreadsheetName=ss_().getName();}
   catch(e){out.ok=false;out.spreadsheetError=(e&&e.message)||String(e);}
+  var map=getRpcMap_();
   out.rpc=true;
+  out.rpcCount=Object.keys(map).length;
   out.nativeGps=typeof ingestNativeLocation_==='function';
   out.tripPoints=typeof getNativeTripPoints==='function';
+  out.mapsHelpers=typeof getTripMapsUrl==='function' && typeof getGoogleMapsUrl==='function' && typeof getGoogleMapsUrlForTrip==='function';
+  out.weather=typeof getCommuteWeather==='function';
+  out.ocr=typeof ocrImage==='function';
   return out;
 }
 
