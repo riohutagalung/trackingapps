@@ -45,8 +45,9 @@ if (!manifestOk) {
   throw new Error('[RH] index.html manifest link must point to /manifest.json');
 }
 
-if (!/gas-bridge\.js\?v=20260921-r5/.test(html)) {
-  throw new Error('[RH] index.html must load the cache-busted gas-bridge.js?v=20260921-r7');
+const REQUIRED_BRIDGE_VERSION = '20260921-r7';
+if (!html.includes('gas-bridge.js?v=' + REQUIRED_BRIDGE_VERSION)) {
+  throw new Error('[RH] index.html must load gas-bridge.js?v=' + REQUIRED_BRIDGE_VERSION);
 }
 
 if (!/\bconst\s+App\s*=/.test(html)) {
