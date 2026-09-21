@@ -1,9 +1,11 @@
 /* RH Habits native GPS bridge — Android + iOS. */
 (function(){
   'use strict';
-  const KEY='rh_native_location_disclosure_v5';
+  const KEY='rh_native_location_disclosure_v6';
   const APP_ORIGIN='https://rhhabits.vercel.app';
   const isNativePlatform=()=>!!(window.Capacitor&&typeof window.Capacitor.isNativePlatform==='function'&&window.Capacitor.isNativePlatform());
+  const platform=()=>{try{return window.Capacitor?.getPlatform?.()||'';}catch(e){return '';}};
+  const isIOS=()=>platform()==='ios';
   let plugin=null,sessionId=null;
 
   function getPlugin(){
@@ -28,6 +30,7 @@
   }
 
   function backgroundGranted(perm){
+    if(!isIOS()) return true;
     const s=perm&&perm.backgroundLocation;
     return s==='granted'||s==='always';
   }
@@ -36,14 +39,31 @@
     const bg=getPlugin();
     if(!bg?.requestPermissions) return null;
     try{
-      return await bg.requestPermissions({permissions:['location','backgroundLocation','notification']});
-    }catch(e){console.warn('[RHNativeGPS] permission request failed:',e);return null;}
+      const perm=await bg.requestPermissions({
+        permissions:isIOS()
+          ? ['location','backgroundLocation','notification']
+          : ['location','notification']
+      });
+
+      // iOS may first grant "When In Use". For locked-screen tracking we need
+      // the Always/background authorization before starting the trip.
+      if(isIOS()&&!backgroundGranted(perm)){
+        return Object.assign({},perm,{
+          location:'denied',
+          backgroundLocation:perm?.backgroundLocation||'when_in_use'
+        });
+      }
+      return perm;
+    }catch(e){
+      console.warn('[RHNativeGPS] permission request failed:',e);
+      return null;
+    }
   }
 
   async function checkPermissions(){
     const perm=await getPermissionState();
     if(!perm)return null;
-    if(!backgroundGranted(perm)){
+    if(isIOS()&&!backgroundGranted(perm)){
       return Object.assign({},perm,{
         location:'denied',
         backgroundLocation:perm.backgroundLocation||'when_in_use'
@@ -59,8 +79,8 @@
     const url=APP_ORIGIN+'/api/native-location?tripId='+encodeURIComponent(id);
 
     const perm=await getPermissionState();
-    if(perm&&!backgroundGranted(perm)){
-      throw new Error('Izin lokasi background belum aktif. Pilih Allow All the Time / Always di Pengaturan HP agar GPS tetap merekam saat layar dikunci.');
+    if(isIOS()&&!backgroundGranted(perm)){
+      throw new Error('Izin Always/Background Location belum aktif. Pilih Allow Always di Pengaturan iPhone agar GPS tetap merekam saat layar dikunci.');
     }
 
     await bg.start({
