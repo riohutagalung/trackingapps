@@ -25,7 +25,7 @@ if (!/<link\s+rel=["']manifest["']\s+href=["']\/manifest\.json["']\s*\/?>/i.test
 }
 
 if (!/gas-bridge\.js\?v=20260921/.test(html)) {
-  throw new Error('[RH] index.html must load the cache-busted gas-bridge.js?v=20260921');
+  throw new Error('[RH] index.html must load the cache-busted gas-bridge.js?v=20260921-r5');
 }
 
 if (!/\bconst\s+App\s*=/.test(html)) {
