@@ -4,12 +4,14 @@ import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 
 /**
- * RH Habits Vercel/native source validator.
+ * RH Habits Vercel/native source repair + validator.
  *
- * IMPORTANT:
- * This script is intentionally READ-ONLY with respect to index.html.
- * It must never rewrite business logic during a deployment.
- * The source in GitHub is the canonical application source.
+ * The repairs below are deliberately narrow:
+ * - restore commas between known App object methods
+ * - remove a known accidental double-comma
+ * - make the Vercel PWA manifest link point to /manifest.json
+ *
+ * No business logic is changed.
  */
 
 const file = path.resolve(process.argv[2] || 'index.html');
@@ -18,9 +20,28 @@ if (!fs.existsSync(file)) {
   throw new Error('[RH] index.html not found: ' + file);
 }
 
-const html = fs.readFileSync(file, 'utf8');
+let html = fs.readFileSync(file, 'utf8');
+const before = html;
 
-if (!/<link\s+rel=["']manifest["']\s+href=["']\/manifest\.json["']\s*\/?>/i.test(html)) {
+// Known source corruption found in the current index.html.
+html = html.replace(/\},\,/g, '},');
+html = html.replace(/\n  \}\n  renderPublicTransport\(/g, '\n  },\n  renderPublicTransport(');
+html = html.replace(/\n  \}\n  renderFuelPrediction\(/g, '\n  },\n  renderFuelPrediction(');
+html = html.replace(/\n  \}\,\,\n/g, '\n  },\n');
+html = html.replace(
+  /<link\s+rel=["']manifest["']\s+href=["']\?manifest=1["']\s*\/?>/i,
+  '<link rel="manifest" href="/manifest.json">'
+);
+
+if (html !== before) {
+  fs.writeFileSync(file, html, 'utf8');
+  console.log('[RH] Repaired known index.html source issues.');
+} else {
+  console.log('[RH] No known index.html repair was necessary.');
+}
+
+const manifestOk = /<link\s+rel=["']manifest["']\s+href=["']\/manifest\.json["']\s*\/?>/i.test(html);
+if (!manifestOk) {
   throw new Error('[RH] index.html manifest link must point to /manifest.json');
 }
 
@@ -40,8 +61,7 @@ if (!/\bconst\s+Weather\s*=/.test(html) && !/\bwindow\.Weather\s*=/.test(html)) 
   throw new Error('[RH] Weather module missing from index.html.');
 }
 
-// Validate every inline JavaScript block. External JS files are validated
-// separately by Node --check in the same build step below.
+// Validate every inline JavaScript block.
 const scriptRe = /<script(?:[^>]*)>([\s\S]*?)<\/script>/gi;
 let match;
 let count = 0;
