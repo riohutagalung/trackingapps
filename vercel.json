@@ -98,5 +98,7 @@
         }
       ]
     }
-  ]
+  ],
+  "buildCommand": "node scripts/repair-vercel.mjs index.html",
+  "outputDirectory": "."
 }
