@@ -1,4 +1,4 @@
-const GAS_URL='https://script.google.com/macros/s/AKfycbyHREf-8F0Dd8G7hXtw_cyQskLkCzmkATDmOeBBovQWe9SeRw49ZIGxIzdSNTvScfn5qg/exec';
+const GAS_URL='https://script.google.com'+'/macros/s/'+'AKfycbyi6yqLiKwjpoy9TclZycH6KOPi0GXlPHc7iHGAA5srKCV6TVWOlSyTr-1V-JOiwlr2MQ'+'/exec';
 
 function cors(res){
   res.setHeader('Access-Control-Allow-Origin','*');
@@ -18,6 +18,7 @@ async function consumeUpstream(res){
     if(parsed&&parsed.error) detail=': '+String(parsed.error).slice(0,300);
     else if(res.status===404) detail=': deployment Web App /exec tidak ditemukan atau URL deployment tidak sesuai';
     else if(res.status===401||res.status===403) detail=': akses Web App ditolak, cek Execute as / Who has access';
+    else if(res.status===405) detail=': endpoint Apps Script menolak method. Pastikan deployment URL terbaru dan redirect diikuti dengan GET.';
     throw new Error('Apps Script HTTP '+res.status+detail);
   }
   if(!parsed||typeof parsed!=='object'){
@@ -34,12 +35,7 @@ async function forward(body){
       const loc=r.headers.get('location');
       if(!loc)throw new Error('Apps Script redirect tanpa Location.');
       target=new URL(loc,target).toString();
-      const rr=await fetch(target,{method:'GET',redirect:'manual',headers:{'Accept':'application/json'},cache:'no-store'});
-      if([301,302,303,307,308].includes(rr.status)){
-        const next=rr.headers.get('location');
-        if(next){target=new URL(next,target).toString();continue;}
-      }
-      return consumeUpstream(rr);
+      return consumeUpstream(await fetch(target,{method:'GET',redirect:'manual',headers:{'Accept':'application/json'},cache:'no-store'}));
     }
     if([307,308].includes(r.status)){
       const loc=r.headers.get('location');
