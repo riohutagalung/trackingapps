@@ -17,10 +17,9 @@ html=html.replace(/<link\s+rel=["']manifest["']\s+href=["']\?manifest=1["']\s*\/
 html=html.replace(/gas-bridge\.js(?:\?v=\d+)?/g,'gas-bridge.js?v=20260921');
 // Avoid the harmless browser warning about a password field outside a form.
 if(/id=["']traffic-key["']/.test(html) && !/id=["']traffic-settings-form["']/.test(html)){
-  html=html.replace(
-    /(<div class="traffic-note">Masukkan API key Google Routes API[\\s\\S]*?<\/div>)([\\s\\S]*?)(<\/div>\\s*<div class="card">\\s*<div class="card-head"><div><div class="eyebrow">Komparasi)/i,
-    '$1<form id="traffic-settings-form" onsubmit="return false;">$2</form>$3'
-  );
+  const oldTrafficBlock='<div class="field" style="margin-top:15px"><label>API Key</label><input class="input" id="traffic-key" type="password" placeholder="AIza..."></div>\\n            <div style="display:flex;gap:8px;margin-top:14px">\\n              <button class="btn primary" onclick="Settings.saveKey()">Simpan Key</button>\\n              <button class="btn red" onclick="Settings.clearKey()">Hapus Key</button>\\n            </div>';
+  const newTrafficBlock='<form id="traffic-settings-form" onsubmit="return false;">\\n              <div class="field" style="margin-top:15px"><label>API Key</label><input class="input" id="traffic-key" type="password" placeholder="AIza..."></div>\\n              <div style="display:flex;gap:8px;margin-top:14px">\\n                <button class="btn primary" type="button" onclick="Settings.saveKey()">Simpan Key</button>\\n                <button class="btn red" type="button" onclick="Settings.clearKey()">Hapus Key</button>\\n              </div>\\n            </form>';
+  html=html.replace(oldTrafficBlock,newTrafficBlock);
 }
 
 // App.init() uses Weather.refresh(). Keep a real client module in the Vercel/native app.
