@@ -13,6 +13,15 @@ html=html.replace(/\n  \}\n  renderPublicTransport\(/g,'\n  },\n  renderPublicTr
 html=html.replace(/\n  \}\n  renderFuelPrediction\(/g,'\n  },\n  renderFuelPrediction(');
 html=html.replace(/\n  \}\,\,\n/g,'\n  },\n');
 html=html.replace(/<link\s+rel=["']manifest["']\s+href=["']\?manifest=1["']\s*\/?>/i,'<link rel="manifest" href="/manifest.json">');
+// Ensure browsers/WebViews do not keep the pre-fix RPC bridge in cache.
+html=html.replace(/gas-bridge\.js(?:\?v=\d+)?/g,'gas-bridge.js?v=20260921');
+// Avoid the harmless browser warning about a password field outside a form.
+if(/id=["']traffic-key["']/.test(html) && !/id=["']traffic-settings-form["']/.test(html)){
+  html=html.replace(
+    /(<div class="traffic-note">Masukkan API key Google Routes API[\\s\\S]*?<\/div>)([\\s\\S]*?)(<\/div>\\s*<div class="card">\\s*<div class="card-head"><div><div class="eyebrow">Komparasi)/i,
+    '$1<form id="traffic-settings-form" onsubmit="return false;">$2</form>$3'
+  );
+}
 
 // App.init() uses Weather.refresh(). Keep a real client module in the Vercel/native app.
 // It calls the existing Apps Script RPC; it does not fabricate weather data.
