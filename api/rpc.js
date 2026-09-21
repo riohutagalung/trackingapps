@@ -1,4 +1,4 @@
-const GAS_URL='https://script.google.com/macros/s/AKfycbyi6yqLiKwjpoy9TclZycH6KOPi0GXlPHc7iHGAA5srKCV6TVWOlSyTr-1V-JOiwlr2MQ/exec';
+const GAS_URL='https://script.google.com/macros/s/AKfycbyHREf-8F0Dd8G7hXtw_cyQskLkCzmkATDmOeBBovQWe9SeRw49ZIGxIzdSNTvScfn5qg/exec';
 
 function cors(res){
   res.setHeader('Access-Control-Allow-Origin','*');
@@ -51,8 +51,6 @@ async function invokeGet(fn,args){
 async function savePointBatches(tripId,points){
   const list=Array.isArray(points)?points:[];
   if(!list.length) return;
-  // Keep each GET URL comfortably small. Apps Script web-app redirects are GET-safe;
-  // the client still sends the original large payload to Vercel as POST.
   const chunkSize=25;
   for(let i=0;i<list.length;i+=chunkSize){
     const chunk=list.slice(i,i+chunkSize);
@@ -63,8 +61,6 @@ async function savePointBatches(tripId,points){
 async function forward(body){
   const fn=String(body.fn);
   const args=Array.isArray(body.args)?body.args:[];
-  // addTrip already knows how to load TripPoints when gpsPoints is empty.
-  // Upload large client GPS payloads in small GET-safe chunks, then keep addTrip small.
   if(fn==='addTrip' && args[0] && typeof args[0]==='object' && Array.isArray(args[0].gpsPoints) && args[0].gpsPoints.length){
     const data={...args[0]};
     const points=data.gpsPoints.slice();
@@ -77,8 +73,6 @@ async function forward(body){
       return invokeGet(fn,nextArgs);
     }
   }
-  // Preserve frontend compatibility if it explicitly calls saveTripPointsBatch with
-  // a large list; Vercel handles the chunking instead of putting all points in one URL.
   if(fn==='saveTripPointsBatch' && args.length>=2){
     const tripId=String(args[0]||'').trim();
     const points=Array.isArray(args[1])?args[1]:[];
