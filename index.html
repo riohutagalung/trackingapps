@@ -1220,7 +1220,7 @@ const App = {
     this.restoreDraft();
     this.refresh();
     this.checkTimeBasedSuggest();
-    setTimeout(() => { try { window.Weather?.refresh(false); } catch(e) { console.warn('[RH] weather:', e); } }, 1600);
+    setTimeout(() => { try { Weather.refresh(false); } catch(e) { console.warn('[RH] weather:', e); } }, 1600);
     window.addEventListener('resize', () => this.detectDevice(), {passive:true});
     setTimeout(() => this.hideSplash(), 1400);
   },
