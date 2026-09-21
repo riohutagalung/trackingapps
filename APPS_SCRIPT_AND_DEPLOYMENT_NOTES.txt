@@ -8,7 +8,7 @@ APPS SCRIPT
 5) No TripPoints sheet needs to be created manually; Code.gs creates it on the first native GPS point.
 
 LOCKED APPS SCRIPT WEB APP — DO NOT CHANGE
-https://script.google.com/macros/s/AKfycbyHREf-8F0Dd8G7hXtw_cyQskLkCzmkATDmOeBBovQWe9SeRw49ZIGxIzdSNTvScfn5qg/exec
+https://script.google.com/macros/s/AKfycbyi6yqLiKwjpoy9TclZycH6KOPi0GXlPHc7iHGAA5srKCV6TVWOlSyTr-1V-JOiwlr2MQ/exec
 
 VERCEL / GITHUB
 - /api/rpc and /api/native-location use the locked deployment URL above.
