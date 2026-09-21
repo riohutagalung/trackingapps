@@ -3,20 +3,21 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
-const repair = path.join(root, 'scripts', 'repair-index.mjs');
+const repair = path.join(root, 'scripts', 'repair-vercel.mjs');
 const index = path.join(root, 'index.html');
 const out = path.join(root, 'public');
 
-if (!fs.existsSync(repair)) throw new Error('[RH] repair-index.mjs tidak ditemukan.');
+if (!fs.existsSync(repair)) throw new Error('[RH] repair-vercel.mjs tidak ditemukan.');
 if (!fs.existsSync(index)) throw new Error('[RH] index.html tidak ditemukan.');
 
 const r = spawnSync(process.execPath, [repair, index], { stdio: 'inherit' });
-if (r.status !== 0) throw new Error('[RH] Validasi/perbaikan index.html gagal.');
+if (r.status !== 0) {
+  throw new Error('[RH] Validasi/perbaikan index.html gagal. Lihat error inline script di atas.');
+}
 
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(out, { recursive: true });
 
-// Static web assets used by the browser/PWA. API functions stay under /api.
 for (const name of [
   'index.html',
   'gas-bridge.js',
