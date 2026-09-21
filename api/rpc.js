@@ -34,7 +34,7 @@ async function readJsonResponse(res){
   if(!parsed||typeof parsed!=='object') throw new Error('Apps Script mengembalikan respons bukan JSON.');
   return parsed;
 }
-async function forwardGet(fn,args){
+async function invokeGet(fn,args){
   let target=encodedRpcUrl(fn,args);
   for(let i=0;i<7;i++){
     const r=await fetch(target,{method:'GET',redirect:'manual',headers:{'Accept':'application/json'},cache:'no-store'});
@@ -48,6 +48,47 @@ async function forwardGet(fn,args){
   }
   throw new Error('Terlalu banyak redirect Apps Script.');
 }
+async function savePointBatches(tripId,points){
+  const list=Array.isArray(points)?points:[];
+  if(!list.length) return;
+  // Keep each GET URL comfortably small. Apps Script web-app redirects are GET-safe;
+  // the client still sends the original large payload to Vercel as POST.
+  const chunkSize=25;
+  for(let i=0;i<list.length;i+=chunkSize){
+    const chunk=list.slice(i,i+chunkSize);
+    const result=await invokeGet('saveTripPointsBatch',[tripId,chunk]);
+    if(result && result.ok===false) throw new Error(result.error||'Gagal menyimpan titik GPS.');
+  }
+}
+async function forward(body){
+  const fn=String(body.fn);
+  const args=Array.isArray(body.args)?body.args:[];
+  // addTrip already knows how to load TripPoints when gpsPoints is empty.
+  // Upload large client GPS payloads in small GET-safe chunks, then keep addTrip small.
+  if(fn==='addTrip' && args[0] && typeof args[0]==='object' && Array.isArray(args[0].gpsPoints) && args[0].gpsPoints.length){
+    const data={...args[0]};
+    const points=data.gpsPoints.slice();
+    const tripId=String(data.id||'').trim();
+    if(tripId){
+      await savePointBatches(tripId,points);
+      data.gpsPoints=[];
+      const nextArgs=args.slice();
+      nextArgs[0]=data;
+      return invokeGet(fn,nextArgs);
+    }
+  }
+  // Preserve frontend compatibility if it explicitly calls saveTripPointsBatch with
+  // a large list; Vercel handles the chunking instead of putting all points in one URL.
+  if(fn==='saveTripPointsBatch' && args.length>=2){
+    const tripId=String(args[0]||'').trim();
+    const points=Array.isArray(args[1])?args[1]:[];
+    if(tripId && points.length){
+      await savePointBatches(tripId,points);
+      return {ok:true,result:{ok:true,saved:points.length}};
+    }
+  }
+  return invokeGet(fn,args);
+}
 module.exports=async function handler(req,res){
   try{
     cors(res);
@@ -57,7 +98,7 @@ module.exports=async function handler(req,res){
     else if(req.method==='GET') body={fn:req.query?.fn,args:req.query?.args?JSON.parse(req.query.args):[]};
     else return json(res,405,{ok:false,error:'Method GET/POST only'});
     if(!body||!body.fn) return json(res,400,{ok:false,error:'fn wajib diisi'});
-    return json(res,200,await forwardGet(body.fn,body.args));
+    return json(res,200,await forward(body));
   }catch(e){
     console.error('[RH rpc]',e);
     return json(res,502,{ok:false,error:e?.message||String(e)});
