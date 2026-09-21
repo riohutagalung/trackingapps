@@ -20,6 +20,9 @@ module.exports=async function handler(req,res){
       const maps=await callGas('getGoogleMapsUrlForTrip',[{origin:'A',destination:'B'}]);
       const mapsOk=typeof maps==='string' && maps.indexOf('https://www.google.com/maps/dir/')===0;
       if(!mapsOk) throw new Error('getGoogleMapsUrlForTrip tidak mengembalikan URL Maps yang valid');
+      const tripMaps=await callGas('getTripMapsUrl',[[], 'A', 'B']);
+      const tripMapsOk=typeof tripMaps==='string' && tripMaps.indexOf('https://www.google.com/maps/dir/')===0;
+      if(!tripMapsOk) throw new Error('getTripMapsUrl tidak tersedia atau tidak mengembalikan URL Maps yang valid');
       res.statusCode=200;
       return res.end(JSON.stringify({...base,ok:true,gas:true,gasPing:true,gasMaps:true}));
     }catch(e){
