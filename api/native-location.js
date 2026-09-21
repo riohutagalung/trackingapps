@@ -1,4 +1,4 @@
-const GAS_URL='https://script.google.com/macros/s/AKfycbyi6yqLiKwjpoy9TclZycH6KOPi0GXlPHc7iHGAA5srKCV6TVWOlSyTr-1V-JOiwlr2MQ/exec';
+const GAS_URL='https://script.google.com/macros/s/AKfycbyHREf-8F0Dd8G7hXtw_cyQskLkCzmkATDmOeBBovQWe9SeRw49ZIGxIzdSNTvScfn5qg/exec';
 
 function cors(res){
   res.setHeader('Access-Control-Allow-Origin','*');
@@ -40,9 +40,7 @@ async function forwardPoint(body){
     lat:Number(body.latitude),
     lng:Number(body.longitude),
     accuracy:Number.isFinite(Number(body.accuracy))?Number(body.accuracy):0,
-    speedKmh:Number.isFinite(Number(body.speedKmh))?Number(body.speedKmh):(
-      Number.isFinite(Number(body.speed))?Math.max(0,Number(body.speed)*3.6):0
-    ),
+    speedKmh:Number.isFinite(Number(body.speedKmh))?Number(body.speedKmh):(Number.isFinite(Number(body.speed))?Math.max(0,Number(body.speed)*3.6):0),
     bearing:Number.isFinite(Number(body.bearing))?Number(body.bearing):'',
     altitude:Number.isFinite(Number(body.altitude))?Number(body.altitude):'',
     time:Number.isFinite(Number(body.time))&&Number(body.time)>0?Number(body.time):Date.now(),
