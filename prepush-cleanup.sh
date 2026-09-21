@@ -13,7 +13,6 @@ npm run native:prepare
 
 # 3) Verify the canonical files exist.
 test -f index.html
-test -f Code.gs
 test -f gas-bridge.js
 test -f rh-native-gps.js
 test -f rh-native-media.js
