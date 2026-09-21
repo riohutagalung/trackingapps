@@ -13,10 +13,11 @@ async function probeGas(){
 module.exports=async function handler(req,res){
   res.setHeader('Content-Type','application/json; charset=utf-8');
   res.setHeader('Cache-Control','no-store, no-cache, must-revalidate, max-age=0');
+  const base={service:'rh-habits-vercel',version:'2026-09-21-r3',build:'public-static',rpc:'redirect-safe'};
   if(req.query?.probe==='gas'){
-    try{return res.end(JSON.stringify({ok:true,service:'rh-habits-vercel',version:'2026-09-21-r3',build:'public-static',rpc:'redirect-safe',gas:true}));}
-    catch(e){res.statusCode=502;return res.end(JSON.stringify({ok:false,service:'rh-habits-vercel',version:'2026-09-21-r3',build:'public-static',rpc:'redirect-safe',gas:false,error:e?.message||String(e)}));}
+    try{await probeGas();res.statusCode=200;return res.end(JSON.stringify({...base,ok:true,gas:true}));}
+    catch(e){res.statusCode=502;return res.end(JSON.stringify({...base,ok:false,gas:false,error:e?.message||String(e)}));}
   }
   res.statusCode=200;
-  res.end(JSON.stringify({ok:true,service:'rh-habits-vercel',version:'2026-09-21-r3',build:'public-static',rpc:'redirect-safe'}));
+  res.end(JSON.stringify({...base,ok:true}));
 };
