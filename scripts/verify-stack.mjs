@@ -23,5 +23,6 @@ await request('Manifest',VERCEL+'/manifest.json');
 await request('Apps Script GET ping',GAS+'?fn=ping&args='+encodeURIComponent('[]'));
 await request('Vercel RPC POST ping',VERCEL+'/api/rpc',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({fn:'ping',args:[]})});
 await request('Vercel RPC getTripMapsUrl',VERCEL+'/api/rpc',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({fn:'getTripMapsUrl',args:[[],'A','B']})});
+await request('Vercel RPC getBootstrap',VERCEL+'/api/rpc',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({fn:'getBootstrap',args:[]})});
 await request('Vercel native-location GET',VERCEL+'/api/native-location');
 console.log('\n[RH] verify-stack finished');
