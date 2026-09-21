@@ -1,35 +1,37 @@
-RH Habits FULL FIX — 11 Sep 2026 — v2.4.1
+RH Habits FULL FIX — 21 Sep 2026 — v2.4.1
 
 APPS SCRIPT
 1) Apps Script backend must use the current Code.gs from this repository.
 2) Keep the existing HTML file only if you still want the Apps Script Web App fallback. Vercel/native UI uses the GitHub web bundle.
 3) maps-helpers.gs is NOT required when it duplicates functions already present in Code.gs. Remove duplicate getTripMapsUrl/getGoogleMapsUrlForTrip/getGoogleMapsUrl/getRouteSuggestion definitions, or remove the helper file.
-4) Deploy the latest Code.gs as a NEW Web App version. The current GitHub proxy points to the latest deployment URL below.
+4) Deploy the latest Code.gs as a NEW Web App version.
 5) No TripPoints sheet needs to be created manually; Code.gs creates it on the first native GPS point.
 
-CURRENT APPS SCRIPT WEB APP\nhttps://script.google.com/macros/s/AKfycbyi6yqLiKwjpoy9TclZycH6KOPi0GXlPHc7iHGAA5srKCV6TVWOlSyTr-1V-JOiwlr2MQ/exec
+LOCKED APPS SCRIPT WEB APP — DO NOT CHANGE
+https://script.google.com/macros/s/AKfycbyHREf-8F0Dd8G7hXtw_cyQskLkCzmkATDmOeBBovQWe9SeRw49ZIGxIzdSNTvScfn5qg/exec
 
 VERCEL / GITHUB
-- /api/rpc and /api/native-location now point to the deployment above.
+- /api/rpc and /api/native-location use the locked deployment URL above.
 - Vercel runs scripts/repair-vercel.mjs before deployment and fails the build if the inline index JavaScript is invalid.
 - npm run cap:sync runs scripts/setup-native.mjs, which repairs/validates index.html and rebuilds ./www before Capacitor sync.
 - gas-bridge.js keeps browser calls on /api/rpc and native calls on https://rhhabits.vercel.app/api/rpc.
 - Native GPS posts to https://rhhabits.vercel.app/api/native-location and that proxy forwards to Apps Script.
 
 CURRENT KNOWN FIXES
-- Repairs the malformed App object separators that previously caused the entire index script to fail parsing (including renderTrend/renderPublicTransport/renderFuelPrediction).
+- Repairs the malformed App object separators that previously caused the entire index script to fail parsing.
 - Repairs the duplicate `},,` separator in the Trip object.
-- RPC proxy follows the Apps Script redirect and switches the redirected request to GET because the Apps Script Content service endpoint can redirect the response URL.
+- Repairs Vercel PWA manifest loading so it uses /manifest.json instead of ?manifest=1.
+- Adds the missing client-side Weather module required by App.init().
+- Cache-busts gas-bridge.js for the current release.
+- RPC proxy follows the Apps Script response redirect and switches the redirected request to GET.
 - Native GPS proxy validates tripId and coordinates before forwarding.
 - Native assets are rebuilt from the root source so Android/iOS do not use stale HTML/JS copies.
 - OCR uses native Camera/Photos on native builds and the same analyzeReceipt() backend path.
 - TripPoints are server-side buffered for native background GPS and merged into the saved Trip.
 
 IMPORTANT
-After Apps Script is redeployed, do not change the deployment URL unless the proxy files are updated too. iOS background GPS still depends on Location permission, Background Modes > Location updates, signing, and the OS continuing the location session. Explicitly force-quitting the app can stop background delivery.
-
-
-2026-09-21 LIVE DEBUG NOTE
-- If F12 still shows "doPost error: getTripMapsUrl is not defined", the Vercel frontend is reaching an Apps Script deployment whose code is older than the Code(5).gs / fixed Code.gs source. Redeploy the latest Code.gs as a NEW Web App version before changing the frontend again.
-- The GitHub/Vercel frontend no longer calls getTripMapsUrl directly in the current index.html; the helper remains in the backend allowlist for backward compatibility.
-- The Vercel project must serve repository root. Do not configure outputDirectory=public for this repo.
+- Do not change the locked Apps Script deployment URL in any frontend, Vercel, native, or notes file.
+- The current Apps Script Code.gs source contains getTripMapsUrl(), getGoogleMapsUrlForTrip(), and getGoogleMapsUrl(). If F12 still reports getTripMapsUrl is not defined after this Code.gs is deployed as a NEW Web App version, the deployment is still serving an older Apps Script version or another duplicate helper file is shadowing the expected source.
+- Remove any duplicate getTripMapsUrl/getGoogleMapsUrlForTrip/getGoogleMapsUrl/getRouteSuggestion definitions from maps-helper.gs if Code.gs already contains them.
+- Do not configure outputDirectory=public for this repo; Vercel is configured to deploy the repository root.
+- iOS background GPS still depends on Location permission, Background Modes > Location updates, signing, and the OS continuing the location session. Force-quitting the app can stop background delivery.
