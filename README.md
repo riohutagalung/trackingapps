@@ -29,7 +29,7 @@ Capacitor → native GPS → `/api/native-location` → Google Apps Script → `
 
 Vercel memakai deployment Web App:
 
-`https://script.google.com/macros/s/AKfycbyHREf-8F0Dd8G7hXtw_cyQskLkCzmkATDmOeBBovQWe9SeRw49ZIGxIzdSNTvScfn5qg/exec`
+`https://script.google.com/macros/s/AKfycbyi6yqLiKwjpoy9TclZycH6KOPi0GXlPHc7iHGAA5srKCV6TVWOlSyTr-1V-JOiwlr2MQ/exec`
 
 Jangan membuat deployment URL baru untuk konfigurasi yang sudah berjalan. Update source `code.gs`, save, lalu deploy **new version** pada deployment Web App yang sama.
 
