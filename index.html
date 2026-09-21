@@ -1033,11 +1033,13 @@ body.device-android .mobile-header { padding-top:12px; }
           <div class="card">
             <div class="card-head"><div><div class="eyebrow">Traffic Engine</div><div class="card-title">Google Routes API</div></div></div>
             <div class="traffic-note">Masukkan API key Google Routes API agar cek ETA di dalam aplikasi memakai kondisi lalu lintas Google secara real-time. Key disimpan aman di Script Properties.</div>
-            <div class="field" style="margin-top:15px"><label>API Key</label><input class="input" id="traffic-key" type="password" placeholder="AIza..."></div>
-            <div style="display:flex;gap:8px;margin-top:14px">
-              <button class="btn primary" onclick="Settings.saveKey()">Simpan Key</button>
-              <button class="btn red" onclick="Settings.clearKey()">Hapus Key</button>
-            </div>
+            <form id="traffic-settings-form" onsubmit="return false;">
+              <div class="field" style="margin-top:15px"><label>API Key</label><input class="input" id="traffic-key" type="password" placeholder="AIza..."></div>
+              <div style="display:flex;gap:8px;margin-top:14px">
+                <button class="btn primary" type="button" onclick="Settings.saveKey()">Simpan Key</button>
+                <button class="btn red" type="button" onclick="Settings.clearKey()">Hapus Key</button>
+              </div>
+            </form>
           </div>
           <div class="card">
             <div class="card-head"><div><div class="eyebrow">Komparasi</div><div class="card-title">Estimasi transportasi umum</div></div></div>
