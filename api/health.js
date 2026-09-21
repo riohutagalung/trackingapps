@@ -13,7 +13,7 @@ async function callGas(fn,args){
 module.exports=async function handler(req,res){
   res.setHeader('Content-Type','application/json; charset=utf-8');
   res.setHeader('Cache-Control','no-store, no-cache, must-revalidate, max-age=0');
-  const base={service:'rh-habits-vercel',version:'2026-09-21-r4',build:'public-static',rpc:'redirect-safe'};
+  const base={service:'rh-habits-vercel',version:'2026-09-21-r5',build:'public-static',rpc:'redirect-safe'};
   if(req.query?.probe==='gas'){
     try{
       const ping=await callGas('ping',[]);
