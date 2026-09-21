@@ -7,8 +7,7 @@ APPS SCRIPT
 4) Deploy the latest Code.gs as a NEW Web App version. The current GitHub proxy points to the latest deployment URL below.
 5) No TripPoints sheet needs to be created manually; Code.gs creates it on the first native GPS point.
 
-CURRENT APPS SCRIPT WEB APP
-https://script.google.com/macros/s/AKfycbyHREf-8F0Dd8G7hXtw_cyQskLkCzmkATDmOeBBovQWe9SeRw49ZIGxIzdSNTvScfn5qg/exec
+CURRENT APPS SCRIPT WEB APP\nhttps://script.google.com/macros/s/AKfycbyi6yqLiKwjpoy9TclZycH6KOPi0GXlPHc7iHGAA5srKCV6TVWOlSyTr-1V-JOiwlr2MQ/exec
 
 VERCEL / GITHUB
 - /api/rpc and /api/native-location now point to the deployment above.
@@ -20,7 +19,7 @@ VERCEL / GITHUB
 CURRENT KNOWN FIXES
 - Repairs the malformed App object separators that previously caused the entire index script to fail parsing (including renderTrend/renderPublicTransport/renderFuelPrediction).
 - Repairs the duplicate `},,` separator in the Trip object.
-- RPC proxy follows Apps Script redirects while preserving POST and reports the actual upstream status/body on failure.
+- RPC proxy follows the Apps Script redirect and switches the redirected request to GET because the Apps Script Content service endpoint can redirect the response URL.
 - Native GPS proxy validates tripId and coordinates before forwarding.
 - Native assets are rebuilt from the root source so Android/iOS do not use stale HTML/JS copies.
 - OCR uses native Camera/Photos on native builds and the same analyzeReceipt() backend path.
@@ -28,3 +27,9 @@ CURRENT KNOWN FIXES
 
 IMPORTANT
 After Apps Script is redeployed, do not change the deployment URL unless the proxy files are updated too. iOS background GPS still depends on Location permission, Background Modes > Location updates, signing, and the OS continuing the location session. Explicitly force-quitting the app can stop background delivery.
+
+
+2026-09-21 LIVE DEBUG NOTE
+- If F12 still shows "doPost error: getTripMapsUrl is not defined", the Vercel frontend is reaching an Apps Script deployment whose code is older than the Code(5).gs / fixed Code.gs source. Redeploy the latest Code.gs as a NEW Web App version before changing the frontend again.
+- The GitHub/Vercel frontend no longer calls getTripMapsUrl directly in the current index.html; the helper remains in the backend allowlist for backward compatibility.
+- The Vercel project must serve repository root. Do not configure outputDirectory=public for this repo.
