@@ -1,4 +1,4 @@
-const GAS_URL='https://script.google.com'+'/macros/s/'+'AKfycbyi6yqLiKwjpoy9TclZycH6KOPi0GXlPHc7iHGAA5srKCV6TVWOlSyTr-1V-JOiwlr2MQ'+'/exec';
+const GAS_URL='https://script.google.com/macros/s/AKfycbyHREf-8F0Dd8G7hXtw_cyQskLkCzmkATDmOeBBovQWe9SeRw49ZIGxIzdSNTvScfn5qg/exec';
 
 function cors(res){
   res.setHeader('Access-Control-Allow-Origin','*');
@@ -19,7 +19,7 @@ async function readJsonResponse(res){
     if(parsed&&parsed.error) detail=': '+String(parsed.error).slice(0,500);
     else if(res.status===404) detail=': deployment Web App /exec tidak ditemukan atau URL deployment tidak sesuai';
     else if(res.status===401||res.status===403) detail=': akses Web App ditolak, cek Execute as / Who has access';
-    else if(res.status===405) detail=': endpoint Apps Script menolak method/URL. Pastikan deployment URL terbaru.';
+    else if(res.status===405) detail=': endpoint Apps Script menolak method/URL. Pastikan deployment URL yang dipakai adalah URL yang ditetapkan.';
     else if(text) detail=': '+text.slice(0,500);
     throw new Error('Apps Script HTTP '+res.status+detail);
   }
@@ -30,7 +30,7 @@ async function readJsonResponse(res){
 async function forward(body){
   let target=GAS_URL;
   let method='POST';
-  let payload=JSON.stringify(body);
+  const payload=JSON.stringify(body);
   for(let i=0;i<7;i++){
     const r=await fetch(target,{
       method,
