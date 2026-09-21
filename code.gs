@@ -526,6 +526,7 @@ function deleteExpense(id) {
       String(id)
     ) {
       sheet.deleteRow(i + 1);
+      invalidateEngineCache_();
       return {
         ok: true
       };
@@ -654,6 +655,8 @@ function deleteTrip(id) {
   for (var i = 1; i < rows.length; i++) {
     if (String(rows[i][0]) === String(id)) {
       sheet.deleteRow(i + 1);
+      try { deleteNativeTripPoints(id); } catch (e) {}
+      invalidateEngineCache_();
       return { ok: true };
     }
   }
