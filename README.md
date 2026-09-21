@@ -18,7 +18,7 @@ Capacitor → native GPS → `/api/native-location` → Google Apps Script → `
 - `rh-native-media.js` — native Camera/Gallery
 - `api/rpc.js` — proxy RPC ke Apps Script
 - `api/native-location.js` — endpoint GPS native
-- `code.gs` — backend Apps Script
+- `Code.gs` — backend Apps Script (source maintained in the Apps Script project)
 - `vercel.json` — konfigurasi Vercel
 - `manifest.json` — PWA metadata
 - `capacitor.config.ts` — konfigurasi Capacitor
