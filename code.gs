@@ -172,7 +172,10 @@ function doPost(e) {
  * Tambahkan nama fungsi baru ke sini kalau frontend butuh memanggilnya.
  */
 function getRpcMap_() {
-  return {
+  // Core RPCs are always registered. Optional Maps/native helpers are only
+  // registered when their functions actually exist, so an older deployment
+  // cannot break every RPC with a ReferenceError.
+  var map = {
     ping: ping,
     deploymentHealth: deploymentHealth,
     getBootstrap: getBootstrap,
@@ -182,14 +185,7 @@ function getRpcMap_() {
     getExpenseHistory: getExpenseHistory,
     getExpensesSince: getExpensesSince,
     addTrip: addTrip,
-    getNativeTripPoints: getNativeTripPoints,
-    getTripGpsPoints: getTripGpsPoints,
-    saveTripPointsBatch: saveTripPointsBatch,
-    deleteNativeTripPoints: deleteNativeTripPoints,
     deleteTrip: deleteTrip,
-    getTripMapsUrl: getTripMapsUrl,
-    getGoogleMapsUrl: getGoogleMapsUrl,
-    getGoogleMapsUrlForTrip: getGoogleMapsUrlForTrip,
     getRouteSuggestion: getRouteSuggestion,
     getRouteHabits: getRouteHabits,
     getRouteIntelligence: getRouteIntelligence,
@@ -210,6 +206,16 @@ function getRpcMap_() {
     refreshFuelPrices: refreshFuelPrices,
     saveFuelReferencePrice: saveFuelReferencePrice
   };
+
+  if (typeof getTripMapsUrl === 'function') map.getTripMapsUrl = getTripMapsUrl;
+  if (typeof getGoogleMapsUrl === 'function') map.getGoogleMapsUrl = getGoogleMapsUrl;
+  if (typeof getGoogleMapsUrlForTrip === 'function') map.getGoogleMapsUrlForTrip = getGoogleMapsUrlForTrip;
+  if (typeof getNativeTripPoints === 'function') map.getNativeTripPoints = getNativeTripPoints;
+  if (typeof getTripGpsPoints === 'function') map.getTripGpsPoints = getTripGpsPoints;
+  if (typeof saveTripPointsBatch === 'function') map.saveTripPointsBatch = saveTripPointsBatch;
+  if (typeof deleteNativeTripPoints === 'function') map.deleteNativeTripPoints = deleteNativeTripPoints;
+
+  return map;
 }
 
 function rpcDispatch_(fn, args) {
