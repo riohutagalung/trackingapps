@@ -2471,7 +2471,7 @@ const OCR = {
       /(?:ditransfer|dikirim)\s*(?:ke|kepada|dari)\b/i,
       /\b(?:beneficiary|recipient|receiver|payee|penerima|pengirim|sender|remitter|nama penerima|nama tujuan)\b/i,
       /\b(?:no\.?\s*(?:rekening|rek)|rekening|account(?:\s*(?:no|number))?|a\/c)\b/i,
-      /\b(?:m-bca|mbca|bca\s+mobile|mobile\s+banking|internet\s+banking|mutasi)\b/i
+      /\b(?:m-bca|mbca|mybca|bca\s+mobile|brimo|bri\s+mobile|bni\s+mobile|wondr(?:\s+by\s+bni)?|livin(?:\s+by\s+mandiri)?|octo(?:\s+mobile)?|d-bank(?:\s+pro)?|digibank|jenius|seabank|bank\s+jago|blu|motionbank|neo\s+bank|line\s+bank|permata\s+mobile|permatamobile|ocbc\s+nyala|uob\s+tmrw|mobile\s+banking|internet\s+banking|mutasi)\b/i
     ];
     const merchantStrong=[
       /\b(?:struk|receipt|nota)\b/i,
@@ -2513,7 +2513,8 @@ const OCR = {
       'payment to','paymentto','payment recipient','paid to','pay to','sent to','send to',
       'transfer to','transferred to','transfer ke','transfer kepada','ditransfer ke','ditransfer kepada',
       'dikirim ke','dikirim kepada','penerima','beneficiary','recipient','receiver','payee',
-      'tujuan','nama penerima','nama tujuan','kepada'
+      'tujuan','tujuan pembayaran','tujuan pembayaran / merchant','nama penerima','nama tujuan','kepada',
+      'bill details','bill details qr','bill details qr - commerce'
     ];
     const normalizeLabel=(s)=>this.normalizeText(s).toLowerCase().replace(/["']/g,'').replace(/[\s:_=|>\-]+/g,' ').trim();
     const metadataBoundary=/\b(?:acquirer|acq(?:uirer)?|rrn|reference|transaction\s*type|terminal(?:\s*id)?|merchant\s*id|issuer|approval(?:\s*code)?|auth(?:orization)?(?:\s*code)?|invoice|receipt|batch|trace|stan)\b/i;
@@ -2657,21 +2658,26 @@ const OCR = {
     p.mode=mode;
 
     if(mode==='financial'||mode==='transfer'){
-      let recipient=this.extractRecipient(raw)||((serverRecipient&&!this.isReceiptMeta(serverRecipient)&&!this.isBankOnlyRecipient(serverRecipient))?serverRecipient:'');
-      // QRIS proofs may use "Tujuan Pembayaran / Merchant" or "Bill Details QR - Commerce".
+      let recipient=this.extractRecipient(raw);
+      if(!recipient && serverRecipient&&!this.isReceiptMeta(serverRecipient)&&!this.isBankOnlyRecipient(serverRecipient))recipient=serverRecipient;
+
+      // QRIS bank proofs: target is only the value immediately associated with
+      // an explicit "Tujuan Pembayaran/Merchant", "Merchant", or "Bill Details" label.
       if(!recipient){
         const lines=raw.split(/\r?\n/).map(x=>this.normalizeText(x)).filter(Boolean);
-        const labelRe=/^(?:tujuan\s+pembayaran\s*\/\s*merchant|tujuan\s+pembayaran|payment\s+merchant(?:\s+name)?|merchant\s+name|merchant|bill\s+details\s+qr(?:\s*[-–]\s*commerce)?|bill\s+details)\s*[:=>\-]?\s*(.*)$/i;
+        const labelRe=/^(?:tujuan\s+pembayaran(?:\s*\/\s*merchant)?|payment\s+(?:merchant|recipient)(?:\s+name)?|merchant\s+name|merchant|bill\s+details(?:\s+qr(?:\s*[-–]\s*commerce)?)?)\s*[:=>\-]?\s*(.*)$/i;
         outer: for(let i=0;i<lines.length;i++){
           if(/^merchant\s+(?:id|pan)\b/i.test(lines[i]))continue;
           const m=lines[i].match(labelRe);
           if(!m)continue;
-          for(let j=0;j<=8;j++){
-            const candidate=this.cleanRecipient(m[1]||'')||this.cleanRecipient(lines[i+j+1]||'');
+          const values=[m[1]||'',...lines.slice(i+1,i+9)];
+          for(const v of values){
+            const candidate=this.cleanRecipient(v);
             if(candidate){recipient=candidate;break outer;}
           }
         }
       }
+
       if(recipient){
         p.recipient=recipient;
         p.brand=recipient;
@@ -2685,12 +2691,12 @@ const OCR = {
         p.note=/\bqris\b/i.test(raw)?'QRIS':'';
       }
 
-      const t=raw.toLowerCase()+' '+String(recipient||'').toLowerCase();
+      const t=(raw+' '+String(recipient||'')).toLowerCase();
       const fuel=this.fuelMatch(t);
       const service=/(bengkel|tambal\s+ban|ganti\s+oli|service|servis|ahass|planet\s+ban|shop&drive|sparepart|onderdil|carwash|cuci|tune\s+up|auto2000)/i.test(t);
       const toll=/(?:\btol\b|e-?tol|gerbang\s+tol|jasa\s+marga)/i.test(t);
       const parkir=/(parkir|parking|valet)/i.test(t);
-      const makan=/(coffee|latte|cappuccino|espresso|kopi|teh|tea|bakery|croissant|roti|resto|restaurant|cafe|kafe|warung|makan|minum|boba|ice\s+cream|seafood|soto|bakso|nasi|ayam|mie|beverage|food|kitchen|eatery|diner|catering|hokben|kfc|mcd|starbucks|solaria|chatime|burger|pizza)/i.test(t);
+      const makan=/(coffee|latte|cappuccino|espresso|kopi|teh|tea|bakery|croissant|roti|resto|restaurant|cafe|kafe|warung|makan|minum|boba|ice\s+cream|seafood|soto|bakso|nasi|ayam|mie|beverage|food|kitchen|eatery|diner|catering|hokben|hoka\s+hoka\s+bento|kfc|mcdonald'?s|mcd|burger\s+king|starbucks|j\.?co|chatime|solaria|breadtalk|pizza\s+h?ut|domino'?s|yoshinoya|sushi\s+tei|richeese|mixue|fore\s+coffee|kopi\s+kenangan|janji\s+jiwa)/i.test(t);
       if(fuel)p.category='Bensin';
       else if(service)p.category='Servis';
       else if(toll)p.category='Tol';
