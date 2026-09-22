@@ -2595,6 +2595,8 @@ const OCR = {
     const labels=['merchant name','merchant','nama merchant','store name','nama toko','toko'];
     for(let i=0;i<lines.length;i++){
       const line=lines[i];
+      // "Merchant PAN/Merchant ID" is terminal metadata, never merchant name.
+      if(/^merchant\s+(?:pan|id)\b/i.test(line)) continue;
       for(const label of labels){
         const re=new RegExp('^'+label.replace(/\s+/g,'\\s*')+'\\s*[:=>\-]?\\s*(.*)$','i');
         const m=line.match(re);
@@ -2616,6 +2618,7 @@ const OCR = {
     if(!s||s.length<2||s.length>120)return '';
     if(this.isDateTimeLike(s))return '';
     if(this.isReceiptMeta(s)||this.isBankHeader(s))return '';
+    if(/^(?:merchant\s*(?:id|pan)|pan|mid|tid)\b/i.test(s))return '';
     if(/^\d[\d\s.,\-\/]*$/.test(s))return '';
     if(/^(?:payment|to|from|transfer|successful|success|berhasil|completed|transaction)$/i.test(s))return '';
     return /[A-Za-zÀ-ÿ]/.test(s)?s:'';
