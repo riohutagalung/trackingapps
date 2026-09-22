@@ -2436,6 +2436,7 @@ const OCR = {
   },
   classifyReceiptMode(text){
     const raw=String(text||'');
+    const t=raw.toLowerCase();
     const transferStrong=[
       /payment\s*(?:to|from)\b/i,/paymentto\b/i,
       /transfer(?:red)?\s*(?:to|from|ke|kepada|dari)\b/i,
