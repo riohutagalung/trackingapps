@@ -24,6 +24,7 @@ Capacitor → native GPS → `/api/native-location` → Google Apps Script → `
 - `capacitor.config.ts` — konfigurasi Capacitor
 - `scripts/setup-native.mjs` — persiapan build native
 - `package.json` — dependency/build script
+- `scripts/patch-capgo-ios.mjs` — reproducible iOS background-location patch for pinned Capgo 8.4.5
 
 ## Apps Script
 
@@ -61,3 +62,9 @@ Browser tetap memiliki fallback GPS.
 Native GPS menyimpan titik sementara di `TripPoints`, lalu mengambilnya saat trip selesai.
 
 Perhitungan BBM mingguan adalah estimasi dari jarak trip dan data pengisian/efisiensi; GPS tidak mengukur liter bensin secara langsung.
+
+## GPS tracking production rule
+
+Production Apps Script yang dipakai RH Habits adalah deployment HRE yang terkunci. Jangan membuat URL deployment baru hanya untuk perubahan versi; update `Code.gs`, lalu deploy **new version** pada Web App deployment yang sama.
+
+Native tracking menggunakan provider GNSS speed bila tersedia dan Haversine sebagai fallback untuk validasi/missing speed. Pada iOS, native preparation memasang `CLBackgroundActivitySession` untuk meningkatkan reliability saat layar dikunci; iOS tetap dapat menangguhkan atau menghentikan app sesuai kebijakan sistem operasi.
