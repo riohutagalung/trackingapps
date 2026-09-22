@@ -11,8 +11,10 @@ const OLD_GAS='https://script.google.com/macros/s/AKfycbyi6yqLiKwjpoy9TclZycH6KO
 // Vercel Preview Deployments may be protected by Vercel Authentication.
 // Native fetch then returns a protection 404, while `vercel curl` uses the
 // authenticated CLI session to bypass Deployment Protection for automation.
-const USE_VERCEL_CLI=String(process.env.RH_USE_VERCEL_CLI||'auto').toLowerCase() !== '0'
-  && (!/rhhabits\\.vercel\\.app$/i.test(VERCEL) || String(process.env.RH_USE_VERCEL_CLI||'').toLowerCase() === '1');
+const CLI_MODE=String(process.env.RH_USE_VERCEL_CLI||'auto').toLowerCase();
+const IS_VERCEL_URL=(()=>{try{return new URL(VERCEL).hostname.endsWith('.vercel.app');}catch{return false;}})();
+const IS_PREVIEW=IS_VERCEL_URL && !new URL(VERCEL).hostname.startsWith('rhhabits.vercel.app');
+const USE_VERCEL_CLI=CLI_MODE !== '0' && (CLI_MODE === '1' || IS_PREVIEW);
 
 function shellArg(value){
   return String(value).replace(/\\/g,'\\\\').replace(/"/g,'\\\"');
@@ -43,7 +45,8 @@ async function requestWithVercelCli(label,url,options={}){
 }
 
 async function request(label,url,options={}){
-  const useVercelCli=USE_VERCEL_CLI && /^https:\\/\\/[^/]+\\.vercel\\.app(?:[/:]|$)/i.test(url);
+  let useVercelCli=USE_VERCEL_CLI;
+  try{useVercelCli=useVercelCli && new URL(url).hostname.endsWith('.vercel.app');}catch{useVercelCli=false;}
   if(useVercelCli) return requestWithVercelCli(label,url,options);
 
   const r=await fetch(url,{redirect:'follow',cache:'no-store',...options});
