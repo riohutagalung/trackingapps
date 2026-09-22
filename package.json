@@ -9,7 +9,8 @@
     "cap:sync": "npm run native:prepare && npx cap sync",
     "cap:copy": "npm run native:prepare && npx cap copy",
     "cap:open:android": "npx cap open android",
-    "cap:open:ios": "npx cap open ios"
+    "cap:open:ios": "npx cap open ios",
+    "postinstall": "node scripts/patch-capgo-ios.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.1",
