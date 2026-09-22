@@ -49,6 +49,9 @@
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+img, svg, video, canvas, iframe { max-width: 100%; }
+button, input, select, textarea { max-width: 100%; box-sizing: border-box; }
+.grid > *, .cards > *, .stats > *, .form-grid > *, .dashboard-grid > *, .shell > * { min-width: 0; }
 
 html {
   width: 100%;
@@ -1601,16 +1604,22 @@ function RHFilterGpsTrack(points) {
       Math.min(20, Number(p.accuracy||0)>0 ? Number(p.accuracy)*0.15 : RH_GPS_CFG.stationaryRadiusM)
     );
     const provider=p.providerSpeedKmh;
+    const providerUsable=isFinite(provider) && provider>=0 && provider<=RH_GPS_CFG.maxProviderSpeedKmh &&
+      (!isFinite(Number(p.accuracy)) || Number(p.accuracy)<=RH_GPS_CFG.maxAccuracyM);
     const stationary=dMeters<=jitterRadius && (segmentSpeed<RH_GPS_CFG.stationarySpeedKmh || (isFinite(provider) && provider<5));
 
     let speed=segmentSpeed;
-    if(isFinite(provider) && provider<=RH_GPS_CFG.maxProviderSpeedKmh){
-      const mismatch=Math.abs(provider-segmentSpeed);
-      const tolerance=Math.max(35,segmentSpeed*0.50);
-      // Prefer the provider speed only when it broadly agrees with the
-      // physical movement between coordinates. This keeps useful GNSS speed,
-      // while rejecting classic "200 km/h while stopped" spikes.
-      speed=mismatch<=tolerance?provider:segmentSpeed;
+    if(providerUsable){
+      // GNSS/Doppler speed is the preferred real-speed source when it is
+      // physically consistent with the coordinate movement. Position-derived
+      // Haversine speed remains the fallback for missing/zero/inconsistent fixes.
+      if(provider===0 && segmentSpeed>=RH_GPS_CFG.movingSpeedKmh){
+        speed=segmentSpeed;
+      }else{
+        const mismatch=Math.abs(provider-segmentSpeed);
+        const tolerance=Math.max(50,Math.min(100,segmentSpeed*0.75));
+        speed=mismatch<=tolerance?provider:segmentSpeed;
+      }
     }
 
     if(stationary){
@@ -1748,7 +1757,7 @@ const GPS = {
       const x=JSON.parse(raw);
       if(!x||!x.active||!x.start||!Array.isArray(x.points))return;
       if(Date.now()-Number(x.start)>12*3600000){localStorage.removeItem(this.storageKey);return;}
-      this.active=true;this.start=Number(x.start);this.sessionId=x.sessionId||('trip_'+Date.now());this.points=this.dedupePoints(x.points);
+      this.active=true;this.start=Number(x.start);this.sessionId=x.sessionId||('trip_'+Date.now());this.points=this.dedupePoints(x.points);this.lastNativeServerPoints=[];
       this.nativeMode=this.isNative();this.updateButton(true);
       if(this.nativeMode&&window.RHNativeGPS){ await window.RHNativeGPS.start(this.sessionId); }
       else this.ensureWatch();
@@ -1778,6 +1787,7 @@ const GPS = {
     if(!window.isSecureContext&&!this.isNative()){App.toast('GPS membutuhkan Web App HTTPS.');return;}
     if(this.active||this.stopping)return;
     this.nativeMode=this.isNative();
+    this.lastNativeServerPoints=[];
 
     if(this.nativeMode&&window.RHNativeGPS&&!window.RHNativeGPS.hasDisclosure()){
       const ok=window.confirm('RH Habits akan menggunakan lokasi saat Trip Tracking aktif, termasuk ketika layar HP dikunci, untuk merekam jarak, kecepatan, titik rute, dan analisis perjalanan. Data lokasi dipakai untuk fitur perjalanan RH Habits. Lanjutkan?');
@@ -1864,7 +1874,7 @@ const GPS = {
     }
 
     this.points.push(point);
-    if(isFinite(speedKmh)&&speedKmh>=0&&(!isFinite(accuracy)||accuracy<=40)){
+    if(isFinite(speedKmh)&&speedKmh>=0&&(!isFinite(accuracy)||accuracy<=RH_GPS_CFG.maxAccuracyM)){
       this.speedSamples.push({speed:speedKmh,time:ts});
       if(this.speedSamples.length>20)this.speedSamples.shift();
     }
@@ -1879,6 +1889,7 @@ const GPS = {
         try{
           const valid=this.dedupePoints(Array.isArray(rows)?rows:[]);
           this.lastNativeCount=valid.length;
+          this.lastNativeServerPoints=valid;
           // Pull server-only points into the live UI even when WebView missed callbacks.
           const merged=this.dedupePoints(this.points.concat(valid));
           this.points=merged;
@@ -1913,7 +1924,7 @@ const GPS = {
     if(this.wakeLock){try{await this.wakeLock.release();}catch(e){}this.wakeLock=null;}
 
     if(wasNative){
-      await this.waitForNativeFlush(sid,6500);
+      this.lastNativeServerPoints=await this.waitForNativeFlush(sid,6500);
       if(window.RHNativeGPS){try{await window.RHNativeGPS.stop();}catch(e){console.warn('[RHGPS] native stop',e);}}
     }
 
@@ -1924,6 +1935,9 @@ const GPS = {
     const stats=this.stats(this.end);
     const route=this.detectRoute(stats.points);
     if(stats.distanceKm<.05||stats.durationMin<1||stats.points.length<2){
+      if(wasNative&&sid&&window.google?.script?.run){
+        try{google.script.run.withFailureHandler(()=>{}).deleteNativeTripPoints(sid);}catch(_){}
+      }
       this.stopping=false;this.reset();App.toast('Perjalanan terlalu singkat untuk disimpan.');return;
     }
     this.pending={distance:stats.distanceKm,durationMin:stats.durationMin,avgSpeed:stats.avgSpeedKmh,maxSpeed:stats.maxSpeedKmh,movingTimeMin:stats.movingTimeMin,stopTimeMin:stats.stopTimeMin,stopCount:stats.stopCount,...route,gpsPoints:stats.points.slice(),startTime:new Date(this.start).toISOString(),endTime:new Date(this.end).toISOString(),date:new Date(this.start).toISOString().slice(0,10),id:sid};
@@ -1951,7 +1965,15 @@ const GPS = {
     if(!this.pending)return;
     const p=this.pending, sid=p.id, btn=document.querySelector('#trip-modal .btn.primary');if(btn)btn.disabled=true;
     const allPoints=this.dedupePoints(p.gpsPoints||[]);
-    const payload={id:sid,date:p.date,origin:p.origin,destination:p.destination,routeName:p.routeName,distanceKm:p.distance,durationMin:p.durationMin,avgSpeed:p.avgSpeed,maxSpeed:p.maxSpeed,movingTimeMin:p.movingTimeMin,stopTimeMin:p.stopTimeMin,stopCount:p.stopCount,routeVariant:p.routeVariant,note:p.note,source:GPS.nativeMode?'gps-native':'gps-browser',vehicle:document.getElementById('trip-vehicle')?.value||'Motor',startTime:p.startTime,endTime:p.endTime,gpsPoints:allPoints.slice(0,900)};
+    const serverPoints=GPS.nativeMode?this.dedupePoints(GPS.lastNativeServerPoints||[]):[];
+    const serverKeys=new Set(serverPoints.map(pt=>[Number(pt.time)||0,Number(pt.lat!==undefined?pt.lat:pt.latitude).toFixed(6),Number(pt.lng!==undefined?pt.lng:pt.longitude).toFixed(6)].join('|')));
+    const pointsToUpload=GPS.nativeMode
+      ? allPoints.filter(pt=>!serverKeys.has([Number(pt.time)||0,Number(pt.lat).toFixed(6),Number(pt.lng).toFixed(6)].join('|')))
+      : allPoints;
+
+    // TripPoints is the single authoritative GPS store. addTrip() reads it when
+    // gpsPoints is empty, avoiding a second copy of the same route in Trips.
+    const payload={id:sid,date:p.date,origin:p.origin,destination:p.destination,routeName:p.routeName,distanceKm:p.distance,durationMin:p.durationMin,avgSpeed:p.avgSpeed,maxSpeed:p.maxSpeed,movingTimeMin:p.movingTimeMin,stopTimeMin:p.stopTimeMin,stopCount:p.stopCount,routeVariant:p.routeVariant,note:p.note,source:GPS.nativeMode?'gps-native':'gps-browser',vehicle:document.getElementById('trip-vehicle')?.value||'Motor',startTime:p.startTime,endTime:p.endTime,gpsPoints:[]};
 
     const fail=(e)=>{if(btn)btn.disabled=false;App.error(e);};
     const save=()=>google.script.run.withSuccessHandler(()=>{
@@ -1959,15 +1981,22 @@ const GPS = {
       if(btn)btn.disabled=false;App.closeModal('trip-modal');this.reset();App.toast('Perjalanan + jalur GPS tersimpan ke Google Sheets.');App.refresh(true);
     }).withFailureHandler(fail).addTrip(payload);
 
-    // Upload the client-side points too. This is a redundancy for native/iOS where
-    // a final native POST may still be in-flight when the user taps Save.
-    if(allPoints.length){
-      google.script.run.withSuccessHandler(()=>save()).withFailureHandler(fail).saveTripPointsBatch(sid,allPoints);
+    if(pointsToUpload.length){
+      google.script.run.withSuccessHandler(()=>save()).withFailureHandler(fail).saveTripPointsBatch(sid,pointsToUpload);
     } else {
       save();
     }
   },
-  cancelSave(){App.closeModal('trip-modal');this.reset();App.toast('Perjalanan dibatalkan.');},
+  cancelSave(){
+    const sid=this.pending?.id;
+    const native=GPS.nativeMode;
+    App.closeModal('trip-modal');
+    this.reset();
+    if(native&&sid&&window.google?.script?.run){
+      try{google.script.run.withFailureHandler(()=>{}).deleteNativeTripPoints(sid);}catch(_){}
+    }
+    App.toast('Perjalanan dibatalkan.');
+  },
   stats(endMs){
     const startMs=this.start||0;
     return RHComputeGpsMetrics(this.points,startMs,endMs||Date.now());
