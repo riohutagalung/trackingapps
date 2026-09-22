@@ -48,7 +48,7 @@ if (!manifestOk) {
   throw new Error('[RH] index.html manifest link must point to /manifest.json');
 }
 
-const REQUIRED_BRIDGE_VERSION = '20260922-r8';
+const REQUIRED_BRIDGE_VERSION = '20260922-r10';
 if (!html.includes('gas-bridge.js?v=' + REQUIRED_BRIDGE_VERSION)) {
   throw new Error('[RH] index.html must load gas-bridge.js?v=' + REQUIRED_BRIDGE_VERSION);
 }
