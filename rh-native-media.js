@@ -78,7 +78,7 @@
         if(typeof Camera.takePhoto!=='function')throw new Error('Camera API takePhoto tidak tersedia.');
         const result=await Camera.takePhoto({
           quality:82,targetWidth:1400,targetHeight:1400,
-          encodingType:'JPEG',correctOrientation:true,includeMetadata:true
+          encodingType:0,correctOrientation:true,includeMetadata:true
         });
         if(!result)throw new Error('Foto tidak dipilih.');
         const base64=await resultToBase64(result);
@@ -94,7 +94,7 @@
       const picked=await Camera.chooseFromGallery({
         mediaType:0,allowMultipleSelection:false,quality:82,
         targetWidth:1400,targetHeight:1400,includeMetadata:true,
-        encodingType:'JPEG',correctOrientation:true
+        encodingType:0,correctOrientation:true
       });
       const result=picked?.results?.[0];
       if(!result)throw new Error('Foto tidak dipilih.');
