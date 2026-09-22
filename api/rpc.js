@@ -34,6 +34,21 @@ async function readJsonResponse(res){
   if(!parsed||typeof parsed!=='object') throw new Error('Apps Script mengembalikan respons bukan JSON.');
   return parsed;
 }
+async function invokePost(fn,args){
+  let target=GAS_URL;
+  const payload=JSON.stringify({fn:String(fn),args:Array.isArray(args)?args:[]});
+  for(let i=0;i<7;i++){
+    const r=await fetch(target,{method:'POST',redirect:'manual',headers:{'Accept':'application/json','Content-Type':'application/json'},body:payload,cache:'no-store'});
+    if([301,302,303,307,308].includes(r.status)){
+      const loc=r.headers.get('location');
+      if(!loc) throw new Error('Apps Script redirect tanpa Location.');
+      target=new URL(loc,target).toString();
+      continue;
+    }
+    return readJsonResponse(r);
+  }
+  throw new Error('Terlalu banyak redirect Apps Script.');
+}
 async function invokeGet(fn,args){
   let target=encodedRpcUrl(fn,args);
   for(let i=0;i<7;i++){
@@ -81,6 +96,7 @@ async function forward(body){
       return {ok:true,result:{ok:true,saved:points.length}};
     }
   }
+  if(fn==='analyzeReceipt') return invokePost(fn,args);
   return invokeGet(fn,args);
 }
 module.exports=async function handler(req,res){
