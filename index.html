@@ -1217,7 +1217,7 @@ body.device-android .mobile-header { padding-top:12px; }
 <div id="quick-backdrop" class="quick-backdrop" aria-hidden="true" onclick="App.closeQuickMenu()"></div>
 <div id="toast" class="toast"></div>
 
-<script src="gas-bridge.js?v=20260922-r8"></script>
+<script src="gas-bridge.js?v=20260922-r10"></script>
 <script src="rh-native-gps.js"></script>
 <script src="rh-native-media.js"></script>
 <script>
@@ -2188,8 +2188,13 @@ const OCR = {
         await this.processBase64(picked.base64, 'image/' + (picked.format === 'png' ? 'png' : 'jpeg'));
       } catch (e) {
         console.error('[RHNativeMedia]', e);
-        App.toast('Kamera/galeri native gagal. Membuka picker alternatif...');
-        document.getElementById(source === 'camera' ? 'receipt-file-camera' : 'receipt-file-gallery').click();
+        const msg=String(e?.message||e||'');
+        if(/canceled|cancelled|dibatalkan/i.test(msg)) {
+          App.toast('Pemilihan foto dibatalkan.');
+        } else {
+          App.toast('Kamera/galeri native gagal dibuka. Coba lagi dari menu foto.');
+        }
+        document.getElementById('ocr-label').textContent = 'Pilih foto dari kamera atau galeri';
       }
       return;
     }
@@ -2199,67 +2204,295 @@ const OCR = {
     const file = input.files && input.files[0];
     if (!file) return;
     if (!file.type || file.type.indexOf('image/') !== 0) { App.toast('File harus berupa gambar.'); return; }
-    this.downscale(file, 1600, 0.85).then(base64 => this.processBase64(base64, 'image/jpeg')).catch(err => {
+    this.downscale(file, 1400, 0.78).then(base64 => this.processBase64(base64, 'image/jpeg')).catch(err => {
       console.error(err);
       document.getElementById('ocr-label').textContent = 'Gagal memproses foto';
       document.getElementById('ocr-progress').style.display = 'none';
-      App.toast('Gagal memproses foto: ' + ((err && err.message) || err));
+      const msg=String(err?.message||err||'');
+      if(/413|request entity too large|too large|payload/i.test(msg)) App.toast('Foto terlalu besar. Coba crop screenshot atau pilih foto yang lebih dekat.');
+      else App.toast('Gagal memproses foto: ' + msg);
     });
     input.value = '';
   },
-  processBase64(base64, mimeType) {
-    if (!base64) { App.toast('Foto kosong.'); return Promise.resolve(); }
-    document.getElementById('ocr-label').textContent = 'Mengompres & membaca struk...';
+  async processBase64(base64, mimeType) {
+    if (!base64) { App.toast('Foto kosong.'); return; }
+    document.getElementById('ocr-label').textContent = 'Mengompres & membaca bukti transaksi...';
     document.getElementById('ocr-progress').style.display = 'block';
-    document.getElementById('ocr-bar').style.width = '15%';
-    const send=(optimized)=>{
-      document.getElementById('ocr-bar').style.width = '30%';
-      return new Promise((resolve,reject)=>{
-        google.script.run.withSuccessHandler(r => {
-          document.getElementById('ocr-bar').style.width = '100%';
-          if (!r || !r.ok) {
-            const msg=(r&&r.error)||'OCR tidak menemukan teks atau gagal membaca.';
-            document.getElementById('ocr-label').textContent='Foto atau unggah struk kembali';
-            document.getElementById('ocr-detection')?.classList.remove('show');
-            setTimeout(()=>document.getElementById('ocr-progress').style.display='none',1200);
-            App.toast(msg); reject(new Error(msg)); return;
-          }
-          const p=r.parsed||{};
-          const ocrText=[r.text,p.brand,p.detail,p.note].filter(Boolean).join(' ');
-          if(/\b(pertamina|spbu|shell|vivo|bp(?:\s*9[025])?|pertamax|pertalite|dexlite|v-power|revvo|solar|bbm|bensin)\b/i.test(ocrText)) p.category='Bensin';
-          if(p.amount)document.getElementById('exp-amount').value=p.amount;
-          if(p.date&&/^\d{4}-\d{2}-\d{2}$/.test(p.date))document.getElementById('exp-date').value=p.date;
-          if(p.category)document.getElementById('exp-category').value=p.category;
-          if(p.brand)document.getElementById('exp-brand').value=p.brand;
-          if(p.detail)document.getElementById('exp-detail').value=p.detail;
-          if(p.note)document.getElementById('exp-note').value=p.note;
-          if(r.receiptUrl)document.getElementById('exp-receipt-url').value=r.receiptUrl;
-          document.getElementById('exp-category').dispatchEvent(new Event('change'));
-          const det=document.getElementById('ocr-detection');
-          if(det){const bits=[];if(p.brand)bits.push('Brand/Penerima: '+Esc(p.brand));if(p.date)bits.push('Tanggal: '+Esc(p.date));if(p.amount)bits.push('Nominal: '+Money(p.amount));if(p.category)bits.push('Kategori: '+Esc(p.category));if(p.detail)bits.push('Detail: '+Esc(p.detail));det.innerHTML=bits.join('<br>');det.classList.toggle('show',!!bits.length);}
-          App.saveDraft();
-          ['field-amount','field-date','field-cat','field-brand'].forEach(id=>{const el=document.getElementById(id);if(el){el.classList.remove('field-highlight');void el.offsetWidth;el.classList.add('field-highlight');}});
-          document.getElementById('ocr-label').textContent='✓ Struk berhasil dianalisis!';
-          App.toast('Data struk berhasil diekstrak!');
-          setTimeout(()=>document.getElementById('ocr-progress').style.display='none',1500);
-          resolve(r);
-        }).withFailureHandler(e=>{
-          document.getElementById('ocr-label').textContent='Gagal membaca struk';
-          document.getElementById('ocr-progress').style.display='none';
-          App.error(e); reject(e);
-        }).analyzeReceipt(optimized,'image/jpeg');
-      });
+    document.getElementById('ocr-bar').style.width = '12%';
+
+    const callAnalyze=(optimized)=>new Promise((resolve,reject)=>{
+      const success=(r)=>{
+        if(!r || !r.ok){
+          const msg=(r&&r.error)||'OCR tidak menemukan teks atau gagal membaca.';
+          reject(new Error(msg));
+          return;
+        }
+        resolve(r);
+      };
+      const failure=(e)=>reject(e instanceof Error?e:new Error(String(e?.message||e||'OCR gagal.')));
+      try{
+        const useBridge=!!(window.RHBridge&&typeof window.RHBridge.rpc==='function' &&
+          (location.hostname.includes('vercel.app') || !!window.Capacitor?.isNativePlatform?.()));
+        if(useBridge){
+          window.RHBridge.rpc('analyzeReceipt',[optimized,'image/jpeg'],{success:success,failure:failure});
+          return;
+        }
+        if(window.google?.script?.run){
+          google.script.run.withSuccessHandler(success).withFailureHandler(failure).analyzeReceipt(optimized,'image/jpeg');
+          return;
+        }
+        failure(new Error('Jembatan OCR tidak tersedia.'));
+      }catch(e){ failure(e); }
+    });
+
+    const is413=(e)=>/\b413\b|request entity too large|payload too large/i.test(String(e?.message||e||''));
+    const attempt=async(maxSide,maxBytes,quality,label)=>{
+      document.getElementById('ocr-label').textContent=label||'Membaca bukti transaksi...';
+      const optimized=await this.downscaleBase64(base64,mimeType||'image/jpeg',maxSide,quality,maxBytes);
+      document.getElementById('ocr-bar').style.width='28%';
+      try{
+        return await callAnalyze(optimized);
+      }catch(e){
+        if(is413(e) && maxBytes>120000){
+          document.getElementById('ocr-label').textContent='Foto masih terlalu besar, mengompres ulang...';
+          await new Promise(r=>setTimeout(r,120));
+          return attempt(Math.max(820,Math.round(maxSide*.82)),Math.max(120000,Math.round(maxBytes*.52)),Math.max(.58,quality-.05),label);
+        }
+        throw e;
+      }
     };
-    return this.downscaleBase64(base64, mimeType||'image/jpeg', 1400, 0.78, 700000)
-      .then(optimized=>send(optimized))
-      .catch(reject=>{ document.getElementById('ocr-progress').style.display='none'; throw reject; });
+
+    try{
+      const r=await attempt(1400,450000,.78,'Mengompres & membaca bukti transaksi...');
+      document.getElementById('ocr-bar').style.width = '100%';
+
+      const rawText=String(r.text||'');
+      const p=this.enrichParsed(r.parsed||{},rawText);
+      const brandOrRecipient=String(p.recipient||p.brand||'').trim();
+
+      if(p.amount)document.getElementById('exp-amount').value=p.amount;
+      if(p.date&&/^\d{4}-\d{2}-\d{2}$/.test(p.date))document.getElementById('exp-date').value=p.date;
+      if(p.category)document.getElementById('exp-category').value=p.category;
+      if(brandOrRecipient)document.getElementById('exp-brand').value=brandOrRecipient;
+      if(p.detail)document.getElementById('exp-detail').value=p.detail;
+      if(p.note)document.getElementById('exp-note').value=p.note;
+      if(r.receiptUrl)document.getElementById('exp-receipt-url').value=r.receiptUrl;
+      document.getElementById('exp-category').dispatchEvent(new Event('change'));
+
+      const det=document.getElementById('ocr-detection');
+      if(det){
+        const bits=[];
+        if(brandOrRecipient)bits.push((p.recipient?'Payment To: ':'Brand/Tempat: ')+Esc(brandOrRecipient));
+        if(p.date)bits.push('Tanggal: '+Esc(p.date));
+        if(p.amount)bits.push('Nominal: '+Money(p.amount));
+        if(p.category)bits.push('Kategori: '+Esc(p.category));
+        if(p.detail)bits.push('Detail: '+Esc(p.detail));
+        det.innerHTML=bits.join('<br>');
+        det.classList.toggle('show',!!bits.length);
+      }
+      App.saveDraft();
+      ['field-amount','field-date','field-cat','field-brand'].forEach(id=>{
+        const el=document.getElementById(id);
+        if(el){el.classList.remove('field-highlight');void el.offsetWidth;el.classList.add('field-highlight');}
+      });
+      document.getElementById('ocr-label').textContent='✓ Bukti transaksi berhasil dianalisis!';
+      App.toast('Nominal, tanggal, dan penerima berhasil diekstrak.');
+      setTimeout(()=>document.getElementById('ocr-progress').style.display='none',1200);
+      return r;
+    }catch(e){
+      document.getElementById('ocr-progress').style.display='none';
+      document.getElementById('ocr-label').textContent='Gagal membaca bukti transaksi';
+      const msg=String(e?.message||e||'');
+      if(is413(e)) App.toast('Foto masih terlalu besar. Pilih screenshot/crop yang lebih kecil.');
+      else App.error(e);
+      throw e;
+    }
+  },
+  normalizeText(text){
+    return String(text||'')
+      .replace(/[\u00a0\t]+/g,' ')
+      .replace(/[|¦]/g,' ')
+      .replace(/\s{2,}/g,' ')
+      .trim();
+  },
+  parseMoneyToken(raw, textContext){
+    let s=String(raw||'').replace(/[^0-9,\.\-]/g,'');
+    if(!s)return 0;
+    const ctx=String(textContext||'').toUpperCase();
+    const isIDR=/\b(?:IDR|RP|RUPIAH)\b|\bRP\.?\s*[0-9]/.test(ctx);
+    const lc=s.lastIndexOf(','), ld=s.lastIndexOf('.');
+    if(isIDR || (lc>=0 && ld>=0 && Math.max(lc,ld)!==-1 && (s.length-Math.max(lc,ld)-1)===3)){
+      const digits=s.replace(/[^0-9]/g,'');
+      return Number(digits||0);
+    }
+    if(lc>=0 && ld>=0){
+      if(ld>lc)s=s.replace(/,/g,'');
+      else s=s.replace(/\./g,'').replace(',','.');
+    }else if(lc>=0){
+      const tail=s.length-lc-1;
+      s=tail<=2?s.replace(/,/g,'.'):s.replace(/,/g,'');
+    }else if(ld>=0){
+      const tail=s.length-ld-1;
+      s=tail<=2?s:s.replace(/\./g,'');
+    }
+    return Number(s||0);
+  },
+  extractAmount(text){
+    const raw=String(text||'');
+    const lines=raw.split(/\r?\n/).map(x=>this.normalizeText(x)).filter(Boolean);
+    const labelStrong=/(nominal|amount|nilai transaksi|transaction amount|payment amount|jumlah transaksi|jumlah transfer|jumlah pembayaran|transfer amount|paid|dibayar|debit|harga|payment|transfer)/i;
+    const labelTotal=/(total pembayaran|total bayar|grand total|total amount|total)/i;
+    const negative=/(saldo|balance|saldo awal|saldo akhir|biaya|admin|fee|cashback|diskon|potongan|rekening|account|nomor|no\.? rekening|reference|ref\.?|kode|otp|tanggal|tgl|date|waktu|time)/i;
+    let best=null;
+    const consider=(rawNum,line,idx,bonus)=>{
+      if(!rawNum || /[/:]\d/.test(rawNum))return;
+      const lineDate=/\b\d{1,4}[\s\.\/\-]\d{1,2}[\s\.\/\-]\d{1,4}\b/.test(line);
+      if(lineDate && /\d[\/\-.]\d/.test(rawNum))return;
+      const value=this.parseMoneyToken(rawNum,line);
+      if(!(value>=1000) || value>500000000)return;
+      let score=Number(bonus||0);
+      if(labelStrong.test(line))score+=105;
+      else if(labelTotal.test(line))score+=62;
+      if(/\b(?:rp|idr|rupiah)\b|\b(?:usd|sgd|myr|eur|gbp|jpy)\b|[$€£¥]/i.test(rawNum))score+=35;
+      if(/\b(?:transfer|payment|paid|pembayaran|debit)\b/i.test(line))score+=18;
+      if(negative.test(line))score-=90;
+      if(/\b(?:nominal|amount|jumlah|nilai transaksi)\b/i.test(line))score+=25;
+      if(idx>=Math.max(0,lines.length-6))score+=5;
+      if(!best||score>best.score||(score===best.score&&value>best.value))best={value,score};
+    };
+    for(let i=0;i<lines.length;i++){
+      const line=lines[i];
+      const direct=[...line.matchAll(/(?:rp\.?|idr|rupiah|usd|sgd|myr|eur|gbp|jpy|\$|€|£|¥)?\s*([0-9][0-9.,]*)/gi)];
+      for(const m of direct)consider(m[1],line,i,0);
+      if(labelStrong.test(line)&&i+1<lines.length){
+        const next=lines[i+1];
+        const m=next.match(/(?:rp\.?|idr|rupiah|usd|sgd|myr|eur|gbp|jpy|\$|€|£|¥)?\s*([0-9][0-9.,]*)/i);
+        if(m)consider(m[1],line+' '+next,i+1,35);
+      }
+    }
+    return best?best.value:0;
+  },
+  datePartsToISO(y,m,d){
+    y=Number(y);m=Number(m);d=Number(d);
+    if(y<100)y+=2000;
+    if(y<2000||y>2099||m<1||m>12||d<1||d>31)return '';
+    const dt=new Date(Date.UTC(y,m-1,d));
+    if(dt.getUTCFullYear()!==y||dt.getUTCMonth()!==m-1||dt.getUTCDate()!==d)return '';
+    return y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+  },
+  parseDateToken(raw){
+    let s=this.normalizeText(raw).replace(/,/g,' ').replace(/[\u00a0]/g,' ');
+    const months={
+      jan:1,january:1,januari:1,feb:2,february:2,februari:2,mar:3,march:3,maret:3,
+      apr:4,april:4,may:5,mei:5,jun:6,june:6,juni:6,jul:7,july:7,juli:7,
+      aug:8,august:8,agustus:8,agu:8,sep:9,september:9,sept:9,oct:10,okt:10,oktober:10,october:10,
+      nov:11,november:11,dec:12,des:12,desember:12
+    };
+    let m=s.match(/\b(\d{4})[\s\.\/\-](\d{1,2})[\s\.\/\-](\d{1,2})\b/);
+    if(m)return this.datePartsToISO(m[1],m[2],m[3]);
+    m=s.match(/\b(\d{1,2})[\s\.\/\-](\d{1,2})[\s\.\/\-](\d{2,4})\b/);
+    if(m)return this.datePartsToISO(m[3],m[2],m[1]);
+    m=s.match(/\b(\d{1,2})\s+([A-Za-zÀ-ÿ]+)\s+(\d{2,4})\b/i);
+    if(m){const mo=months[m[2].toLowerCase()];if(mo)return this.datePartsToISO(m[3],mo,m[1]);}
+    m=s.match(/\b([A-Za-zÀ-ÿ]+)\s+(\d{1,2})\s+(\d{2,4})\b/i);
+    if(m){const mo=months[m[1].toLowerCase()];if(mo)return this.datePartsToISO(m[3],mo,m[2]);}
+    return '';
+  },
+  extractDate(text){
+    const raw=String(text||'');
+    const lines=raw.split(/\r?\n/).map(x=>this.normalizeText(x)).filter(Boolean);
+    const keys=/(tanggal|tgl|date|transaction date|transaction|transaksi|waktu|time|created|processed|settled|successful|berhasil|completed)/i;
+    for(let i=0;i<lines.length;i++){
+      if(keys.test(lines[i])){
+        const d=this.parseDateToken(lines[i]); if(d)return d;
+        if(i+1<lines.length){const d2=this.parseDateToken(lines[i+1]);if(d2)return d2;}
+      }
+    }
+    const patterns=[
+      /\b\d{4}[\s\.\/\-]\d{1,2}[\s\.\/\-]\d{1,2}\b/g,
+      /\b\d{1,2}[\s\.\/\-]\d{1,2}[\s\.\/\-]\d{2,4}\b/g,
+      /\b\d{1,2}\s+[A-Za-zÀ-ÿ]+\s+\d{2,4}\b/g,
+      /\b[A-Za-zÀ-ÿ]+\s+\d{1,2},?\s+\d{2,4}\b/g
+    ];
+    for(const re of patterns){const ms=raw.match(re)||[];for(const token of ms){const d=this.parseDateToken(token);if(d)return d;}}
+    return '';
+  },
+  cleanRecipient(value){
+    let s=this.normalizeText(value).replace(/^[\-:|>\"']+|[\-:|>\"']+$/g,'').trim();
+    s=s.replace(/\s+(?:rp|idr|nominal|amount|jumlah|tanggal|tgl|date)\b.*$/i,'').trim();
+    s=s.replace(/[\u200B-\u200D\uFEFF]/g,'').trim();
+    if(!s||s.length<2||s.length>140)return '';
+    if(/^\d[\d\s.,\-\/]*$/.test(s))return '';
+    if(/^(nominal|amount|jumlah|saldo|balance|tanggal|tgl|date|time|waktu|reference|ref|kode|status|success|berhasil|transfer|payment|from)$/i.test(s))return '';
+    return s;
+  },
+  extractRecipient(text){
+    const raw=String(text||'');
+    const lines=raw.split(/\r?\n/).map(x=>this.normalizeText(x)).filter(Boolean);
+    const inline=[
+      /^(?:payment\s*[\"']?\s*to\s*[\"']?|payment\s+to|paid\s+to|transfer(?:red)?\s+(?:to|ke|kepada)|dikirim\s+(?:ke|kepada)|ditransfer\s+(?:ke|kepada))\s*[:>\-]?\s*(.+)$/i,
+      /^(?:to|kepada|penerima|beneficiary|recipient|receiver|tujuan|nama\s+penerima|nama\s+tujuan)\s*[:>\-]?\s+(.+)$/i
+    ];
+    for(let i=0;i<lines.length;i++){
+      for(const re of inline){const m=lines[i].match(re);if(m){const x=this.cleanRecipient(m[1]);if(x)return x;}}
+      if(/^payment$/i.test(lines[i])&&i+2<lines.length&&/^to$/i.test(lines[i+1])){
+        const x=this.cleanRecipient(lines[i+2]);if(x)return x;
+      }
+      if(/^to$/i.test(lines[i])&&i+1<lines.length){
+        const x=this.cleanRecipient(lines[i+1]);if(x)return x;
+      }
+    }
+    return '';
+  },
+  fuelMatch(text){
+    return /\b(pertamina|spbu|shell|vivo|bp(?:\s*(?:ultimate|92|95|diesel))?|revvo|pertamax|pertalite|dexlite|pertamina\s*dex|v-power|biosolar|solar|bbm|bensin)\b/i.test(String(text||''));
+  },
+  fuelGrade(text){
+    const t=String(text||'').toLowerCase();
+    const grades=[
+      [/pertamax\s*turbo/,'Pertamax Turbo'],[/pertamax\s*green/,'Pertamax Green 95'],[/pertamax/,'Pertamax'],
+      [/pertalite/,'Pertalite'],[/pertamina\s*dex/,'Pertamina Dex'],[/dexlite/,'Dexlite'],
+      [/v-power\s*nitro/,'Shell V-Power Nitro+'],[/v-power/,'Shell V-Power'],
+      [/shell\s*super/,'Shell Super'],[/shell\s*diesel/,'Shell Diesel'],
+      [/revvo\s*90/,'Vivo Revvo 90'],[/revvo\s*92/,'Vivo Revvo 92'],[/revvo\s*95/,'Vivo Revvo 95'],
+      [/bp\s*ultimate/,'BP Ultimate'],[/bp\s*92|bp92/,'BP 92'],[/bp\s*95|bp95/,'BP 95'],[/bp\s*diesel/,'BP Diesel']
+    ];
+    for(const [re,name] of grades)if(re.test(t))return name;
+    return '';
+  },
+  enrichParsed(parsed, rawText){
+    const p=Object.assign({},parsed||{});
+    const text=this.normalizeText([rawText,p.brand,p.detail,p.note,p.recipient].filter(Boolean).join('\n'));
+    const recipient=this.extractRecipient(rawText)||String(p.recipient||'').trim();
+    const amount=this.extractAmount(rawText);
+    const date=this.extractDate(rawText);
+    const combined=[rawText,p.brand,p.detail,p.note,recipient].filter(Boolean).join(' ');
+    if(recipient)p.recipient=recipient;
+    if(amount)p.amount=amount;
+    if(date)p.date=date;
+    if(this.fuelMatch(combined))p.category='Bensin';
+    else if(recipient && /\b(transfer|payment|paid|pembayaran|dikirim|ditransfer|debit|to)\b/i.test(rawText))p.category='Lainnya';
+    if(recipient)p.brand=recipient;
+    if(this.fuelMatch(combined) && !p.detail){
+      const grade=this.fuelGrade(combined); if(grade)p.detail=grade;
+    }
+    if(recipient){
+      const method=/qr|qris/i.test(combined)?'QRIS':/transfer/i.test(combined)?'Transfer':'';
+      const parts=[];
+      if(p.note && !/^ke:/i.test(String(p.note).trim()))parts.push(String(p.note).trim());
+      parts.push('Ke: '+recipient);
+      if(method && !new RegExp(method,'i').test(parts.join(' • ')))parts.push(method);
+      p.note=parts.join(' • ');
+      if(!p.detail || /^merchant$/i.test(String(p.detail)))p.detail='Transfer ke '+recipient;
+    }
+    return p;
   },
   downscale(file, maxSide, quality) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onerror = () => reject(new Error('Gagal membaca file'));
       reader.onload = () => {
-        this.downscaleBase64(String(reader.result||'').split(',')[1]||'', file.type||'image/jpeg', maxSide||1400, quality||0.78, 700000)
+        this.downscaleBase64(String(reader.result||'').split(',')[1]||'', file.type||'image/jpeg', maxSide||1400, quality||0.78, 450000)
           .then(resolve).catch(reject);
       };
       reader.readAsDataURL(file);
@@ -2269,20 +2502,20 @@ const OCR = {
     return new Promise((resolve,reject)=>{
       if(!base64)return reject(new Error('Data foto kosong.'));
       const img=new Image();
-      img.onerror=()=>reject(new Error('Gagal memuat foto.'));
+      img.onerror=()=>reject(new Error('Gagal memuat foto untuk OCR. Coba screenshot atau foto JPG/PNG.'));
       img.onload=()=>{
         let w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
         const scale=Math.min(1,Number(maxSide||1400)/Math.max(w,h));
         w=Math.max(1,Math.round(w*scale)); h=Math.max(1,Math.round(h*scale));
         let q=Math.max(0.55,Math.min(0.84,Number(quality||0.78)));
         let data='';
-        for(let i=0;i<7;i++){
-          const canvas=document.createElement('canvas'); canvas.width=w; canvas.height=h;
+        for(let i=0;i<9;i++){
+          const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
           const ctx=canvas.getContext('2d',{alpha:false});
-          ctx.fillStyle='#fff'; ctx.fillRect(0,0,w,h); ctx.drawImage(img,0,0,w,h);
+          ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);ctx.drawImage(img,0,0,w,h);
           data=canvas.toDataURL('image/jpeg',q).split(',')[1]||'';
           const approxBytes=Math.floor(data.length*0.75);
-          if(approxBytes<=Number(maxBytes||700000))break;
+          if(approxBytes<=Number(maxBytes||450000))break;
           if(i%2===1){w=Math.max(720,Math.round(w*0.86));h=Math.max(720,Math.round(h*0.86));}
           else q=Math.max(0.55,q-0.05);
         }
@@ -2291,7 +2524,7 @@ const OCR = {
       img.src='data:'+(mimeType||'image/jpeg')+';base64,'+base64;
     });
   }
-};
+}
 
 const Expense = {
   save(e) {
