@@ -2324,7 +2324,7 @@ const OCR = {
     if(isIDR){
       const lastSep=Math.max(lc,ld);
       const tail=lastSep>=0?s.slice(lastSep+1):'';
-      if(lastSep>=0 && tail.length===2 && /^\\d{2}$/.test(tail)) s=s.slice(0,lastSep);
+      if(lastSep>=0 && tail.length===2 && /^\d{2}$/.test(tail)) s=s.slice(0,lastSep);
       const digits=s.replace(/[^0-9]/g,'');
       return Number(digits||0);
     }
@@ -2433,16 +2433,29 @@ const OCR = {
   extractRecipient(text){
     const raw=String(text||'');
     const lines=raw.split(/\r?\n/).map(x=>this.normalizeText(x)).filter(Boolean);
-    const inline=[
+    const toPatterns=[
       /^(?:payment\s*[\"']?\s*to\s*[\"']?|payment\s+to|paid\s+to|transfer(?:red)?\s+(?:to|ke|kepada)|dikirim\s+(?:ke|kepada)|ditransfer\s+(?:ke|kepada))\s*[:>\-]?\s*(.+)$/i,
       /^(?:to|kepada|penerima|beneficiary|recipient|receiver|tujuan|nama\s+penerima|nama\s+tujuan)\s*[:>\-]?\s+(.+)$/i
     ];
     for(let i=0;i<lines.length;i++){
-      for(const re of inline){const m=lines[i].match(re);if(m){const x=this.cleanRecipient(m[1]);if(x)return x;}}
+      for(const re of toPatterns){const m=lines[i].match(re);if(m){const x=this.cleanRecipient(m[1]);if(x)return x;}}
       if(/^payment$/i.test(lines[i])&&i+2<lines.length&&/^to$/i.test(lines[i+1])){
         const x=this.cleanRecipient(lines[i+2]);if(x)return x;
       }
       if(/^to$/i.test(lines[i])&&i+1<lines.length){
+        const x=this.cleanRecipient(lines[i+1]);if(x)return x;
+      }
+    }
+    const fromPatterns=[
+      /^(?:payment\s*[\"']?\s*from\s*[\"']?|payment\s+from|paid\s+from|transfer(?:red)?\s+(?:from|dari)|dikirim\s+dari|berasal\s+dari)\s*[:>\-]?\s*(.+)$/i,
+      /^(?:from|dari|pengirim|sender|remitter)\s*[:>\-]?\s+(.+)$/i
+    ];
+    for(let i=0;i<lines.length;i++){
+      for(const re of fromPatterns){const m=lines[i].match(re);if(m){const x=this.cleanRecipient(m[1]);if(x)return x;}}
+      if(/^payment$/i.test(lines[i])&&i+2<lines.length&&/^from$/i.test(lines[i+1])){
+        const x=this.cleanRecipient(lines[i+2]);if(x)return x;
+      }
+      if(/^from$/i.test(lines[i])&&i+1<lines.length){
         const x=this.cleanRecipient(lines[i+1]);if(x)return x;
       }
     }
