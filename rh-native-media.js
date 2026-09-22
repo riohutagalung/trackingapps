@@ -94,7 +94,7 @@
       const picked=await Camera.chooseFromGallery({
         mediaType:0,allowMultipleSelection:false,quality:82,
         targetWidth:1400,targetHeight:1400,includeMetadata:true,
-        encodingType:0,correctOrientation:true
+        correctOrientation:true
       });
       const result=picked?.results?.[0];
       if(!result)throw new Error('Foto tidak dipilih.');
