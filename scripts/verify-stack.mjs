@@ -20,7 +20,7 @@ const GAS = 'https://script.google.com/macros/s/AKfycbyHREf-8F0Dd8G7hXtw_cyQskLk
 const OLD_GAS = 'https://script.google.com/macros/s/AKfycbyi6yqLiKwjpoy9TclZycH6KOPi0GXlPHc7iHGAA5srKCV6TVWOlSyTr-1V-JOiwlr2MQ/exec';
 
 const CLI_MODE = String(process.env.RH_USE_VERCEL_CLI || 'auto').toLowerCase();
-const VERCEL_SCOPE = String(process.env.RH_VERCEL_SCOPE || 'riohutagalungs-projects');
+const VERCEL_SCOPE = String(process.env.RH_VERCEL_SCOPE || 'rio-hutagalungs-projects');
 
 function isVercelUrl(url) {
   try { return new URL(url).hostname.endsWith('.vercel.app'); }
