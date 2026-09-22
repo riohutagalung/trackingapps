@@ -49,8 +49,12 @@ if (!manifestOk) {
 }
 
 const REQUIRED_BRIDGE_VERSION = '20260922-r10';
+const REQUIRED_MEDIA_VERSION = '20260922-r12';
 if (!html.includes('gas-bridge.js?v=' + REQUIRED_BRIDGE_VERSION)) {
   throw new Error('[RH] index.html must load gas-bridge.js?v=' + REQUIRED_BRIDGE_VERSION);
+}
+if (!html.includes('rh-native-media.js?v=' + REQUIRED_MEDIA_VERSION)) {
+  throw new Error('[RH] index.html must load rh-native-media.js?v=' + REQUIRED_MEDIA_VERSION);
 }
 
 for (const relative of ['api/rpc.js', 'api/native-location.js', 'api/health.js']) {
