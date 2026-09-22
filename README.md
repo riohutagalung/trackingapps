@@ -46,14 +46,31 @@ Respons normal:
 
 ## Build native
 
+### Android
+
 ```bash
-npm install
+npm ci
 npm run native:prepare
-npx cap sync
-npx cap open android
+npx cap sync android
 ```
 
-Untuk iOS, buka project dengan Xcode dan aktifkan **Background Modes → Location updates**.
+### iOS (Mac + Xcode)
+
+```bash
+npm ci
+npm run ios:prepare
+npm run ios:doctor
+npm run ios:open
+```
+
+Untuk device iPhone, pilih target iPhone di Xcode lalu aktifkan **Signing & Capabilities → Background Modes → Location updates**.  
+Untuk smoke-test simulator tanpa signing:
+
+```bash
+npm run ios:build:sim
+```
+
+Build/sign/install ke iPhone nyata tetap membutuhkan macOS + Xcode + Apple signing. Linux/Codespace hanya dapat melakukan preparation/inspection.
 
 ## Catatan
 
