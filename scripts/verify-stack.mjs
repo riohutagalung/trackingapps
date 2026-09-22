@@ -16,7 +16,7 @@ async function request(label,url,options={}){
 const page=await request('Vercel HTML',VERCEL+'/?verify=20260922');
 if(page.text.includes(OLD_GAS)) throw new Error('Live HTML masih mengandung Apps Script deployment lama.');
 if(!page.text.includes('<link rel="manifest" href="/manifest.json">')) throw new Error('Live index masih memakai manifest URL lama.');
-if(!page.text.includes('gas-bridge.js?v=20260922-r8')) throw new Error('Live index belum memakai RPC bridge r7.');
+if(!page.text.includes('gas-bridge.js?v=20260922-r8')) throw new Error('Live index belum memakai RPC bridge r8.');
 if(!page.text.includes('renderPublicTransport(p)')) throw new Error('Live index belum memuat App.renderPublicTransport.');
 
 await request('Vercel health',VERCEL+'/api/health');
