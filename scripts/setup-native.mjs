@@ -5,6 +5,14 @@ import { spawnSync } from 'node:child_process';
 const root = process.cwd();
 const www = path.join(root, 'www');
 
+// Patch the pinned Capgo 8.4.5 iOS implementation before Capacitor copies native assets.
+const iosPatch = spawnSync(process.execPath, [path.join(root, 'scripts/patch-capgo-ios.mjs')], { encoding: 'utf8' });
+if (iosPatch.status !== 0) {
+  process.stderr.write(iosPatch.stderr || iosPatch.stdout || '[RH] iOS background-session patch failed\n');
+  process.exit(iosPatch.status || 1);
+}
+process.stdout.write(iosPatch.stdout || '');
+
 // Use the same Vercel-safe repair/validation script for native builds.
 const repair = spawnSync(process.execPath, [path.join(root, 'scripts/repair-vercel.mjs'), path.join(root, 'index.html')], { encoding: 'utf8' });
 if (repair.status !== 0) {
