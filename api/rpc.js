@@ -35,11 +35,27 @@ async function readJsonResponse(res){
   return parsed;
 }
 async function invokePost(fn,args){
-  let target=GAS_URL;
   const payload=JSON.stringify({fn:String(fn),args:Array.isArray(args)?args:[]});
+  let target=GAS_URL;
   for(let i=0;i<7;i++){
     const r=await fetch(target,{method:'POST',redirect:'manual',headers:{'Accept':'application/json','Content-Type':'application/json'},body:payload,cache:'no-store'});
-    if([301,302,303,307,308].includes(r.status)){
+    if([301,302,303].includes(r.status)){
+      const loc=r.headers.get('location');
+      if(!loc) throw new Error('Apps Script redirect tanpa Location.');
+      // Apps Script ContentService uses 302 for its post-redirect-get response.
+      // Re-issue the generated endpoint as GET; keeping POST here causes Google's
+      // script.googleusercontent.com endpoint to return HTTP 405.
+      target=new URL(loc,target).toString();
+      const next=await fetch(target,{method:'GET',redirect:'manual',headers:{'Accept':'application/json'},cache:'no-store'});
+      if([301,302,303,307,308].includes(next.status)){
+        const nextLoc=next.headers.get('location');
+        if(!nextLoc) throw new Error('Apps Script redirect lanjutan tanpa Location.');
+        target=new URL(nextLoc,target).toString();
+        continue;
+      }
+      return readJsonResponse(next);
+    }
+    if([307,308].includes(r.status)){
       const loc=r.headers.get('location');
       if(!loc) throw new Error('Apps Script redirect tanpa Location.');
       target=new URL(loc,target).toString();
