@@ -2419,78 +2419,172 @@ const OCR = {
     for(const re of patterns){const ms=raw.match(re)||[];for(const token of ms){const d=this.parseDateToken(token);if(d)return d;}}
     return '';
   },
+  // OCR parser v20260922-r13
+  // Separate transfer/MBanking proof from direct merchant/POS receipt.
+  receiptMetaRe(){
+    return /^(?:acquirer|acq(?:uirer)?|rrn|reference(?:\s*(?:no|number))?|ref(?:erence)?|transaction\s*type|type\s*transaction|trx\s*type|terminal(?:\s*id)?|tid|mid|merchant\s*id|issuer|approval(?:\s*code)?|auth(?:orization)?(?:\s*code)?|invoice(?:\s*(?:no|number))?|receipt(?:\s*(?:no|number))?|batch(?:\s*(?:no|number))?|trace(?:\s*(?:no|number))?|stan|card(?:\s*(?:no|number))?|debit|credit|cashier|kasir)$/i;
+  },
+  isReceiptMeta(value){
+    const s=this.normalizeText(value).replace(/^[\s:|>._-]+|[\s:|>._-]+$/g,'').trim();
+    if(!s)return true;
+    return this.receiptMetaRe().test(s) ||
+      /^(?:acquirer|acq(?:uirer)?|rrn|transaction\s*type|terminal|merchant\s*id|issuer|approval|reference|invoice|receipt|batch|trace|stan|card)\b/i.test(s);
+  },
+  isBankHeader(value){
+    const s=this.normalizeText(value);
+    return /^(?:bank\s+)?(?:bca|m-bca|mbca|bca\s+mobile|bca\s+mobile\s+banking|bank\s+central\s+asia|bri|bni|mandiri|bank\s+mandiri|cimb|permata|btn|danamon|ocbc|uob|hsbc|seabank|bank\s+jago)(?:\s+(?:mobile|digital|internet|banking))?$/i.test(s);
+  },
+  classifyReceiptMode(text){
+    const raw=String(text||'');
+    const transferStrong=[
+      /payment\s*(?:to|from)\b/i,/paymentto\b/i,
+      /transfer(?:red)?\s*(?:to|from|ke|kepada|dari)\b/i,
+      /(?:ditransfer|dikirim)\s*(?:ke|kepada|dari)\b/i,
+      /\b(?:beneficiary|recipient|receiver|payee|penerima|pengirim|sender|remitter|nama penerima|nama tujuan)\b/i,
+      /\b(?:no\.?\s*(?:rekening|rek)|rekening|account(?:\s*(?:no|number))?|a\/c)\b/i,
+      /\b(?:m-bca|mbca|bca\s+mobile|mobile\s+banking|internet\s+banking|mutasi)\b/i
+    ];
+    const merchantStrong=[
+      /\b(?:struk|receipt|nota)\b/i,
+      /\b(?:subtotal|grand\s*total|qty|quantity|item|items|produk|product|menu|barang)\b/i,
+      /\b(?:outlet|cabang|store|toko|kasir|cashier|order|table|meja|kembali|change)\b/i,
+      /\b(?:spbu|hokben|hok\s*ben|hoka\s*hoka\s*bento|kfc|mcdonald'?s|mcd|burger\s*king|starbucks|jco|chatime|solaria|breadtalk|pizza\s*h?ut|domino'?s|indomaret|alfamart)\b/i
+    ];
+    const terminalMeta=/\b(?:acquirer|rrn|transaction\s*type|terminal\s*id|merchant\s*id|approval\s*code|stan)\b/i.test(t);
+    const ts=transferStrong.reduce((n,re)=>n+(re.test(raw)?1:0),0);
+    const ms=merchantStrong.reduce((n,re)=>n+(re.test(raw)?1:0),0);
+    if(ts>0)return 'transfer';
+    if(ms>0)return 'merchant';
+    if(terminalMeta)return 'merchant';
+    return 'unknown';
+  },
   cleanRecipient(value){
-    let s=this.normalizeText(value).replace(/^[\-:|>\"']+|[\-:|>\"']+$/g,'').trim();
-    s=s.replace(/^(?:payment\s*)?(?:to|recipient|penerima|beneficiary|receiver|payee|tujuan|kepada)\s*[:=\-]?\s*/i,'').trim();
-    s=s.replace(/^(?:transfer|transferred|dikirim|ditransfer|sent|send|paid)\s+(?:to|ke|kepada)\s*[:=\-]?\s*/i,'').trim();
+    let s=this.normalizeText(value).replace(/^[\-:|>"']+|[\-:|>"']+$/g,'').trim();
+    s=s.replace(/^(?:(?:payment|paid|pay|sent|send|transfer(?:red)?|dikirim|ditransfer)\s*)?(?:to|recipient|penerima|beneficiary|receiver|payee|tujuan|kepada|ke)\s*[:=\-]?\s*/i,'').trim();
     s=s.replace(/^(?:payment|paid)\s+from\s*[:=\-]?\s*/i,'').trim();
-    s=s.replace(/\b(?:no\.?\s*rekening|rekening|account(?:\s*no\.?)?|a\/c)\s*[:#\-]?\s*[0-9xX* .\-]{6,}\b/ig,'').trim();
+    s=s.replace(/\b(?:no\.?\s*rekening|no\.?\s*rek|rekening|account(?:\s*(?:no|number))?|a\/c)\s*[:#\-]?\s*[0-9xX* .\-]{6,}\b/ig,'').trim();
     s=s.replace(/\s+(?:rp|idr|usd|nominal|amount|jumlah|tanggal|tgl|date|status|saldo|balance)\b.*$/i,'').trim();
     s=s.replace(/[\s\-:|]+$/g,'').trim();
     if(!s||s.length<2||s.length>140)return '';
+    if(this.isReceiptMeta(s)||this.isBankHeader(s))return '';
     if(/^\d[\d\s.,\-\/]*$/.test(s))return '';
-    return s;
+    if(/^(?:payment|payment\s*to|payment\s*from|to|from|recipient|penerima|beneficiary|receiver|payee|tujuan|nominal|amount|jumlah|saldo|balance|tanggal|tgl|date|status|success|berhasil|completed|transfer|acquirer|rrn|transaction\s*type)$/i.test(s))return '';
+    if(/\b(?:otp|pin|password|kode akses|reference|referensi)\b/i.test(s))return '';
+    return /[A-Za-zÀ-ÿ]/.test(s)?s:'';
   },
   extractRecipient(text){
     const raw=String(text||'');
+    if(this.classifyReceiptMode(raw)!=='transfer')return '';
     const lines=raw.split(/\r?\n/).map(x=>this.normalizeText(x)).filter(Boolean);
-    const isBankHeader=(x)=>/^(?:bank\s+)?(?:bca|m-bca|mbca|bca\s+mobile|bca\s+mobile\s+banking|bank\s+central\s+asia|pt\s+bank\s+central\s+asia(?:\s+tbk)?|bri|bni|mandiri|bank\s+mandiri|cimb|permata|btn|danamon|ocbc|uob|hsbc|seabank|bank\s+jago)(?:\s+(?:mobile|digital|internet|banking))?$/i.test(String(x||'').trim());
-    const valid=(value)=>{
-      const s=this.cleanRecipient(value);
-      if(!s||isBankHeader(s))return '';
-      if(/^(?:payment|payment to|paymentto|to|from|penerima|recipient|beneficiary|receiver|payee|tujuan|nominal|amount|jumlah|saldo|balance|tanggal|tgl|date|status|success|berhasil|completed|transfer)$/i.test(s))return '';
-      if(/\b(?:otp|pin|password|kode akses|reference|referensi)\b/i.test(s))return '';
-      return /[A-Za-zÀ-ÿ]/.test(s)?s:'';
-    };
-    const labelValue=(line,labels)=>{
-      const clean=this.normalizeText(line);
-      for(const label of labels){
-        const re=new RegExp('^(?:'+label.replace(/\s+/g,'\\s*')+')\\s*[:=>\-]?\\s*(.*)$','i');
-        const m=clean.match(re);
-        if(m)return {found:true,value:m[1]||''};
+    const labels=[
+      'payment to','paymentto','payment recipient','paid to','pay to','sent to','send to',
+      'transfer to','transferred to','transfer ke','transfer kepada','ditransfer ke','ditransfer kepada',
+      'dikirim ke','dikirim kepada','penerima','beneficiary','recipient','receiver','payee',
+      'tujuan','nama penerima','nama tujuan','kepada'
+    ];
+    const normalizeLabel=(s)=>this.normalizeText(s).toLowerCase().replace(/["']/g,'').replace(/[\s:_=|>\-]+/g,' ').trim();
+    const metadataBoundary=/\b(?:acquirer|acq(?:uirer)?|rrn|reference|transaction\s*type|terminal(?:\s*id)?|merchant\s*id|issuer|approval(?:\s*code)?|auth(?:orization)?(?:\s*code)?|invoice|receipt|batch|trace|stan)\b/i;
+    const candidate=(value)=>{
+      let s=this.normalizeText(value);
+      if(!s)return '';
+      s=s.replace(/^(?:payment|paid|pay|sent|send|transfer(?:red)?|dikirim|ditransfer)\s*(?:to|from|ke|kepada)?\s*[:=\-]?\s*/i,'').trim();
+      if(metadataBoundary.test(s)){
+        const parts=s.split(metadataBoundary);
+        const before=parts[0].trim();
+        const after=parts.slice(1).join(' ').trim();
+        const b=this.cleanRecipient(before);
+        if(b)return b;
+        const a=this.cleanRecipient(after);
+        if(a)return a;
+        return '';
       }
-      return {found:false,value:''};
+      return this.cleanRecipient(s);
     };
-    const scan=(i,labels)=>{
-      const direct=labelValue(lines[i],labels);
-      const d=valid(direct.value); if(d)return d;
-      const normalized=this.normalizeText(lines[i]).toLowerCase().replace(/["']/g,'').replace(/[\s:_=|>\-]+/g,' ').trim();
+    for(let i=0;i<lines.length;i++){
+      const line=lines[i], norm=normalizeLabel(line);
       for(const label of labels){
-        const lc=label.toLowerCase();
-        if(normalized===lc||normalized===lc.replace(/\s+/g,'')){
-          for(let j=1;j<=4;j++){const candidate=valid(lines[i+j]);if(candidate)return candidate;}
+        const labelNorm=label.toLowerCase(), compact=labelNorm.replace(/\s+/g,'');
+        if(norm===labelNorm||norm===compact||norm.startsWith(labelNorm+' ')||norm.startsWith(compact+' ')){
+          const re=new RegExp('^'+label.replace(/\s+/g,'\\s*')+'\\s*[:=>\\-]?\\s*(.*)$','i');
+          const m=line.match(re);
+          const inline=m?candidate(m[1]||''):'';
+          if(inline)return inline;
+          for(let j=1;j<=8;j++){const next=candidate(lines[i+j]||'');if(next)return next;}
         }
       }
-      return '';
-    };
-    const toLabels=['payment to','paymentto','payment recipient','paid to','pay to','sent to','send to','transfer to','transferred to','transfer ke','transfer kepada','ditransfer ke','ditransfer kepada','dikirim ke','dikirim kepada','penerima','beneficiary','recipient','receiver','payee','tujuan','nama penerima','nama tujuan','kepada','to'];
-    for(let i=0;i<lines.length;i++){
-      const d=scan(i,toLabels); if(d)return d;
-      if(/^payment$/i.test(lines[i])&&i+1<lines.length&&/^to$/i.test(lines[i+1])){
-        for(let j=2;j<=5;j++){const d2=valid(lines[i+j]);if(d2)return d2;}
+      if(/^payment$/i.test(line)&&i+1<lines.length&&/^to$/i.test(lines[i+1])){
+        for(let j=2;j<=9;j++){const d=candidate(lines[i+j]||'');if(d)return d;}
       }
-    }
-    const fromLabels=['payment from','paymentfrom','paid from','sent from','transfer from','transferred from','transfer dari','dikirim dari','berasal dari','from','dari','pengirim','sender','remitter'];
-    for(let i=0;i<lines.length;i++){
-      const d=scan(i,fromLabels); if(d)return d;
-      if(/^payment$/i.test(lines[i])&&i+1<lines.length&&/^from$/i.test(lines[i+1])){
-        for(let j=2;j<=5;j++){const d2=valid(lines[i+j]);if(d2)return d2;}
-      }
-    }
-    const transferContext=/(transfer|payment|paid|dikirim|ditransfer|penerima|beneficiary|recipient|payee|tujuan|berhasil|successful)/i.test(raw);
-    if(transferContext){
-      for(const line of lines){
-        if(isBankHeader(line))continue;
-        const d=valid(line);
-        if(!d)continue;
-        if(/^\d[\d\s.,\/\-]*$/.test(d))continue;
-        return d;
+      if(/^payment\s*to$/i.test(line)){
+        for(let j=1;j<=8;j++){const d=candidate(lines[i+j]||'');if(d)return d;}
       }
     }
     return '';
   },
-  isBankOnlyRecipient(value){
-    return /^(?:bank\s+)?(?:bca|m-bca|mbca|bca\s+mobile|bca\s+mobile\s+banking|bank\s+central\s+asia|pt\s+bank\s+central\s+asia(?:\s+tbk)?|bri|bni|mandiri|bank\s+mandiri|cimb|permata|btn|danamon|ocbc|uob|hsbc|seabank|bank\s+jago)(?:\s+(?:mobile|digital|internet|banking))?$/i.test(String(value||'').trim());
+  isBankOnlyRecipient(value){ return this.isBankHeader(value); },
+  knownMerchantRe(){
+    return [
+      [/spbu\s*pertamina|pertamina/i,'Pertamina'],[/hok\s*ben|hokben|hoka\s*hoka\s*bento/i,'HokBen'],
+      [/kfc/i,'KFC'],[/mcdonald'?s|mcd/i,'McDonald’s'],[/burger\s*king/i,'Burger King'],
+      [/starbucks/i,'Starbucks'],[/j\.?\s*co/i,'J.CO'],[/chatime/i,'Chatime'],[/solaria/i,'Solaria'],
+      [/breadtalk/i,'BreadTalk'],[/pizza\s*h?ut/i,'Pizza Hut'],[/domino'?s/i,'Domino’s'],
+      [/indomaret/i,'Indomaret'],[/alfamart/i,'Alfamart'],[/shell/i,'Shell'],[/vivo/i,'Vivo'],
+      [/bp\s*(?:ultimate|fuel|station)?/i,'BP']
+    ];
+  },
+  extractMerchant(text){
+    const raw=String(text||'');
+    const lines=raw.split(/\r?\n/).map(x=>this.normalizeText(x)).filter(Boolean);
+    const known=this.knownMerchantRe();
+    const labels=['merchant name','merchant','nama merchant','store','store name','toko','nama toko','outlet','cabang','lokasi'];
+    for(let i=0;i<lines.length;i++){
+      const line=lines[i];
+      for(const label of labels){
+        const re=new RegExp('^'+label.replace(/\s+/g,'\\s*')+'\\s*[:=>\\-]?\\s*(.*)$','i');
+        const m=line.match(re);
+        if(m&&!this.isReceiptMeta(m[1])){
+          const s=this.cleanMerchant(m[1]);
+          if(s)return s;
+          for(let j=1;j<=4;j++){const s2=this.cleanMerchant(lines[i+j]||'');if(s2)return s2;}
+        }
+      }
+    }
+    for(const [re,name] of known)if(re.test(raw))return name;
+    return '';
+  },
+  cleanMerchant(value){
+    let s=this.normalizeText(value).replace(/^[\-:|>"']+|[\-:|>"']+$/g,'').trim();
+    s=s.replace(/\b(?:rrn|reference|transaction\s*type|terminal(?:\s*id)?|merchant\s*id|acquirer|approval|invoice|receipt|batch|trace|stan)\b.*$/i,'').trim();
+    if(!s||s.length<2||s.length>120)return '';
+    if(this.isReceiptMeta(s)||this.isBankHeader(s))return '';
+    if(/^\d[\d\s.,\-\/]*$/.test(s))return '';
+    if(/^(?:payment|to|from|transfer|successful|success|berhasil|completed|transaction)$/i.test(s))return '';
+    return /[A-Za-zÀ-ÿ]/.test(s)?s:'';
+  },
+  extractPurchaseDetail(text){
+    const raw=String(text||'');
+    const lines=raw.split(/\r?\n/).map(x=>this.normalizeText(x)).filter(Boolean);
+    const labels=['item','items','produk','product','menu','barang','description','desc','nama barang','nama produk','order'];
+    for(let i=0;i<lines.length;i++){
+      const line=lines[i];
+      for(const label of labels){
+        const re=new RegExp('^'+label.replace(/\s+/g,'\\s*')+'\\s*[:=>\\-]?\\s*(.*)$','i');
+        const m=line.match(re);
+        if(m){
+          const inline=this.cleanMerchant(m[1]||'');
+          if(inline&&!this.isMoneyOrTotalLine(inline))return inline;
+          for(let j=1;j<=4;j++){
+            const s=this.cleanMerchant(lines[i+j]||'');
+            if(s&&!this.isMoneyOrTotalLine(s))return s;
+          }
+        }
+      }
+    }
+    return '';
+  },
+  isMoneyOrTotalLine(value){
+    const s=this.normalizeText(value);
+    return /^(?:rp|idr|total|grand\s*total|subtotal|jumlah|amount|nominal|harga|price|diskon|discount|pajak|tax|service|service\s*charge|kembali|change)\b/i.test(s) || /^\d[\d.,\s]*$/.test(s);
   },
   fuelMatch(text){
     return /\b(pertamina|spbu|shell|vivo|bp(?:\s*(?:ultimate|92|95|diesel))?|revvo|pertamax|pertalite|dexlite|pertamina\s*dex|v-power|biosolar|solar|bbm|bensin)\b/i.test(String(text||''));
@@ -2511,44 +2605,77 @@ const OCR = {
   enrichParsed(parsed, rawText){
     const p=Object.assign({},parsed||{});
     const raw=String(rawText||'');
+    const mode=this.classifyReceiptMode(raw);
     const serverRecipient=this.cleanRecipient(p.recipient||'');
-    const recipient=this.extractRecipient(raw)||((serverRecipient&&!this.isBankOnlyRecipient(serverRecipient))?serverRecipient:'');
+    const serverBrand=this.cleanMerchant(p.brand||'');
     const amount=this.extractAmount(raw);
     const date=this.extractDate(raw);
-    const combined=[raw,p.brand,p.detail,p.note,recipient].filter(Boolean).join(' ');
-    if(recipient)p.recipient=recipient; else delete p.recipient;
     if(amount)p.amount=amount;
     if(date)p.date=date;
 
+    if(mode==='transfer'){
+      const recipient=this.extractRecipient(raw) || (serverRecipient&&!this.isBankOnlyRecipient(serverRecipient)?serverRecipient:'');
+      if(recipient)p.recipient=recipient; else delete p.recipient;
+      if(recipient)p.brand=recipient;
+      else if(this.isBankOnlyRecipient(String(p.brand||''))||this.isReceiptMeta(String(p.brand||'')))p.brand='';
+
+      const combined=[raw,p.brand,p.detail,p.note,recipient].filter(Boolean).join(' ');
+      const t=combined.toLowerCase();
+      const fuel=this.fuelMatch(combined);
+      const service=/(bengkel|tambal ban|ganti oli|service|servis|ahass|planet ban|shop&drive|sparepart|onderdil|carwash|cuci|tune up|auto2000)/i.test(t);
+      const toll=/(?:\btol\b|e-?tol|gerbang tol|jasa marga)/i.test(t);
+      const parkir=/(parkir|parking|valet)/i.test(t);
+      const makan=/(coffee|latte|cappuccino|espresso|kopi|teh|tea|bakery|croissant|roti|resto|restaurant|cafe|kafe|warung|makan|minum|boba|ice cream|seafood|soto|bakso|nasi|ayam|mie|beverage|food|kitchen|eatery|diner|catering|hokben|hoka\s*hoka\s*bento|kfc|mcd|starbucks|solaria)/i.test(t);
+      if(fuel)p.category='Bensin';
+      else if(service)p.category='Servis';
+      else if(toll)p.category='Tol';
+      else if(parkir)p.category='Parkir';
+      else if(makan&&!recipient)p.category='Makan';
+      else if(recipient)p.category='Lainnya';
+
+      if(recipient){
+        const method=/qr|qris/i.test(combined)?'QRIS':/transfer/i.test(combined)?'Transfer':'';
+        const parts=[];
+        if(p.note&&!/^ke:/i.test(String(p.note).trim())&&!this.isReceiptMeta(String(p.note)))parts.push(String(p.note).trim());
+        parts.push('Ke: '+recipient);
+        if(method&&!new RegExp(method,'i').test(parts.join(' • ')))parts.push(method);
+        p.note=parts.join(' • ');
+        if(fuel)p.detail=this.fuelGrade(combined)||p.detail||('Pembayaran ke '+recipient);
+        else p.detail='Transfer ke '+recipient;
+      }
+      if(this.isReceiptMeta(String(p.detail||''))||this.isBankOnlyRecipient(String(p.detail||'')))p.detail='';
+      return p;
+    }
+
+    // Merchant/POS receipt: no recipient extraction. Merchant name comes from
+    // explicit merchant/store labels or known merchant branding, never terminal metadata.
+    const merchant=this.extractMerchant(raw) || serverBrand;
+    delete p.recipient;
+    if(merchant&&!this.isReceiptMeta(merchant)&&!this.isBankOnlyRecipient(merchant))p.brand=merchant;
+    else p.brand='';
+
+    const combined=[raw,p.brand,p.detail,p.note].filter(Boolean).join(' ');
     const t=combined.toLowerCase();
     const fuel=this.fuelMatch(combined);
     const service=/(bengkel|tambal ban|ganti oli|service|servis|ahass|planet ban|shop&drive|sparepart|onderdil|carwash|cuci|tune up|auto2000)/i.test(t);
-    const toll=/(?:\btol\b|e-?toll|gerbang tol|jasa marga)/i.test(t);
+    const toll=/(?:\btol\b|e-?tol|gerbang tol|jasa marga)/i.test(t);
     const parkir=/(parkir|parking|valet)/i.test(t);
-    const makan=/(coffee|latte|cappuccino|espresso|kopi|teh|tea|bakery|croissant|roti|resto|restaurant|cafe|kafe|warung|makan|minum|boba|ice cream|seafood|soto|bakso|nasi|ayam|mie|beverage|food|kitchen|eatery|diner|catering)/i.test(t);
+    const makan=/(coffee|latte|cappuccino|espresso|kopi|teh|tea|bakery|croissant|roti|resto|restaurant|cafe|kafe|warung|makan|minum|boba|ice cream|seafood|soto|bakso|nasi|ayam|mie|beverage|food|kitchen|eatery|diner|catering|hokben|hoka\s*hoka\s*bento|kfc|mcdonald'?s|mcd|burger\s*king|starbucks|j\.?\s*co|chatime|solaria|breadtalk|pizza\s*h?ut|domino'?s)/i.test(t);
     if(fuel)p.category='Bensin';
     else if(service)p.category='Servis';
     else if(toll)p.category='Tol';
     else if(parkir)p.category='Parkir';
-    else if(makan&&!recipient)p.category='Makan';
-    else if(recipient)p.category='Lainnya';
+    else if(makan)p.category='Makan';
 
-    if(recipient)p.brand=recipient;
-    else if(this.isBankOnlyRecipient(String(p.brand||'')))p.brand='';
-    if(fuel&&!p.detail){
-      const grade=this.fuelGrade(combined); if(grade)p.detail=grade;
+    const item=this.extractPurchaseDetail(raw);
+    if(fuel){
+      p.detail=this.fuelGrade(combined)||item||p.detail||'';
+    }else if(item){
+      p.detail=item;
+    }else if(this.isReceiptMeta(String(p.detail||''))||this.isBankOnlyRecipient(String(p.detail||''))||/^transfer\s+ke\b/i.test(String(p.detail||''))){
+      p.detail='';
     }
-    if(recipient){
-      const method=/qr|qris/i.test(combined)?'QRIS':/transfer/i.test(combined)?'Transfer':'';
-      const parts=[];
-      if(p.note&&!/^ke:/i.test(String(p.note).trim()))parts.push(String(p.note).trim());
-      parts.push('Ke: '+recipient);
-      if(method&&!new RegExp(method,'i').test(parts.join(' • ')))parts.push(method);
-      p.note=parts.join(' • ');
-      if(fuel)p.detail=this.fuelGrade(combined)||p.detail||('Pembayaran ke '+recipient);
-      else p.detail='Transfer ke '+recipient;
-    }
-    if(this.isBankOnlyRecipient(String(p.detail||'')))p.detail='';
+    if(this.isReceiptMeta(String(p.brand||''))||this.isBankOnlyRecipient(String(p.brand||'')))p.brand='';
     return p;
   },
   downscale(file, maxSide, quality) {
