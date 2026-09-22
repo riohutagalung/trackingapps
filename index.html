@@ -2491,7 +2491,7 @@ const OCR = {
   },
   cleanRecipient(value){
     let s=this.normalizeText(value).replace(/^[\-:|>"']+|[\-:|>"']+$/g,'').trim();
-    s=s.replace(/^(?:(?:payment|paid|pay|sent|send|transfer(?:red)?|dikirim|ditransfer)\s*)?(?:to|recipient|penerima|beneficiary|receiver|payee|tujuan|kepada|ke)\s*[:=\-]?\s*/i,'').trim();
+    s=s.replace(/^(?:(?:payment|paid|pay|sent|send|transfer(?:red)?|dikirim|ditransfer)\s*)?(?:(?:to|recipient|penerima|beneficiary|receiver|payee|tujuan|kepada|ke)\b)\s*[:=\-]?\s*/i,'').trim();
     s=s.replace(/^(?:payment|paid)\s+from\s*[:=\-]?\s*/i,'').trim();
     s=s.replace(/\b(?:no\.?\s*rekening|no\.?\s*rek|rekening|account(?:\s*(?:no|number))?|a\/c)\s*[:#\-]?\s*[0-9xX* .\-]{6,}\b/ig,'').trim();
     s=s.replace(/\s+(?:rp|idr|usd|nominal|amount|jumlah|tanggal|tgl|date|status|saldo|balance)\b.*$/i,'').trim();
