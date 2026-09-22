@@ -15,6 +15,9 @@ import { spawnSync } from 'node:child_process';
  */
 
 const file = path.resolve(process.argv[2] || 'index.html');
+const root = path.dirname(file);
+const EXPECTED_GAS = 'https://script.google.com/macros/s/AKfycbyHREf-8F0Dd8G7hXtw_cyQskLkCzmkATDmOeBBovQWe9SeRw49ZIGxIzdSNTvScfn5qg/exec';
+const OBSOLETE_GAS = 'https://script.google.com/macros/s/AKfycbyi6yqLiKwjpoy9TclZycH6KOPi0GXlPHc7iHGAA5srKCV6TVWOlSyTr-1V-JOiwlr2MQ/exec';
 
 if (!fs.existsSync(file)) {
   throw new Error('[RH] index.html not found: ' + file);
@@ -48,6 +51,18 @@ if (!manifestOk) {
 const REQUIRED_BRIDGE_VERSION = '20260922-r8';
 if (!html.includes('gas-bridge.js?v=' + REQUIRED_BRIDGE_VERSION)) {
   throw new Error('[RH] index.html must load gas-bridge.js?v=' + REQUIRED_BRIDGE_VERSION);
+}
+
+for (const relative of ['api/rpc.js', 'api/native-location.js', 'api/health.js']) {
+  const backendFile = path.join(root, relative);
+  if (!fs.existsSync(backendFile)) throw new Error('[RH] required backend file missing: ' + relative);
+  const backendSource = fs.readFileSync(backendFile, 'utf8');
+  if (!backendSource.includes(EXPECTED_GAS)) {
+    throw new Error('[RH] ' + relative + ' is not pinned to the production Apps Script deployment.');
+  }
+  if (backendSource.includes(OBSOLETE_GAS)) {
+    throw new Error('[RH] ' + relative + ' still contains the obsolete Apps Script deployment.');
+  }
 }
 
 if (!/\bconst\s+App\s*=/.test(html)) {
