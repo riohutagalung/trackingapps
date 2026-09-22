@@ -20,31 +20,69 @@ function shellArg(value){
   return String(value).replace(/\\/g,'\\\\').replace(/"/g,'\\\"');
 }
 
+async function listLatestReadyPreview(){
+  const scope=String(process.env.RH_VERCEL_SCOPE||'rio-hutagalungs-projects');
+  const project=String(process.env.RH_VERCEL_PROJECT||'trackingapps');
+  const {stdout,stderr}=await execFileAsync('npx',['--yes','vercel@59.25.0','ls','--scope',scope],{maxBuffer:2*1024*1024});
+  const all=(String(stdout||'')+'\\n'+String(stderr||'')).split(/\\r?\\n/);
+  for(const line of all){
+    const match=line.match(/https:\\/\\/trackingapps-[^\\s]+\\.vercel\\.app\\s+●\\s+Ready\\s+Preview\\b/);
+    if(match) return match[0].match(/https:\\/\\/[^\\s]+\\.vercel\\.app/)[0];
+  }
+  throw new Error('Tidak menemukan deployment Preview trackingapps berstatus Ready dari vercel ls.');
+}
+
 async function requestWithVercelCli(label,url,options={}){
   const args=['--yes','vercel@59.25.0','curl',url];
   if(options.method && options.method !== 'GET') args.push('-X',options.method);
   for(const [key,value] of Object.entries(options.headers||{})) args.push('-H',`${key}: ${value}`);
   if(options.body) args.push('-d',options.body);
 
-  try{
-    const {stdout,stderr}=await execFileAsync('npx',args,{maxBuffer:10*1024*1024});
-    const text=String(stdout||'');
-    const err=String(stderr||'');
-    console.log(`\\n[${label}] Vercel CLI OK ${url}`);
-    if(err.trim()) console.log(err.trim().slice(0,1000));
-    console.log(text.slice(0,5000));
-    return {r:{status:200,ok:true,url},text,json:null};
-  }catch(error){
-    const stdout=String(error.stdout||'');
-    const stderr=String(error.stderr||'');
-    console.log(`\\n[${label}] Vercel CLI FAILED ${url}`);
-    if(stdout) console.log(stdout.slice(0,5000));
-    if(stderr) console.log(stderr.slice(0,2000));
+  const {stdout,stderr}=await execFileAsync('npx',args,{maxBuffer:10*1024*1024});
+  const text=String(stdout||'');
+  const err=String(stderr||'');
+  const combined=(text+'\\n'+err).trim();
+  if(/DEPLOYMENT_NOT_FOUND|deployment could not be found on Vercel/i.test(combined)){
+    throw new Error('DEPLOYMENT_NOT_FOUND');
+  }
+  if(/\\bHTTP\\s+(4\\d\\d|5\\d\\d)\\b/i.test(combined) || /\\b(Error|Failed)\\b/i.test(combined) && !/curl is in beta/i.test(combined)){
+    console.log(`\\n[${label}] Vercel CLI response indicates failure ${url}`);
+    console.log(combined.slice(0,5000));
     throw new Error(label+' failed via Vercel CLI.');
   }
+  console.log(`\\n[${label}] Vercel CLI OK ${url}`);
+  if(err.trim()) console.log(err.trim().slice(0,1000));
+  console.log(text.slice(0,5000));
+  return {r:{status:200,ok:true,url},text,json:null};
 }
 
-async function request(label,url,options={}){
+async function request(label,url,options={},retry=true){
+  let useVercelCli=USE_VERCEL_CLI;
+  try{useVercelCli=useVercelCli && new URL(url).hostname.endsWith('.vercel.app');}catch{useVercelCli=false;}
+  if(useVercelCli){
+    try{return await requestWithVercelCli(label,url,options);}
+    catch(error){
+      if(retry && String(error.message)==='DEPLOYMENT_NOT_FOUND'){
+        const latest=await listLatestReadyPreview();
+        if(latest!==url){
+          console.log(`\\n[RH] Preview lama tidak ditemukan. Beralih ke Preview Ready terbaru: ${latest}`);
+          return request(label,latest+(new URL(url).search||''),options,false);
+        }
+      }
+      throw error;
+    }
+  }
+
+  const r=await fetch(url,{redirect:'follow',cache:'no-store',...options});
+  const text=await r.text();
+  let json=null; try{json=text?JSON.parse(text):null;}catch{}
+  console.log('\\n['+label+'] HTTP '+r.status+' '+r.url);
+  console.log(json?JSON.stringify(json,null,2):text.slice(0,500));
+  if(!r.ok) throw new Error(label+' failed: HTTP '+r.status);
+  return {r,text,json};
+}
+
+const page=await request('Vercel HTML',VERCEL+'/?verify=20260922');
   let useVercelCli=USE_VERCEL_CLI;
   try{useVercelCli=useVercelCli && new URL(url).hostname.endsWith('.vercel.app');}catch{useVercelCli=false;}
   if(useVercelCli) return requestWithVercelCli(label,url,options);
