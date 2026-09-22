@@ -143,7 +143,10 @@ async function request(label, url, options = {}, retryPreview = true) {
 }
 
 const page = await request('Vercel HTML', VERCEL + '/?verify=20260922');
-const LIVE_VERCEL = page.r?.url || VERCEL;
+const LIVE_VERCEL = (() => {
+  try { return new URL(page.r?.url || VERCEL).origin; }
+  catch { return VERCEL; }
+})();
 
 if (page.text.includes(OLD_GAS)) {
   throw new Error('Live HTML masih mengandung Apps Script deployment lama.');
