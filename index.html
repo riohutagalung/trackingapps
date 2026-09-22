@@ -2537,20 +2537,26 @@ const OCR = {
     const raw=String(text||'');
     const lines=raw.split(/\r?\n/).map(x=>this.normalizeText(x)).filter(Boolean);
     const known=this.knownMerchantRe();
-    const labels=['merchant name','merchant','nama merchant','store','store name','toko','nama toko','outlet','cabang','lokasi'];
+
+    // Known merchant/brand text has higher confidence than a location such as "Outlet Bintaro".
+    for(const [re,name] of known)if(re.test(raw))return name;
+
+    const labels=['merchant name','merchant','nama merchant','store name','nama toko','toko'];
     for(let i=0;i<lines.length;i++){
       const line=lines[i];
       for(const label of labels){
-        const re=new RegExp('^'+label.replace(/\s+/g,'\\s*')+'\\s*[:=>\\-]?\\s*(.*)$','i');
+        const re=new RegExp('^'+label.replace(/\s+/g,'\\s*')+'\\s*[:=>\-]?\\s*(.*)$','i');
         const m=line.match(re);
         if(m&&!this.isReceiptMeta(m[1])){
           const s=this.cleanMerchant(m[1]);
           if(s)return s;
-          for(let j=1;j<=4;j++){const s2=this.cleanMerchant(lines[i+j]||'');if(s2)return s2;}
+          for(let j=1;j<=4;j++){
+            const s2=this.cleanMerchant(lines[i+j]||'');
+            if(s2)return s2;
+          }
         }
       }
     }
-    for(const [re,name] of known)if(re.test(raw))return name;
     return '';
   },
   cleanMerchant(value){
@@ -2641,8 +2647,10 @@ const OCR = {
         parts.push('Ke: '+recipient);
         if(method&&!new RegExp(method,'i').test(parts.join(' • ')))parts.push(method);
         p.note=parts.join(' • ');
-        if(fuel)p.detail=this.fuelGrade(combined)||p.detail||('Pembayaran ke '+recipient);
-        else p.detail='Transfer ke '+recipient;
+        const serverDetailRaw=String(p.detail||'').trim();
+        const serverDetail=this.isReceiptMeta(serverDetailRaw)||this.isBankOnlyRecipient(serverDetailRaw)?'':this.cleanMerchant(serverDetailRaw);
+        if(fuel)p.detail=this.fuelGrade(combined)||serverDetail||('Pembayaran ke '+recipient);
+        else p.detail=serverDetail||('Transfer ke '+recipient);
       }
       if(this.isReceiptMeta(String(p.detail||''))||this.isBankOnlyRecipient(String(p.detail||'')))p.detail='';
       return p;
