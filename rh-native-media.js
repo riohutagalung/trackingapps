@@ -33,8 +33,6 @@
     });
   }
   async function resultToBase64(result){
-    const thumb=String(result?.thumbnail||'');
-    if(thumb)return thumb;
     const candidates=[result?.webPath,result?.uri].filter(Boolean).map(String);
     for(const url of candidates){
       try{
@@ -44,6 +42,8 @@
         if(b64)return b64;
       }catch(e){}
     }
+    const thumb=String(result?.thumbnail||'');
+    if(thumb)return thumb;
     throw new Error('Camera tidak mengembalikan data gambar yang bisa dibaca.');
   }
   async function legacyPick(Camera,source){
