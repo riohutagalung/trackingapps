@@ -2424,11 +2424,38 @@ const OCR = {
   receiptMetaRe(){
     return /^(?:acquirer|acq(?:uirer)?|rrn|reference(?:\s*(?:no|number))?|ref(?:erence)?|transaction\s*type|type\s*transaction|trx\s*type|terminal(?:\s*id)?|tid|mid|merchant\s*id|issuer|approval(?:\s*code)?|auth(?:orization)?(?:\s*code)?|invoice(?:\s*(?:no|number))?|receipt(?:\s*(?:no|number))?|batch(?:\s*(?:no|number))?|trace(?:\s*(?:no|number))?|stan|card(?:\s*(?:no|number))?|debit|credit|cashier|kasir)$/i;
   },
+  receiptMetaDistance(a,b){
+    const x=String(a||''), y=String(b||'');
+    if(!x||!y)return 99;
+    const prev=new Array(y.length+1);
+    for(let j=0;j<=y.length;j++)prev[j]=j;
+    for(let i=1;i<=x.length;i++){
+      const cur=[i];
+      for(let j=1;j<=y.length;j++){
+        cur[j]=Math.min(
+          cur[j-1]+1,
+          prev[j]+1,
+          prev[j-1]+(x[i-1]===y[j-1]?0:1)
+        );
+      }
+      for(let j=0;j<=y.length;j++)prev[j]=cur[j];
+    }
+    return prev[y.length];
+  },
   isReceiptMeta(value){
     const s=this.normalizeText(value).replace(/^[\s:|>._-]+|[\s:|>._-]+$/g,'').trim();
     if(!s)return true;
-    return this.receiptMetaRe().test(s) ||
-      /^(?:acquirer|acq(?:uirer)?|rrn|transaction\s*type|terminal|merchant\s*id|issuer|approval|reference|invoice|receipt|batch|trace|stan|card)\b/i.test(s);
+    if(this.receiptMetaRe().test(s))return true;
+
+    // OCR commonly turns "Acquirer" into variants such as "Acruirer".
+    // Fuzzy-match only against known receipt/terminal metadata, not arbitrary words.
+    const compact=s.toLowerCase().replace(/[^a-z0-9]/g,'');
+    const words=['acquirer','rrn','reference','transactiontype','trxtype','terminal','terminalid','tid','mid','merchantid','issuer','approval','approvalcode','authorization','authorizationcode','invoice','receipt','batch','trace','stan','card','debit','credit','cashier','kasir'];
+    return words.some(w=>{
+      const d=this.receiptMetaDistance(compact,w);
+      const limit=w.length<=4?0:(w.length<=7?1:2);
+      return d<=limit;
+    }) || /^(?:acq|acru|acqruirer|acruirer|transacton|transction|rrn)$/i.test(compact);
   },
   isBankHeader(value){
     const s=this.normalizeText(value);
@@ -2489,8 +2516,10 @@ const OCR = {
       let s=this.normalizeText(value);
       if(!s)return '';
       s=s.replace(/^(?:payment|paid|pay|sent|send|transfer(?:red)?|dikirim|ditransfer)\s*(?:to|from|ke|kepada)?\s*[:=\-]?\s*/i,'').trim();
-      if(metadataBoundary.test(s)){
-        const parts=s.split(metadataBoundary);
+      if(this.isReceiptMeta(s))return '';
+      const fuzzyMeta=/\b(?:acruirer|acqruirer|acq(?:uirer)?|rrn|reference|transact(?:ion|on)\s*type|terminal(?:\s*id)?|merchant\s*id|issuer|approval(?:\s*code)?|auth(?:orization)?(?:\s*code)?|invoice|receipt|batch|trace|stan)\b/i;
+      if(fuzzyMeta.test(s)){
+        const parts=s.split(fuzzyMeta);
         const before=parts[0].trim();
         const after=parts.slice(1).join(' ').trim();
         const b=this.cleanRecipient(before);
