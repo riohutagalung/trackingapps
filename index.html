@@ -2491,7 +2491,8 @@ const OCR = {
   },
   isBankOnlyRecipient(value){
     return /^(?:bank\s+)?(?:bca|m-bca|mbca|bca\s+mobile|bca\s+mobile\s+banking|bank\s+central\s+asia|pt\s+bank\s+central\s+asia(?:\s+tbk)?|bri|bni|mandiri|bank\s+mandiri|cimb|permata|btn|danamon|ocbc|uob|hsbc|seabank|bank\s+jago)(?:\s+(?:mobile|digital|internet|banking))?$/i.test(String(value||'').trim());
-  },\n  fuelMatch(text){
+  },
+  fuelMatch(text){
     return /\b(pertamina|spbu|shell|vivo|bp(?:\s*(?:ultimate|92|95|diesel))?|revvo|pertamax|pertalite|dexlite|pertamina\s*dex|v-power|biosolar|solar|bbm|bensin)\b/i.test(String(text||''));
   },
   fuelGrade(text){
