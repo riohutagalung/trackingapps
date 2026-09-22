@@ -1,6 +1,7 @@
 import process from 'node:process';
 const VERCEL='https://rhhabits.vercel.app';
-const GAS='https://script.google.com/macros/s/AKfycbyi6yqLiKwjpoy9TclZycH6KOPi0GXlPHc7iHGAA5srKCV6TVWOlSyTr-1V-JOiwlr2MQ/exec';
+const GAS='https://script.google.com/macros/s/AKfycbyHREf-8F0Dd8G7hXtw_cyQskLkCzmkATDmOeBBovQWe9SeRw49ZIGxIzdSNTvScfn5qg/exec';
+const OLD_GAS='https://script.google.com/macros/s/AKfycbyi6yqLiKwjpoy9TclZycH6KOPi0GXlPHc7iHGAA5srKCV6TVWOlSyTr-1V-JOiwlr2MQ/exec';
 
 async function request(label,url,options={}){
   const r=await fetch(url,{redirect:'follow',cache:'no-store',...options});
@@ -12,9 +13,10 @@ async function request(label,url,options={}){
   return {r,text,json};
 }
 
-const page=await request('Vercel HTML',VERCEL+'/?verify=20260921');
+const page=await request('Vercel HTML',VERCEL+'/?verify=20260922');
+if(page.text.includes(OLD_GAS)) throw new Error('Live HTML masih mengandung Apps Script deployment lama.');
 if(!page.text.includes('<link rel="manifest" href="/manifest.json">')) throw new Error('Live index masih memakai manifest URL lama.');
-if(!page.text.includes('gas-bridge.js?v=20260921-r7')) throw new Error('Live index belum memakai RPC bridge r7.');
+if(!page.text.includes('gas-bridge.js?v=20260922-r8')) throw new Error('Live index belum memakai RPC bridge r7.');
 if(!page.text.includes('renderPublicTransport(p)')) throw new Error('Live index belum memuat App.renderPublicTransport.');
 
 await request('Vercel health',VERCEL+'/api/health');
