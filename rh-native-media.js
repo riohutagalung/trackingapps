@@ -1,4 +1,4 @@
-/* RH Habits native Camera/Photos bridge — Capacitor Camera 8.2.x API. */
+/* RH Habits native Camera/Photos bridge — Capacitor Camera 8.x compatible. */
 (function(){
   'use strict';
   let camera=null;
@@ -7,9 +7,9 @@
     if(!isNative()) return null;
     if(camera)return camera;
     try{
-      if(window.Capacitor.Plugins?.Camera) camera=window.Capacitor.Plugins.Camera;
-      else if(window.Capacitor.registerPlugin) camera=window.Capacitor.registerPlugin('Camera');
-    }catch(e){ console.warn('[RHNativeMedia] register failed',e); }
+      camera=window.Capacitor.Plugins?.Camera||null;
+      if(!camera && window.Capacitor.registerPlugin) camera=window.Capacitor.registerPlugin('Camera');
+    }catch(e){ console.warn('[RHNativeMedia] Camera bridge resolution failed',e); }
     return camera;
   }
   async function requestPermissionIfNeeded(Camera, type){
@@ -33,6 +33,8 @@
     });
   }
   async function resultToBase64(result){
+    const thumb=String(result?.thumbnail||'');
+    if(thumb)return thumb;
     const candidates=[result?.webPath,result?.uri].filter(Boolean).map(String);
     for(const url of candidates){
       try{
@@ -42,23 +44,22 @@
         if(b64)return b64;
       }catch(e){}
     }
-    const thumb=String(result?.thumbnail||'');
-    if(thumb)return thumb;
     throw new Error('Camera tidak mengembalikan data gambar yang bisa dibaca.');
   }
   async function legacyPick(Camera,source){
-    if(typeof Camera.getPhoto!=='function')throw new Error('Legacy Camera API tidak tersedia.');
+    if(typeof Camera.getPhoto!=='function')throw new Error('Camera legacy API tidak tersedia.');
     const photo=await Camera.getPhoto({
-      quality:82,
+      quality:90,
       source:source==='camera'?'CAMERA':'PHOTOS',
       resultType:'base64',
       correctOrientation:true,
       width:1400,
-      height:1400
+      height:1400,
+      allowEditing:false
     });
     if(!photo)throw new Error('Foto tidak dipilih.');
     const base64=String(photo.base64String||'');
-    if(!base64)throw new Error('Legacy Camera tidak mengembalikan base64.');
+    if(!base64)throw new Error('Camera legacy tidak mengembalikan base64.');
     return {
       base64,
       format:String(photo.format||'jpeg').toLowerCase().replace(/[^a-z]/g,'')||'jpeg',
@@ -67,55 +68,66 @@
       uri:String(photo.path||'')
     };
   }
-  async function pick(source){
-    const Camera=getCamera();
-    if(!Camera)throw new Error('Camera native belum tersedia.');
-    if(source==='camera')await requestPermissionIfNeeded(Camera,'camera');
-    else if(source==='gallery')await requestPermissionIfNeeded(Camera,'photos');
-
-    try{
-      if(source==='camera'){
-        if(typeof Camera.takePhoto!=='function')throw new Error('Camera API takePhoto tidak tersedia.');
-        const result=await Camera.takePhoto({
-          quality:82,targetWidth:1400,targetHeight:1400,
-          encodingType:0,correctOrientation:true,includeMetadata:true
-        });
-        if(!result)throw new Error('Foto tidak dipilih.');
-        const base64=await resultToBase64(result);
-        return {
-          base64,
-          format:String(result.metadata?.format||'jpeg').toLowerCase().replace(/[^a-z]/g,'')||'jpeg',
-          dataUrl:`data:image/jpeg;base64,${base64}`,
-          webPath:String(result.webPath||''),
-          uri:String(result.uri||'')
-        };
-      }
-      if(typeof Camera.chooseFromGallery!=='function')throw new Error('Camera API chooseFromGallery tidak tersedia.');
-      const picked=await Camera.chooseFromGallery({
-        mediaType:0,allowMultipleSelection:false,quality:82,
-        targetWidth:1400,targetHeight:1400,includeMetadata:true,
-        correctOrientation:true
+  async function modernPick(Camera,source){
+    if(source==='camera'){
+      if(typeof Camera.takePhoto!=='function')throw new Error('Camera API takePhoto tidak tersedia.');
+      const result=await Camera.takePhoto({
+        quality:90,
+        targetWidth:1400,
+        targetHeight:1400,
+        correctOrientation:true,
+        encodingType:0,
+        saveToGallery:false,
+        cameraDirection:'REAR',
+        includeMetadata:true
       });
-      const result=picked?.results?.[0];
       if(!result)throw new Error('Foto tidak dipilih.');
       const base64=await resultToBase64(result);
       return {
         base64,
         format:String(result.metadata?.format||'jpeg').toLowerCase().replace(/[^a-z]/g,'')||'jpeg',
-        dataUrl:`data:image/jpeg;base64,${base64}`,
+        dataUrl:'data:image/jpeg;base64,'+base64,
         webPath:String(result.webPath||''),
         uri:String(result.uri||'')
       };
-    }catch(e){
-      const code=String(e?.code||'');
-      console.warn('[RHNativeMedia] new API failed',code,e);
-      if(source==='gallery' && /OS-PLUG-CAMR-0003|OS-PLUG-CAMR-0005|OS-PLUG-CAMR-0018|OS-PLUG-CAMR-0020|OS-PLUG-CAMR-0028/.test(code)){
-        await requestPermissionIfNeeded(Camera,'photos');
-      }
-      try{return await legacyPick(Camera,source);}
-      catch(legacyError){
-        const detail=legacyError?.code?('['+legacyError.code+'] '):'';
-        throw new Error(detail+String(legacyError?.message||e?.message||e||'Gagal memilih foto.'));
+    }
+    if(typeof Camera.chooseFromGallery!=='function')throw new Error('Camera API chooseFromGallery tidak tersedia.');
+    const picked=await Camera.chooseFromGallery({
+      mediaType:0,
+      allowMultipleSelection:false,
+      quality:90,
+      targetWidth:1400,
+      targetHeight:1400,
+      includeMetadata:true
+    });
+    const result=picked?.results?.[0];
+    if(!result)throw new Error('Foto tidak dipilih.');
+    const base64=await resultToBase64(result);
+    return {
+      base64,
+      format:String(result.metadata?.format||'jpeg').toLowerCase().replace(/[^a-z]/g,'')||'jpeg',
+      dataUrl:'data:image/jpeg;base64,'+base64,
+      webPath:String(result.webPath||''),
+      uri:String(result.uri||'')
+    };
+  }
+  async function pick(source){
+    const Camera=getCamera();
+    if(!Camera)throw new Error('Camera native belum tersedia.');
+    await requestPermissionIfNeeded(Camera,source==='camera'?'camera':'photos');
+
+    // Primary path: deprecated but still supported in Camera 8.2.x, and unlike the
+    // new API it can return full base64 directly — exactly what RH OCR needs.
+    try{
+      return await legacyPick(Camera,source);
+    }catch(legacyError){
+      console.warn('[RHNativeMedia] legacy Camera API failed',legacyError);
+      try{
+        return await modernPick(Camera,source);
+      }catch(modernError){
+        const code=String(modernError?.code||legacyError?.code||'');
+        const msg=String(modernError?.message||legacyError?.message||'Gagal memilih foto.');
+        throw new Error((code?'['+code+'] ':'')+msg);
       }
     }
   }
