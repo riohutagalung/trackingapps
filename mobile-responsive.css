@@ -1,6 +1,10 @@
 /* RH Habits — responsive layer. Desktop logic/layout stays untouched. */
 
 html, body { width: 100%; overflow-x: hidden; }
+*, *::before, *::after { box-sizing: border-box; }
+#app, .shell, .main, .content, .card, .panel, .section { min-width: 0; max-width: 100%; }
+img, svg, video, canvas, iframe { max-width: 100%; }
+.grid > *, .cards > *, .stats > *, .form-grid > *, .dashboard-grid > * { min-width: 0; }
 
 @media (max-width: 900px) {
   body { display: block; }
