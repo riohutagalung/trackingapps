@@ -2442,9 +2442,21 @@ const OCR = {
     }
     return prev[y.length];
   },
+  isDateTimeLike(value){
+    const s=this.normalizeText(value).toLowerCase().replace(/[|]/g,' ');
+    const compact=s.replace(/\s+/g,'');
+    if(/^\d{1,2}(?:jan|feb|mar|apr|may|mei|jun|jul|aug|agu|sep|sept|oct|okt|nov|dec|des)\d{4}\d{1,2}:\d{2}(?::\d{2})?$/.test(compact))return true;
+    if(/^\d{1,2}(?:jan|feb|mar|apr|may|mei|jun|jul|aug|agu|sep|sept|oct|okt|nov|dec|des)\d{4}$/.test(compact))return true;
+    if(/^\d{4}[./-]\d{1,2}[./-]\d{1,2}(?:[t\s_-]?\d{1,2}:\d{2}(?::\d{2})?)?$/.test(s))return true;
+    if(/^\d{1,2}[./-]\d{1,2}[./-]\d{2,4}(?:[t\s_-]?\d{1,2}:\d{2}(?::\d{2})?)?$/.test(s))return true;
+    if(/^\d{1,2}\s+(?:jan|feb|mar|apr|may|mei|jun|jul|aug|agu|sep|sept|oct|okt|nov|dec|des)[a-z]*\s+\d{2,4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?$/.test(s))return true;
+    if(/^\d{1,2}:\d{2}(?::\d{2})?(?:\s*(?:am|pm))?$/.test(s))return true;
+    return false;
+  },
   isReceiptMeta(value){
     const s=this.normalizeText(value).replace(/^[\s:|>._-]+|[\s:|>._-]+$/g,'').trim();
     if(!s)return true;
+    if(this.isDateTimeLike(s))return true;
     if(this.receiptMetaRe().test(s))return true;
     if(/^(?:qris\s+)?(?:payment|transaction)\s+(?:successful|successfull|success|berhasil|completed|failed|gagal|pending)$/i.test(s))return true;
 
@@ -2497,6 +2509,7 @@ const OCR = {
     s=s.replace(/\s+(?:rp|idr|usd|nominal|amount|jumlah|tanggal|tgl|date|status|saldo|balance)\b.*$/i,'').trim();
     s=s.replace(/[\s\-:|]+$/g,'').trim();
     if(!s||s.length<2||s.length>140)return '';
+    if(this.isDateTimeLike(s))return '';
     if(this.isReceiptMeta(s)||this.isBankHeader(s))return '';
     if(/^(?:qris\s+)?(?:payment|transaction)\s+(?:successful|successfull|success|berhasil|completed)$/i.test(s))return '';
     if(/^(?:tujuan\s+pembayaran\s*\/\s*merchant|tujuan\s+pembayaran|payment\s+merchant|merchant\s+name|bill\s+details(?:\s+qr)?(?:\s*[-–]\s*commerce)?)$/i.test(s))return '';
@@ -2578,6 +2591,7 @@ const OCR = {
     // Known merchant/brand text has higher confidence than a location such as "Outlet Bintaro".
     for(const [re,name] of known)if(re.test(raw))return name;
 
+    // Unknown merchant is intentionally left blank rather than guessing from arbitrary OCR lines.
     const labels=['merchant name','merchant','nama merchant','store name','nama toko','toko'];
     for(let i=0;i<lines.length;i++){
       const line=lines[i];
@@ -2600,6 +2614,7 @@ const OCR = {
     let s=this.normalizeText(value).replace(/^[\-:|>"']+|[\-:|>"']+$/g,'').trim();
     s=s.replace(/\b(?:rrn|reference|transaction\s*type|terminal(?:\s*id)?|merchant\s*id|acquirer|approval|invoice|receipt|batch|trace|stan)\b.*$/i,'').trim();
     if(!s||s.length<2||s.length>120)return '';
+    if(this.isDateTimeLike(s))return '';
     if(this.isReceiptMeta(s)||this.isBankHeader(s))return '';
     if(/^\d[\d\s.,\-\/]*$/.test(s))return '';
     if(/^(?:payment|to|from|transfer|successful|success|berhasil|completed|transaction)$/i.test(s))return '';
