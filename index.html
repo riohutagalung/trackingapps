@@ -2369,6 +2369,8 @@ const OCR = {
       if(labelStrong.test(line))score+=105;
       if(labelOnly.test(line))score+=55;
       if(/(?:rp|idr|rupiah|usd|sgd|myr|eur|gbp|jpy)\b|[$€£¥]/i.test(rawNum))score+=35;
+      // Currency may be outside rawNum because the regex captures only the digits.
+      if(/(?:^|[\s(:])(?:rp\.?|idr|rupiah)\s*[0-9]/i.test(line))score+=35;
       if(/(?:transfer|payment|paid|pembayaran|debit)/i.test(line))score+=18;
       if(negative.test(line))score-=90;
       if(idx>=Math.max(0,lines.length-6))score+=5;
@@ -2376,6 +2378,9 @@ const OCR = {
     };
     for(let i=0;i<lines.length;i++){
       const line=lines[i];
+      // Explicit currency tokens get priority over account/reference numbers.
+      const currency=[...line.matchAll(/(?:rp\.?|idr|rupiah)\s*([0-9][0-9.,]*)/gi)];
+      for(const m of currency)consider(m[1],line,i,70);
       const direct=[...line.matchAll(/(?:rp\.?|idr|rupiah|usd|sgd|myr|eur|gbp|jpy|\$|€|£|¥)?\s*([0-9][0-9.,]*)/gi)];
       for(const m of direct)consider(m[1],line,i,0);
       if(labelOnly.test(line)&&i+1<lines.length){
@@ -2513,11 +2518,23 @@ const OCR = {
     if(terminalMeta)return 'merchant';
     return 'unknown';
   },
+  isMoneyLike(value){
+    const s=this.normalizeText(value);
+    if(!s)return false;
+    return /(?:^|[\s:(])(?:rp\.?|idr|rupiah)\s*[0-9][0-9.,]*/i.test(s)
+      || /[0-9][0-9.,]*\s*(?:rp\.?|idr|rupiah)\b/i.test(s);
+  },
   cleanRecipient(value){
     let s=this.normalizeText(value).replace(/^[\-:|>"']+|[\-:|>"']+$/g,'').trim();
     s=s.replace(/^(?:(?:payment|paid|pay|sent|send|transfer(?:red)?|dikirim|ditransfer)\s*)?(?:(?:to|recipient|penerima|beneficiary|receiver|payee|tujuan|kepada|ke)\b)\s*[:=\-]?\s*/i,'').trim();
     s=s.replace(/^(?:payment|paid)\s+from\s*[:=\-]?\s*/i,'').trim();
     s=s.replace(/\b(?:no\.?\s*rekening|no\.?\s*rek|rekening|account(?:\s*(?:no|number))?|a\/c)\s*[:#\-]?\s*[0-9xX* .\-]{6,}\b/ig,'').trim();
+    // Reject OCR values that are actually money + bank header, e.g. "IDR27,200.00 BCA".
+    if(this.isMoneyLike(s)){
+      s=s.replace(/^(?:rp\.?|idr|rupiah)\s*[0-9][0-9.,]*/i,'').trim();
+      s=s.replace(/[0-9][0-9.,]*\s*(?:rp\.?|idr|rupiah)\b$/i,'').trim();
+      if(this.isMoneyLike(s))return '';
+    }
     s=s.replace(/\s+(?:rp|idr|usd|nominal|amount|jumlah|tanggal|tgl|date|status|saldo|balance)\b.*$/i,'').trim();
     s=s.replace(/[\s\-:|]+$/g,'').trim();
     if(!s||s.length<2||s.length>140)return '';
@@ -2627,6 +2644,7 @@ const OCR = {
   cleanMerchant(value){
     let s=this.normalizeText(value).replace(/^[\-:|>"']+|[\-:|>"']+$/g,'').trim();
     s=s.replace(/\b(?:rrn|reference|transaction\s*type|terminal(?:\s*id)?|merchant\s*id|acquirer|approval|invoice|receipt|batch|trace|stan)\b.*$/i,'').trim();
+    if(this.isMoneyLike(s))return '';
     if(!s||s.length<2||s.length>120)return '';
     if(this.isDateTimeLike(s))return '';
     if(this.isReceiptMeta(s)||this.isBankHeader(s))return '';
