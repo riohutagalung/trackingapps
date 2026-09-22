@@ -10,7 +10,11 @@
     "cap:copy": "npm run native:prepare && npx cap copy",
     "cap:open:android": "npx cap open android",
     "cap:open:ios": "npx cap open ios",
-    "postinstall": "node scripts/patch-capgo-ios.mjs"
+    "postinstall": "node scripts/patch-capgo-ios.mjs",
+    "ios:prepare": "npm run native:prepare && npx cap sync ios",
+    "ios:doctor": "node scripts/verify-ios.mjs",
+    "ios:open": "npx cap open ios",
+    "ios:build:sim": "xcodebuild -project ios/App/App.xcodeproj -scheme App -sdk iphonesimulator -configuration Debug -derivedDataPath ios/build CODE_SIGNING_ALLOWED=NO"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.1",
