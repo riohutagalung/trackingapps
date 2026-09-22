@@ -2502,6 +2502,7 @@ const OCR = {
     if(/^(?:tujuan\s+pembayaran\s*\/\s*merchant|tujuan\s+pembayaran|payment\s+merchant|merchant\s+name|bill\s+details(?:\s+qr)?(?:\s*[-–]\s*commerce)?)$/i.test(s))return '';
     if(/^\d[\d\s.,\-\/]*$/.test(s))return '';
     if(/^(?:payment|payment\s*to|payment\s*from|to|from|recipient|penerima|beneficiary|receiver|payee|tujuan|nominal|amount|jumlah|saldo|balance|tanggal|tgl|date|status|success|berhasil|completed|transfer|acquirer|rrn|transaction\s*type)$/i.test(s))return '';
+    if(/^(?:pembayaran\s*\/\s*merchant|tujuan\s+pembayaran\s*\/\s*merchant|qr\s*[-–]\s*commerce|commerce)$/i.test(s))return '';
     if(/\b(?:otp|pin|password|kode akses|reference|referensi)\b/i.test(s))return '';
     return /[A-Za-zÀ-ÿ]/.test(s)?s:'';
   },
@@ -2512,9 +2513,10 @@ const OCR = {
     const labels=[
       'payment to','paymentto','payment recipient','paid to','pay to','sent to','send to',
       'transfer to','transferred to','transfer ke','transfer kepada','ditransfer ke','ditransfer kepada',
-      'dikirim ke','dikirim kepada','penerima','beneficiary','recipient','receiver','payee',
-      'tujuan','tujuan pembayaran','tujuan pembayaran / merchant','nama penerima','nama tujuan','kepada',
-      'bill details','bill details qr','bill details qr - commerce'
+      'dikirim ke','dikirim kepada','tujuan pembayaran / merchant','tujuan pembayaran',
+      'payment merchant name','payment merchant','merchant name','bill details qr - commerce','bill details qr','bill details',
+      'nama penerima','nama tujuan','penerima','beneficiary','recipient','receiver','payee',
+      'rekening tujuan','nama rekening tujuan','nomor rekening tujuan','tujuan','kepada'
     ];
     const normalizeLabel=(s)=>this.normalizeText(s).toLowerCase().replace(/["']/g,'').replace(/[\s:_=|>\-]+/g,' ').trim();
     const metadataBoundary=/\b(?:acquirer|acq(?:uirer)?|rrn|reference|transaction\s*type|terminal(?:\s*id)?|merchant\s*id|issuer|approval(?:\s*code)?|auth(?:orization)?(?:\s*code)?|invoice|receipt|batch|trace|stan)\b/i;
@@ -2606,23 +2608,38 @@ const OCR = {
   extractPurchaseDetail(text){
     const raw=String(text||'');
     const lines=raw.split(/\r?\n/).map(x=>this.normalizeText(x)).filter(Boolean);
-    const labels=['item','items','produk','product','menu','barang','description','desc','nama barang','nama produk','order'];
-    for(let i=0;i<lines.length;i++){
-      const line=lines[i];
-      for(const label of labels){
-        const re=new RegExp('^'+label.replace(/\s+/g,'\\s*')+'\\s*[:=>\\-]?\\s*(.*)$','i');
-        const m=line.match(re);
-        if(m){
-          const inline=this.cleanMerchant(m[1]||'');
-          if(inline&&!this.isMoneyOrTotalLine(inline))return inline;
-          for(let j=1;j<=4;j++){
-            const s=this.cleanMerchant(lines[i+j]||'');
-            if(s&&!this.isMoneyOrTotalLine(s))return s;
-          }
+    const items=[];
+    const add=(x)=>{
+      const s=this.cleanMerchant(x);
+      if(s&&!this.isReceiptMeta(s)&&!this.isMoneyOrTotalLine(s)&&!items.includes(s))items.push(s);
+    };
+    const label=/^(?:item|items|produk|product|menu|barang|description|desc|nama barang|nama produk|order)\s*[:=>\-]?\s*(.*)$/i;
+    for(let i=0;i<lines.length&&items.length<5;i++){
+      const m=lines[i].match(label);
+      if(!m)continue;
+      if(m[1])add(m[1]);
+      else for(let j=1;j<=5&&i+j<lines.length;j++){add(lines[i+j]);}
+    }
+    for(let i=0;i<lines.length&&items.length<5;i++){
+      const m=lines[i].match(/^(.+?)\s+(\d+(?:[.,]\d+)?)\s*[xX]\s*(?:rp\.?\s*)?([\d.,]+)(?:\s+(?:rp\.?\s*)?[\d.,]+)?\s*$/i);
+      if(m){
+        const name=this.cleanMerchant(m[1]);
+        if(name&&!this.isMoneyOrTotalLine(name)){
+          const qty=m[2],unit=m[3].replace(/[^0-9]/g,'');
+          items.push(name+' x'+qty+' (Rp'+Number(unit||0).toLocaleString('id-ID')+')');
         }
       }
     }
-    return '';
+    for(let i=0;i<lines.length&&items.length<5;i++){
+      const m=lines[i].match(/^(?:rp\.?\s*)?(\d+)\s*[xX]\s*(?:rp\.?\s*)?([\d.,]+)(?:\s+(?:rp\.?\s*)?[\d.,]+)?\s*$/i);
+      if(!m||i===0)continue;
+      const name=this.cleanMerchant(lines[i-1]);
+      if(!name||this.isMoneyOrTotalLine(name))continue;
+      const unit=m[2].replace(/[^0-9]/g,'');
+      const item=name+' x'+m[1]+' (Rp'+Number(unit||0).toLocaleString('id-ID')+')';
+      if(!items.includes(item))items.push(item);
+    }
+    return items.join(', ');
   },
   isMoneyOrTotalLine(value){
     const s=this.normalizeText(value);
