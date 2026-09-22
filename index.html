@@ -1487,7 +1487,7 @@ const RH_GPS_CFG = Object.freeze({
   maxSegmentSpeedKmh: 320,
   maxProviderSpeedKmh: 320,
   stationaryRadiusM: 5,
-  stationarySpeedKmh: 15,
+  stationarySpeedKmh: 3,
   movingSpeedKmh: 3,
   maxGapForDistanceS: 90,
   maxGapForMovingS: 90,
@@ -1606,7 +1606,10 @@ function RHFilterGpsTrack(points) {
     const provider=p.providerSpeedKmh;
     const providerUsable=isFinite(provider) && provider>=0 && provider<=RH_GPS_CFG.maxProviderSpeedKmh &&
       (!isFinite(Number(p.accuracy)) || Number(p.accuracy)<=RH_GPS_CFG.maxAccuracyM);
-    const stationary=dMeters<=jitterRadius && (segmentSpeed<RH_GPS_CFG.stationarySpeedKmh || (isFinite(provider) && provider<5));
+    const stationary=dMeters<=jitterRadius && (
+      segmentSpeed<RH_GPS_CFG.stationarySpeedKmh &&
+      (!providerUsable || provider<RH_GPS_CFG.stationarySpeedKmh)
+    );
 
     let speed=segmentSpeed;
     if(providerUsable){
@@ -1678,9 +1681,13 @@ function RHComputeGpsMetrics(points,startMs,endMs){
           RH_GPS_CFG.stationaryRadiusM,
           Math.min(20, Number(p.accuracy||0)>0 ? Number(p.accuracy)*0.15 : RH_GPS_CFG.stationaryRadiusM)
         );
-        if(!(dMeters<=jitterRadius && segmentSpeed<RH_GPS_CFG.stationarySpeedKmh)) distance+=d;
-
-        // Stateful moving detection: a short speed dip does not immediately become a stop.
+        const providerSpeed=RHGpsProviderSpeedKmh(p);
+        const providerMoving=isFinite(providerSpeed) && providerSpeed>=RH_GPS_CFG.movingSpeedKmh && providerSpeed<=RH_GPS_CFG.maxProviderSpeedKmh;
+        const movementEvidence=(providerMoving || segmentSpeed>=RH_GPS_CFG.movingSpeedKmh);
+        // A point inside the GPS jitter radius is still real movement when the
+        // provider/segment speed proves the phone is moving. This prevents the
+        // old 15 km/h stationary threshold from erasing slow scooter traffic.
+        if(!(dMeters<=jitterRadius && !movementEvidence)) distance+=d; a short speed dip does not immediately become a stop.
         // A fix is considered moving when its validated speed is moving-speed OR the net
         // displacement over the last ~10s reaches 10m (OpenTracks-inspired principle).
         let anchor=track[Math.max(0,i-1)];
@@ -1690,8 +1697,6 @@ function RHComputeGpsMetrics(points,startMs,endMs){
         }
         const windowMove=anchor?Haversine(anchor.lat,anchor.lng,p.lat,p.lng)*1000:0;
         const movingEvidence=speed>=RH_GPS_CFG.movingSpeedKmh || windowMove>=RH_GPS_CFG.movementDistanceM;
-        const wasMoving=prevSpeed>=RH_GPS_CFG.movingSpeedKmh || (idleStarted===null);
-
         if(movingEvidence){
           if(idleStarted!==null && (p.time-idleStarted)>=60000)stopCount++;
           idleStarted=null;
