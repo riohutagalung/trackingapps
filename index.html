@@ -2268,14 +2268,26 @@ const OCR = {
 
       const rawText=String(r.text||'');
       const p=this.enrichParsed(r.parsed||{},rawText);
-      const brandOrRecipient=String(p.recipient||p.brand||'').trim();
+
+      // OCR result is authoritative for the scanned transaction. Never keep
+      // an old Brand/Detail/Note from a previous scan when the new parser says blank.
+      ['exp-amount','exp-date','exp-brand','exp-detail','exp-note','exp-receipt-url'].forEach(id=>{
+        const el=document.getElementById(id);
+        if(el)el.value='';
+      });
+      const catEl=document.getElementById('exp-category');
+      if(catEl)catEl.value='Lainnya';
+
+      const safeBrand=this.isDateTimeLike(p.brand)?'':String(p.brand||'').trim();
+      const safeRecipient=this.isDateTimeLike(p.recipient)?'':String(p.recipient||'').trim();
+      const brandOrRecipient=safeRecipient||safeBrand;
 
       if(p.amount)document.getElementById('exp-amount').value=p.amount;
       if(p.date&&/^\d{4}-\d{2}-\d{2}$/.test(p.date))document.getElementById('exp-date').value=p.date;
       if(p.category)document.getElementById('exp-category').value=p.category;
-      if(brandOrRecipient)document.getElementById('exp-brand').value=brandOrRecipient;
-      if(p.detail)document.getElementById('exp-detail').value=p.detail;
-      if(p.note)document.getElementById('exp-note').value=p.note;
+      document.getElementById('exp-brand').value=brandOrRecipient;
+      document.getElementById('exp-detail').value=String(p.detail||'');
+      document.getElementById('exp-note').value=String(p.note||'');
       if(r.receiptUrl)document.getElementById('exp-receipt-url').value=r.receiptUrl;
       document.getElementById('exp-category').dispatchEvent(new Event('change'));
 
@@ -2686,6 +2698,8 @@ const OCR = {
     const mode=(serverMode==='financial'||serverMode==='merchant'||serverMode==='unknown')?serverMode:this.classifyReceiptMode(raw);
     const serverRecipient=this.cleanRecipient(p.recipient||'');
     const serverBrand=this.cleanMerchant(p.brand||'');
+    if(this.isDateTimeLike(serverRecipient)) delete p.recipient;
+    if(this.isDateTimeLike(serverBrand)) p.brand='';
     const amount=this.extractAmount(raw);
     const date=this.extractDate(raw);
     if(amount)p.amount=amount;
