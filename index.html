@@ -2321,7 +2321,10 @@ const OCR = {
     const ctx=String(textContext||'').toUpperCase();
     const isIDR=/\b(?:IDR|RP|RUPIAH)\b|\bRP\.?\s*[0-9]/.test(ctx);
     const lc=s.lastIndexOf(','), ld=s.lastIndexOf('.');
-    if(isIDR || (lc>=0 && ld>=0 && Math.max(lc,ld)!==-1 && (s.length-Math.max(lc,ld)-1)===3)){
+    if(isIDR){
+      const lastSep=Math.max(lc,ld);
+      const tail=lastSep>=0?s.slice(lastSep+1):'';
+      if(lastSep>=0 && tail.length===2 && /^\\d{2}$/.test(tail)) s=s.slice(0,lastSep);
       const digits=s.replace(/[^0-9]/g,'');
       return Number(digits||0);
     }
