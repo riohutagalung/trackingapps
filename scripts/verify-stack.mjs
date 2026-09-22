@@ -143,6 +143,7 @@ async function request(label, url, options = {}, retryPreview = true) {
 }
 
 const page = await request('Vercel HTML', VERCEL + '/?verify=20260922');
+const LIVE_VERCEL = page.r?.url || VERCEL;
 
 if (page.text.includes(OLD_GAS)) {
   throw new Error('Live HTML masih mengandung Apps Script deployment lama.');
@@ -160,18 +161,18 @@ if (!page.text.includes('renderPublicTransport(p)')) {
   throw new Error('Live index belum memuat App.renderPublicTransport.');
 }
 
-await request('Vercel health', VERCEL + '/api/health');
-await request('Vercel GAS health', VERCEL + '/api/health?probe=gas');
-await request('Manifest', VERCEL + '/manifest.json');
+await request('Vercel health', LIVE_VERCEL + '/api/health');
+await request('Vercel GAS health', LIVE_VERCEL + '/api/health?probe=gas');
+await request('Manifest', LIVE_VERCEL + '/manifest.json');
 await request('Apps Script GET ping', GAS + '?fn=ping&args=' + encodeURIComponent('[]'));
 await request(
   'Apps Script GET getTripMapsUrl',
   GAS + '?fn=getTripMapsUrl&args=' + encodeURIComponent(JSON.stringify([[],'A','B']))
 );
-await request('Vercel RPC GET ping', VERCEL + '/api/rpc?fn=ping&args=' + encodeURIComponent('[]'));
+await request('Vercel RPC GET ping', LIVE_VERCEL + '/api/rpc?fn=ping&args=' + encodeURIComponent('[]'));
 await request(
   'Vercel RPC POST ping',
-  VERCEL + '/api/rpc',
+  LIVE_VERCEL + '/api/rpc',
   {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
@@ -180,7 +181,7 @@ await request(
 );
 await request(
   'Vercel RPC POST getTripMapsUrl',
-  VERCEL + '/api/rpc',
+  LIVE_VERCEL + '/api/rpc',
   {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
@@ -189,13 +190,13 @@ await request(
 );
 await request(
   'Vercel RPC POST getBootstrap',
-  VERCEL + '/api/rpc',
+  LIVE_VERCEL + '/api/rpc',
   {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
     body: JSON.stringify({ fn: 'getBootstrap', args: [] })
   }
 );
-await request('Vercel native-location GET', VERCEL + '/api/native-location');
+await request('Vercel native-location GET', LIVE_VERCEL + '/api/native-location');
 
 console.log('\n[RH] verify-stack finished OK');
