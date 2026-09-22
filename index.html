@@ -800,6 +800,18 @@ body.device-android .mobile-header { padding-top:12px; }
 .trip-gps-fact span { display:block; font-size:8px; color:var(--muted); letter-spacing:.4px; }
 .trip-gps-fact b { display:block; margin-top:4px; font-size:10.5px; word-break:break-word; }
 .trip-data-note { margin-top:9px; padding:8px 10px; border-radius:10px; background:rgba(67,170,255,.05); color:var(--muted); font-size:9px; line-height:1.5; }
+.traffic-choice-list { display:grid; gap:10px; margin-top:12px; }
+.traffic-choice {
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:12px 13px; border:1px solid var(--line); border-radius:14px;
+  background:rgba(255,255,255,.018); cursor:pointer; color:inherit; text-decoration:none;
+}
+.traffic-choice:active { transform:translateY(1px); }
+.traffic-choice-main { min-width:0; }
+.traffic-choice-title { display:flex; align-items:center; gap:7px; font-size:12px; font-weight:800; }
+.traffic-choice-sub { margin-top:4px; color:var(--muted); font-size:9.5px; line-height:1.45; }
+.traffic-choice-arrow { flex:0 0 auto; color:var(--muted); font-size:18px; }
+.traffic-choice-note { margin-top:10px; color:var(--dim); font-size:8.5px; line-height:1.45; }
 .trip-summary-metrics { display:flex; gap:10px; flex:0 0 auto; }
 .trip-summary-metric { text-align:right; min-width:55px; }
 .trip-summary-metric span { display:block; font-size:8px; color:var(--muted); letter-spacing:.5px; }
@@ -874,7 +886,6 @@ body.device-android .mobile-header { padding-top:12px; }
         </div>
         <div class="mobile-header-right">
           <span class="mobile-connection" id="mobile-connection"><span class="mobile-connection-dot"></span><span id="mobile-status-text">Menghubungkan...</span></span>
-          <span class="mobile-device-badge" id="mobile-device-badge">WEB</span>
           <button class="mobile-refresh-btn" type="button" aria-label="Refresh data" onclick="App.refresh()"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.7-4.2L4 9"/><path d="M4 4v5h5"/><path d="M4 13a8 8 0 0 0 14.7 4.2L20 15"/><path d="M20 20v-5h-5"/></svg></button>
         </div>
       </div>
@@ -1170,7 +1181,7 @@ body.device-android .mobile-header { padding-top:12px; }
 <div id="traffic-modal" class="modal"><div class="modal-box">
   <h3 class="modal-title">Cek Rute Live</h3><div class="modal-sub" id="traffic-modal-sub">Memeriksa rute...</div>
   <div id="traffic-modal-content"></div>
-  <div style="display:flex;gap:8px;margin-top:16px"><button class="btn small" id="traffic-open-maps" type="button">Buka Google Maps Live</button><button class="btn full" onclick="App.closeModal('traffic-modal')">Tutup</button></div>
+  <div style="margin-top:16px"><button class="btn full" onclick="App.closeModal('traffic-modal')">Tutup</button></div>
 </div></div>
 
 <div id="history-modal" class="modal">
@@ -1520,38 +1531,83 @@ const App = {
 };
 
 const Traffic = {
+  mapsUrl(direction, travelmode='driving'){
+    const c=App.config||{};
+    const origin=direction==='home-office'?(c.home||{}):(c.office||{});
+    const destination=direction==='home-office'?(c.office||{}):(c.home||{});
+    return 'https://www.google.com/maps/dir/?api=1'
+      +'&origin='+encodeURIComponent(origin.address||((origin.lat||'')+','+(origin.lng||'')))
+      +'&destination='+encodeURIComponent(destination.address||((destination.lat||'')+','+(destination.lng||'')))
+      +'&travelmode='+encodeURIComponent(travelmode);
+  },
+  openMaps(direction, travelmode='driving'){
+    const url=this.mapsUrl(direction,travelmode);
+    window.open(url,'_blank','noopener');
+  },
+  smoothestRoute(routes){
+    return (Array.isArray(routes)?routes:[]).filter(x=>x&&Number(x.durationMin)>0).sort((a,b)=>{
+      const da=Number(a.trafficDelayMin||0), db=Number(b.trafficDelayMin||0);
+      if(da!==db)return da-db;
+      return Number(a.durationMin||0)-Number(b.durationMin||0);
+    })[0]||null;
+  },
+  routeCard(title,subtitle,direction,mode){
+    return `<a class="traffic-choice" href="${EscAttr(this.mapsUrl(direction,mode))}" target="_blank" rel="noopener">
+      <div class="traffic-choice-main">
+        <div class="traffic-choice-title">${Icon(mode==='two-wheeler'?'navigation':'route',15)} ${Esc(title)}</div>
+        <div class="traffic-choice-sub">${Esc(subtitle)}</div>
+      </div>
+      <div class="traffic-choice-arrow">›</div>
+    </a>`;
+  },
   check(direction){
     const modal=document.getElementById('traffic-modal'); modal.classList.add('active');
-    document.getElementById('traffic-modal-sub').textContent='Menganalisis traffic + habit perjalanan...';
-    document.getElementById('traffic-modal-content').innerHTML='<div class="empty">Sedang mengambil rute...</div>';
-    const mapBtn=document.getElementById('traffic-open-maps'); if(mapBtn) mapBtn.onclick=()=>this.openMaps(direction);
+    document.getElementById('traffic-modal-sub').textContent='Menganalisis rute saat ini...';
+    document.getElementById('traffic-modal-content').innerHTML='<div class="empty">Sedang mengambil data traffic...</div>';
     google.script.run.withSuccessHandler(r=>{
-      const t=r?.traffic||{}, rec=r?.recommendation||{}, habits=r?.habits||[];
-      document.getElementById('traffic-modal-sub').textContent=t.origin&&t.destination?`${t.origin} → ${t.destination}`:'Rekomendasi perjalanan';
-      let html=rec.hasHistory ? `<div class="habit"><b>${Icon('route',15)} ${Esc(rec.habitLevel==='habit'?'Habit rute':rec.habitLevel==='mulai-habit'?'Rute mulai menjadi habit':'Baseline rute tercatat')}</b><span>${Esc(rec.message||'')}</span>${rec.avgSpeed?'<small style="display:block;margin-top:6px;color:var(--dim)">Avg '+Num(rec.avgSpeed,1)+' km/h • Max avg '+Num(rec.avgMaxSpeed||0,1)+' km/h • Moving '+Num(rec.avgMovingTime||0,1)+' menit</small>':''}</div>` : `<div class="habit"><b>${Icon('route',15)} Belum ada rekaman rute</b><span>Mulai satu Trip GPS untuk membuat baseline jarak, durasi, moving time, dan kecepatan.</span></div>`;
-      if(t.mode==='builtin'&&t.message) html+=`<div class="traffic-note" style="margin-bottom:10px">${Esc(t.message)}</div>`;
-      const routes=t.routes||[];
-      html+=routes.length?routes.map((x,i)=>`<div class="route-row" style="margin-top:8px"><div><div class="route-name">${i===0?'Rekomendasi tercepat':Esc(x.description||'Alternatif')}</div><div class="route-sub">${Num(x.distanceKm,1)} km • +${Num(x.trafficDelayMin,0)} mnt traffic</div></div><div class="eta"><strong>${Num(x.durationMin,0)} mnt</strong><span>ETA</span></div></div>`).join(''):`<div class="empty">${Esc(t.message||'Estimasi belum tersedia. Gunakan tombol Buka Navigasi untuk traffic live Google Maps.')}</div>`;
-      if(habits.length) html+=`<div class="eyebrow" style="margin-top:14px">HISTORY YANG MENDUKUNG REKOMENDASI</div>`+habits.slice(0,4).map(h=>`<div class="habit"><b>${Esc(h.routeName)}</b><span>${Num(h.avgDur||0,1)} menit • ${Num(h.avgDistance||h.avgDist||0,1)} km • ${Num(h.frequency||h.freq||0,0)}x</span></div>`).join('');
+      const t=r?.traffic||{}, habits=r?.habits||[];
+      const routes=Array.isArray(t.routes)?t.routes.slice():[];
+      routes.sort((a,b)=>Number(a.durationMin||0)-Number(b.durationMin||0));
+      const fastestCar=routes[0]||null;
+      const smooth=this.smoothestRoute(routes);
+      document.getElementById('traffic-modal-sub').textContent=t.origin&&t.destination?(`${t.origin} → ${t.destination}`):'Pilih cara perjalanan';
+      const carFastSub=fastestCar
+        ? `${Num(fastestCar.distanceKm,1)} km • ${Num(fastestCar.durationMin,0)} mnt${Number(fastestCar.trafficDelayMin||0)?' • traffic +'+Num(fastestCar.trafficDelayMin,0)+' mnt':''}`
+        : 'Data waktu belum tersedia • buka Google Maps untuk live';
+      const smoothSub=smooth
+        ? `${Num(smooth.distanceKm,1)} km • ${Num(smooth.durationMin,0)} mnt • traffic +${Num(smooth.trafficDelayMin,0)} mnt`
+        : 'Pilih rute dengan kondisi traffic terendah di Google Maps';
+      let html='<div class="traffic-choice-list">';
+      html+=this.routeCard('Motor • rute dua roda','Google Maps menghitung rute motor saat dibuka.',direction,'two-wheeler');
+      html+=this.routeCard('Mobil • tercepat',carFastSub,direction,'driving');
+      html+=this.routeCard('Terlancar • traffic terendah',smoothSub,direction,'driving');
+      html+='</div>';
+      if(habits.length){
+        html+='<div class="eyebrow" style="margin-top:14px">HISTORI PENDUKUNG</div>';
+        html+='<div class="traffic-note">Habit tetap berasal dari perjalanan yang benar-benar tersimpan. Detail histori dibuka dari menu Jalan.</div>';
+      }
+      html+='<div class="traffic-choice-note">Ketuk pilihan untuk langsung membuka Google Maps. Estimasi di sini hanya ditampilkan bila data traffic route engine tersedia.</div>';
       document.getElementById('traffic-modal-content').innerHTML=html;
       const target=direction==='home-office'?'home':'office';
-      if(routes[0]){document.getElementById('traffic-'+target).textContent=Num(routes[0].durationMin,0)+' mnt';document.getElementById('traffic-'+target+'-sub').textContent=`${Num(routes[0].distanceKm,1)} km • +${Num(routes[0].trafficDelayMin,0)} mnt`;}
-      else{document.getElementById('traffic-'+target).textContent=rec.avgDuration?Num(rec.avgDuration,0)+' mnt':'—';document.getElementById('traffic-'+target+'-sub').textContent=rec.hasHistory?'berdasarkan habit':'buka Maps untuk live';}
+      if(fastestCar){
+        document.getElementById('traffic-'+target).textContent=Num(fastestCar.durationMin,0)+' mnt';
+        document.getElementById('traffic-'+target+'-sub').textContent=`${Num(fastestCar.distanceKm,1)} km • traffic +${Num(fastestCar.trafficDelayMin||0,0)} mnt`;
+      }else{
+        document.getElementById('traffic-'+target).textContent='Maps';
+        document.getElementById('traffic-'+target+'-sub').textContent='live via Google Maps';
+      }
     }).withFailureHandler(e=>{
       const target=direction==='home-office'?'home':'office';
       const msg=(e&&e.message)||String(e)||'Rute tidak tersedia';
       document.getElementById('traffic-modal-sub').textContent='Google Maps siap untuk navigasi live';
-      document.getElementById('traffic-modal-content').innerHTML=`<div class="habit"><b>${Icon('route',15)} Data route engine belum tersedia</b><span>${Esc(msg)}</span></div><div class="traffic-note">Tanpa Google Routes API, RH Habits tidak membaca traffic live ke dalam dashboard. Tombol <b>Buka Google Maps Live</b> di bawah tetap membuka Google Maps untuk kondisi lalu lintas dan navigasi.</div>`;
+      document.getElementById('traffic-modal-content').innerHTML='<div class="traffic-choice-list">'
+        +this.routeCard('Motor • rute dua roda','Google Maps menghitung rute motor saat dibuka.',direction,'two-wheeler')
+        +this.routeCard('Mobil • rute live','Buka Google Maps untuk kondisi terkini.',direction,'driving')
+        +this.routeCard('Terlancar • cek traffic live',msg,direction,'driving')
+        +'</div>';
       document.getElementById('traffic-'+target).textContent='Maps';
       document.getElementById('traffic-'+target+'-sub').textContent='live via Google Maps';
     }).getRouteSuggestion(direction);
-  },
-  openMaps(direction){
-    const c=App.config||{};
-    const origin=direction==='home-office'?(c.home||{}):(c.office||{});
-    const destination=direction==='home-office'?(c.office||{}):(c.home||{});
-    const url='https://www.google.com/maps/dir/?api=1&origin='+encodeURIComponent(origin.address||((origin.lat||'')+','+(origin.lng||'')))+'&destination='+encodeURIComponent(destination.address||((destination.lat||'')+','+(destination.lng||'')))+'&travelmode=driving';
-    window.open(url,'_blank','noopener');
   }
 };
 
@@ -2153,66 +2209,86 @@ const OCR = {
   },
   processBase64(base64, mimeType) {
     if (!base64) { App.toast('Foto kosong.'); return Promise.resolve(); }
-    document.getElementById('ocr-label').textContent = 'Membaca struk di server...';
+    document.getElementById('ocr-label').textContent = 'Mengompres & membaca struk...';
     document.getElementById('ocr-progress').style.display = 'block';
-    document.getElementById('ocr-bar').style.width = '30%';
-    return new Promise((resolve,reject)=>{
-      google.script.run.withSuccessHandler(r => {
-        document.getElementById('ocr-bar').style.width = '100%';
-        if (!r || !r.ok) {
-          const msg=(r&&r.error)||'OCR tidak menemukan teks atau gagal membaca.';
-          document.getElementById('ocr-label').textContent='Foto atau unggah struk kembali';
-          document.getElementById('ocr-detection')?.classList.remove('show');
-          setTimeout(()=>document.getElementById('ocr-progress').style.display='none',1200);
-          App.toast(msg); reject(new Error(msg)); return;
-        }
-        const p=r.parsed||{};
-        if(p.amount)document.getElementById('exp-amount').value=p.amount;
-        if(p.date&&/^\d{4}-\d{2}-\d{2}$/.test(p.date))document.getElementById('exp-date').value=p.date;
-        if(p.category)document.getElementById('exp-category').value=p.category;
-        if(p.brand)document.getElementById('exp-brand').value=p.brand;
-        if(p.detail)document.getElementById('exp-detail').value=p.detail;
-        if(p.note)document.getElementById('exp-note').value=p.note;
-        if(r.receiptUrl)document.getElementById('exp-receipt-url').value=r.receiptUrl;
-        document.getElementById('exp-category').dispatchEvent(new Event('change'));
-        const det=document.getElementById('ocr-detection');
-        if(det){const bits=[];if(p.brand)bits.push('Brand/Penerima: '+Esc(p.brand));if(p.date)bits.push('Tanggal: '+Esc(p.date));if(p.amount)bits.push('Nominal: '+Money(p.amount));if(p.category)bits.push('Kategori: '+Esc(p.category));if(p.detail)bits.push('Detail: '+Esc(p.detail));det.innerHTML=bits.join('<br>');det.classList.toggle('show',!!bits.length);}
-        App.saveDraft();
-        ['field-amount','field-date','field-cat','field-brand'].forEach(id=>{const el=document.getElementById(id);if(el){el.classList.remove('field-highlight');void el.offsetWidth;el.classList.add('field-highlight');}});
-        document.getElementById('ocr-label').textContent='✓ Struk berhasil dianalisis!';
-        App.toast('Data struk berhasil diekstrak!');
-        setTimeout(()=>document.getElementById('ocr-progress').style.display='none',1500);
-        resolve(r);
-      }).withFailureHandler(e=>{
-        document.getElementById('ocr-label').textContent='Gagal membaca struk';
-        document.getElementById('ocr-progress').style.display='none';
-        App.error(e); reject(e);
-      }).analyzeReceipt(base64,mimeType||'image/jpeg');
-    });
+    document.getElementById('ocr-bar').style.width = '15%';
+    const send=(optimized)=>{
+      document.getElementById('ocr-bar').style.width = '30%';
+      return new Promise((resolve,reject)=>{
+        google.script.run.withSuccessHandler(r => {
+          document.getElementById('ocr-bar').style.width = '100%';
+          if (!r || !r.ok) {
+            const msg=(r&&r.error)||'OCR tidak menemukan teks atau gagal membaca.';
+            document.getElementById('ocr-label').textContent='Foto atau unggah struk kembali';
+            document.getElementById('ocr-detection')?.classList.remove('show');
+            setTimeout(()=>document.getElementById('ocr-progress').style.display='none',1200);
+            App.toast(msg); reject(new Error(msg)); return;
+          }
+          const p=r.parsed||{};
+          const ocrText=[r.text,p.brand,p.detail,p.note].filter(Boolean).join(' ');
+          if(/\b(pertamina|spbu|shell|vivo|bp(?:\s*9[025])?|pertamax|pertalite|dexlite|v-power|revvo|solar|bbm|bensin)\b/i.test(ocrText)) p.category='Bensin';
+          if(p.amount)document.getElementById('exp-amount').value=p.amount;
+          if(p.date&&/^\d{4}-\d{2}-\d{2}$/.test(p.date))document.getElementById('exp-date').value=p.date;
+          if(p.category)document.getElementById('exp-category').value=p.category;
+          if(p.brand)document.getElementById('exp-brand').value=p.brand;
+          if(p.detail)document.getElementById('exp-detail').value=p.detail;
+          if(p.note)document.getElementById('exp-note').value=p.note;
+          if(r.receiptUrl)document.getElementById('exp-receipt-url').value=r.receiptUrl;
+          document.getElementById('exp-category').dispatchEvent(new Event('change'));
+          const det=document.getElementById('ocr-detection');
+          if(det){const bits=[];if(p.brand)bits.push('Brand/Penerima: '+Esc(p.brand));if(p.date)bits.push('Tanggal: '+Esc(p.date));if(p.amount)bits.push('Nominal: '+Money(p.amount));if(p.category)bits.push('Kategori: '+Esc(p.category));if(p.detail)bits.push('Detail: '+Esc(p.detail));det.innerHTML=bits.join('<br>');det.classList.toggle('show',!!bits.length);}
+          App.saveDraft();
+          ['field-amount','field-date','field-cat','field-brand'].forEach(id=>{const el=document.getElementById(id);if(el){el.classList.remove('field-highlight');void el.offsetWidth;el.classList.add('field-highlight');}});
+          document.getElementById('ocr-label').textContent='✓ Struk berhasil dianalisis!';
+          App.toast('Data struk berhasil diekstrak!');
+          setTimeout(()=>document.getElementById('ocr-progress').style.display='none',1500);
+          resolve(r);
+        }).withFailureHandler(e=>{
+          document.getElementById('ocr-label').textContent='Gagal membaca struk';
+          document.getElementById('ocr-progress').style.display='none';
+          App.error(e); reject(e);
+        }).analyzeReceipt(optimized,'image/jpeg');
+      });
+    };
+    return this.downscaleBase64(base64, mimeType||'image/jpeg', 1400, 0.78, 700000)
+      .then(optimized=>send(optimized))
+      .catch(reject=>{ document.getElementById('ocr-progress').style.display='none'; throw reject; });
   },
   downscale(file, maxSide, quality) {
     return new Promise((resolve, reject) => {
-      const img = new Image();
       const reader = new FileReader();
       reader.onerror = () => reject(new Error('Gagal membaca file'));
       reader.onload = () => {
-        img.onerror = () => reject(new Error('Gagal memuat gambar'));
-        img.onload = () => {
-          let w = img.width, h = img.height;
-          if (w > maxSide || h > maxSide) {
-            if (w >= h) { h = Math.round(h * (maxSide / w)); w = maxSide; }
-            else { w = Math.round(w * (maxSide / h)); h = maxSide; }
-          }
-          const canvas = document.createElement('canvas');
-          canvas.width = w; canvas.height = h;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, w, h);
-          const dataUrl = canvas.toDataURL('image/jpeg', quality);
-          resolve(dataUrl.split(',')[1]);
-        };
-        img.src = reader.result;
+        this.downscaleBase64(String(reader.result||'').split(',')[1]||'', file.type||'image/jpeg', maxSide||1400, quality||0.78, 700000)
+          .then(resolve).catch(reject);
       };
       reader.readAsDataURL(file);
+    });
+  },
+  downscaleBase64(base64, mimeType, maxSide, quality, maxBytes) {
+    return new Promise((resolve,reject)=>{
+      if(!base64)return reject(new Error('Data foto kosong.'));
+      const img=new Image();
+      img.onerror=()=>reject(new Error('Gagal memuat foto.'));
+      img.onload=()=>{
+        let w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
+        const scale=Math.min(1,Number(maxSide||1400)/Math.max(w,h));
+        w=Math.max(1,Math.round(w*scale)); h=Math.max(1,Math.round(h*scale));
+        let q=Math.max(0.55,Math.min(0.84,Number(quality||0.78)));
+        let data='';
+        for(let i=0;i<7;i++){
+          const canvas=document.createElement('canvas'); canvas.width=w; canvas.height=h;
+          const ctx=canvas.getContext('2d',{alpha:false});
+          ctx.fillStyle='#fff'; ctx.fillRect(0,0,w,h); ctx.drawImage(img,0,0,w,h);
+          data=canvas.toDataURL('image/jpeg',q).split(',')[1]||'';
+          const approxBytes=Math.floor(data.length*0.75);
+          if(approxBytes<=Number(maxBytes||700000))break;
+          if(i%2===1){w=Math.max(720,Math.round(w*0.86));h=Math.max(720,Math.round(h*0.86));}
+          else q=Math.max(0.55,q-0.05);
+        }
+        resolve(data);
+      };
+      img.src='data:'+(mimeType||'image/jpeg')+';base64,'+base64;
     });
   }
 };
