@@ -2348,6 +2348,7 @@ const OCR = {
       if(!rawNum || /[/:]\d/.test(rawNum))return;
       const lineDate=/\b\d{1,4}[\s\.\/\-]\d{1,2}[\s\.\/\-]\d{1,4}\b/.test(line);
       if(lineDate && /\d[\/\-.]\d/.test(rawNum))return;
+      if (/\b(?:tanggal|tgl|date|transaction date|waktu|time)\b/i.test(line) && !/\b(?:nominal|amount|jumlah|nilai transaksi)\b/i.test(line)) return;
       const value=this.parseMoneyToken(rawNum,line);
       if(!(value>=1000) || value>500000000)return;
       let score=Number(bonus||0);
