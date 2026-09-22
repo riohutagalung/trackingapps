@@ -2345,7 +2345,7 @@ const OCR = {
     const lines=raw.split(/\r?\n/).map(x=>this.normalizeText(x)).filter(Boolean);
     const labelStrong=/(nominal|amount|nilai transaksi|transaction amount|payment amount|jumlah transaksi|jumlah transfer|jumlah pembayaran|transfer amount|paid|dibayar|debit|harga|payment|transfer|pembayaran)/i;
     const labelOnly=/^(?:nominal|amount|nilai transaksi|transaction amount|payment amount|jumlah|jumlah transaksi|jumlah transfer|jumlah pembayaran|transfer amount|total|total pembayaran|total bayar|grand total|dibayar|paid|debit|transfer|pembayaran)\s*[:=\-]?$/i;
-    const negative=/(saldo|balance|saldo awal|saldo akhir|biaya|admin|fee|cashback|diskon|potongan|rekening|account|nomor|no\.? rekening|reference|ref\.?|kode|otp|tanggal|tgl|date|waktu|time|recipient|penerima|beneficiary|payment\s+to|paymentto|\bto\b|\bfrom\b)/i;
+    const negative=/(saldo|balance|saldo awal|saldo akhir|biaya|admin|fee|cashback|diskon|potongan|rekening|account|nomor|no\.? rekening|rrn|reference|ref\.?|transaction\s*id|terminal\s*id|merchant\s*(?:id|pan)|approval|auth(?:orization)?|stan|trace|invoice|receipt|batch|kode|otp|tanggal|tgl|date|waktu|time|recipient|penerima|beneficiary|payment\s+to|paymentto|\bto\b|\bfrom\b)/i;
     let best=null;
     const consider=(rawNum,line,idx,bonus)=>{
       if(!rawNum||/[/:]\d/.test(rawNum))return;
@@ -2372,7 +2372,7 @@ const OCR = {
         if(m)consider(m[1],next,i+1,95);
       }
     }
-    return best?best.value:0;
+    return best&&best.score>=10?best.value:0;
   },
   datePartsToISO(y,m,d){
     y=Number(y);m=Number(m);d=Number(d);
@@ -2498,6 +2498,8 @@ const OCR = {
     s=s.replace(/[\s\-:|]+$/g,'').trim();
     if(!s||s.length<2||s.length>140)return '';
     if(this.isReceiptMeta(s)||this.isBankHeader(s))return '';
+    if(/^(?:qris\s+)?(?:payment|transaction)\s+(?:successful|successfull|success|berhasil|completed)$/i.test(s))return '';
+    if(/^(?:tujuan\s+pembayaran\s*\/\s*merchant|tujuan\s+pembayaran|payment\s+merchant|merchant\s+name|bill\s+details(?:\s+qr)?(?:\s*[-–]\s*commerce)?)$/i.test(s))return '';
     if(/^\d[\d\s.,\-\/]*$/.test(s))return '';
     if(/^(?:payment|payment\s*to|payment\s*from|to|from|recipient|penerima|beneficiary|receiver|payee|tujuan|nominal|amount|jumlah|saldo|balance|tanggal|tgl|date|status|success|berhasil|completed|transfer|acquirer|rrn|transaction\s*type)$/i.test(s))return '';
     if(/\b(?:otp|pin|password|kode akses|reference|referensi)\b/i.test(s))return '';
@@ -2654,35 +2656,22 @@ const OCR = {
     if(date)p.date=date;
     p.mode=mode;
 
-    // FINANCIAL / MBANKING / QRIS:
-    // never use app header, success status, acquirer, RRN, terminal ID, etc. as Brand.
     if(mode==='financial'||mode==='transfer'){
-      let recipient=this.extractRecipient(raw);
-      // QRIS bank proofs often label the merchant as "Tujuan Pembayaran / Merchant"
-      // or "Bill Details QR - Commerce". Only accept those explicit fields.
+      let recipient=this.extractRecipient(raw)||((serverRecipient&&!this.isReceiptMeta(serverRecipient)&&!this.isBankOnlyRecipient(serverRecipient))?serverRecipient:'');
+      // QRIS proofs may use "Tujuan Pembayaran / Merchant" or "Bill Details QR - Commerce".
       if(!recipient){
         const lines=raw.split(/\r?\n/).map(x=>this.normalizeText(x)).filter(Boolean);
-        const labels=[
-          /^(?:tujuan\s+pembayaran\s*\/\s*merchant|tujuan\s+pembayaran|payment\s+merchant(?:\s+name)?|merchant\s+name|nama\s+merchant)\s*[:=>\-]?\s*(.*)$/i,
-          /^merchant\s*[:=>\-]\s*(.*)$/i,
-          /^bill\s+details\s+qr(?:\s*[-–]\s*commerce)?\s*[:=>\-]?\s*(.*)$/i,
-          /^bill\s+details\s*[:=>\-]?\s*(.*)$/i
-        ];
+        const labelRe=/^(?:tujuan\s+pembayaran\s*\/\s*merchant|tujuan\s+pembayaran|payment\s+merchant(?:\s+name)?|merchant\s+name|merchant|bill\s+details\s+qr(?:\s*[-–]\s*commerce)?|bill\s+details)\s*[:=>\-]?\s*(.*)$/i;
         outer: for(let i=0;i<lines.length;i++){
           if(/^merchant\s+(?:id|pan)\b/i.test(lines[i]))continue;
-          for(const re of labels){
-            const m=lines[i].match(re);
-            if(!m)continue;
-            for(let j=0;j<=8;j++){
-              const candidate=this.cleanRecipient(m[1]||'')||this.cleanRecipient(lines[i+j]||'');
-              if(candidate&&!this.isReceiptMeta(candidate)&&!this.isBankOnlyRecipient(candidate)){
-                recipient=candidate;break outer;
-              }
-            }
+          const m=lines[i].match(labelRe);
+          if(!m)continue;
+          for(let j=0;j<=8;j++){
+            const candidate=this.cleanRecipient(m[1]||'')||this.cleanRecipient(lines[i+j+1]||'');
+            if(candidate){recipient=candidate;break outer;}
           }
         }
       }
-      recipient=recipient||((serverRecipient&&!this.isBankOnlyRecipient(serverRecipient)&&!this.isReceiptMeta(serverRecipient))?serverRecipient:'');
       if(recipient){
         p.recipient=recipient;
         p.brand=recipient;
@@ -2701,26 +2690,20 @@ const OCR = {
       const service=/(bengkel|tambal\s+ban|ganti\s+oli|service|servis|ahass|planet\s+ban|shop&drive|sparepart|onderdil|carwash|cuci|tune\s+up|auto2000)/i.test(t);
       const toll=/(?:\btol\b|e-?tol|gerbang\s+tol|jasa\s+marga)/i.test(t);
       const parkir=/(parkir|parking|valet)/i.test(t);
+      const makan=/(coffee|latte|cappuccino|espresso|kopi|teh|tea|bakery|croissant|roti|resto|restaurant|cafe|kafe|warung|makan|minum|boba|ice\s+cream|seafood|soto|bakso|nasi|ayam|mie|beverage|food|kitchen|eatery|diner|catering|hokben|kfc|mcd|starbucks|solaria|chatime|burger|pizza)/i.test(t);
       if(fuel)p.category='Bensin';
       else if(service)p.category='Servis';
       else if(toll)p.category='Tol';
       else if(parkir)p.category='Parkir';
-      else if(recipient && /(?:coffee|kopi|resto|restaurant|cafe|kafe|warung|makan|food|hokben|kfc|mcd|starbucks|solaria|chatime|bakery|mie|nasi|ayam|boba|burger|pizza)/i.test(t))p.category='Makan';
+      else if(recipient&&makan)p.category='Makan';
       else p.category='Lainnya';
-
-      if(this.isReceiptMeta(String(p.brand||''))||this.isBankOnlyRecipient(String(p.brand||'')))p.brand='';
-      if(this.isReceiptMeta(String(p.detail||'')))p.detail='';
       return p;
     }
 
-    // MERCHANT / POS / PHYSICAL RECEIPT:
-    // no recipient extraction. Merchant must come from an explicit/known merchant
-    // identity, not "QRIS Payment Successful", Acquirer, RRN, location, cashier, etc.
     if(mode==='merchant'){
       delete p.recipient;
       const merchant=this.extractMerchant(raw)||serverBrand;
       p.brand=(merchant&&!this.isReceiptMeta(merchant)&&!this.isBankOnlyRecipient(merchant))?merchant:'';
-
       const combined=(raw+' '+p.brand).toLowerCase();
       const fuel=this.fuelMatch(combined);
       const service=/(bengkel|tambal\s+ban|ganti\s+oli|service|servis|ahass|planet\s+ban|shop&drive|sparepart|onderdil|carwash|cuci|tune\s+up|auto2000)/i.test(combined);
@@ -2739,12 +2722,11 @@ const OCR = {
       return p;
     }
 
-    // UNKNOWN: never guess.
     delete p.recipient;
     p.brand='';
     p.detail='';
     p.note='';
-    p.category=p.category||'Lainnya';
+    p.category='Lainnya';
     return p;
   },
   downscale(file, maxSide, quality) {
