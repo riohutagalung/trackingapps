@@ -1687,7 +1687,9 @@ function RHComputeGpsMetrics(points,startMs,endMs){
         // A point inside the GPS jitter radius is still real movement when the
         // provider/segment speed proves the phone is moving. This prevents the
         // old 15 km/h stationary threshold from erasing slow scooter traffic.
-        if(!(dMeters<=jitterRadius && !movementEvidence)) distance+=d; a short speed dip does not immediately become a stop.
+        if(!(dMeters<=jitterRadius && !movementEvidence)) distance+=d;
+
+        // Stateful moving detection: a short speed dip does not immediately become a stop.
         // A fix is considered moving when its validated speed is moving-speed OR the net
         // displacement over the last ~10s reaches 10m (OpenTracks-inspired principle).
         let anchor=track[Math.max(0,i-1)];
