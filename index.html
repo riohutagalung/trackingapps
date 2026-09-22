@@ -1219,7 +1219,7 @@ body.device-android .mobile-header { padding-top:12px; }
 
 <script src="gas-bridge.js?v=20260922-r10"></script>
 <script src="rh-native-gps.js"></script>
-<script src="rh-native-media.js"></script>
+<script src="rh-native-media.js?v=20260922-r12"></script>
 <script>
 const Weather = {
   refresh(force) {
@@ -2343,24 +2343,22 @@ const OCR = {
   extractAmount(text){
     const raw=String(text||'');
     const lines=raw.split(/\r?\n/).map(x=>this.normalizeText(x)).filter(Boolean);
-    const labelStrong=/(nominal|amount|nilai transaksi|transaction amount|payment amount|jumlah transaksi|jumlah transfer|jumlah pembayaran|transfer amount|paid|dibayar|debit|harga|payment|transfer)/i;
-    const labelTotal=/(total pembayaran|total bayar|grand total|total amount|total)/i;
-    const negative=/(saldo|balance|saldo awal|saldo akhir|biaya|admin|fee|cashback|diskon|potongan|rekening|account|nomor|no\.? rekening|reference|ref\.?|kode|otp|tanggal|tgl|date|waktu|time)/i;
+    const labelStrong=/(nominal|amount|nilai transaksi|transaction amount|payment amount|jumlah transaksi|jumlah transfer|jumlah pembayaran|transfer amount|paid|dibayar|debit|harga|payment|transfer|pembayaran)/i;
+    const labelOnly=/^(?:nominal|amount|nilai transaksi|transaction amount|payment amount|jumlah|jumlah transaksi|jumlah transfer|jumlah pembayaran|transfer amount|total|total pembayaran|total bayar|grand total|dibayar|paid|debit|transfer|pembayaran)\s*[:=\-]?$/i;
+    const negative=/(saldo|balance|saldo awal|saldo akhir|biaya|admin|fee|cashback|diskon|potongan|rekening|account|nomor|no\.? rekening|reference|ref\.?|kode|otp|tanggal|tgl|date|waktu|time|recipient|penerima|beneficiary|payment\s+to|paymentto|\bto\b|\bfrom\b)/i;
     let best=null;
     const consider=(rawNum,line,idx,bonus)=>{
-      if(!rawNum || /[/:]\d/.test(rawNum))return;
-      const lineDate=/\b\d{1,4}[\s\.\/\-]\d{1,2}[\s\.\/\-]\d{1,4}\b/.test(line);
-      if(lineDate && /\d[\/\-.]\d/.test(rawNum))return;
-      if (/\b(?:tanggal|tgl|date|transaction date|waktu|time)\b/i.test(line) && !/\b(?:nominal|amount|jumlah|nilai transaksi)\b/i.test(line)) return;
+      if(!rawNum||/[/:]\d/.test(rawNum))return;
+      if(/^\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4}$/.test(rawNum))return;
+      if(/\b(?:tanggal|tgl|date|waktu|time)\b/i.test(line)&&!/(nominal|amount|jumlah|nilai|total|paid|dibayar|debit)/i.test(line))return;
       const value=this.parseMoneyToken(rawNum,line);
-      if(!(value>=1000) || value>500000000)return;
+      if(!(value>=1000)||value>500000000)return;
       let score=Number(bonus||0);
       if(labelStrong.test(line))score+=105;
-      else if(labelTotal.test(line))score+=62;
-      if(/\b(?:rp|idr|rupiah)\b|\b(?:usd|sgd|myr|eur|gbp|jpy)\b|[$€£¥]/i.test(rawNum))score+=35;
-      if(/\b(?:transfer|payment|paid|pembayaran|debit)\b/i.test(line))score+=18;
+      if(labelOnly.test(line))score+=55;
+      if(/(?:rp|idr|rupiah|usd|sgd|myr|eur|gbp|jpy)\b|[$€£¥]/i.test(rawNum))score+=35;
+      if(/(?:transfer|payment|paid|pembayaran|debit)/i.test(line))score+=18;
       if(negative.test(line))score-=90;
-      if(/\b(?:nominal|amount|jumlah|nilai transaksi)\b/i.test(line))score+=25;
       if(idx>=Math.max(0,lines.length-6))score+=5;
       if(!best||score>best.score||(score===best.score&&value>best.value))best={value,score};
     };
@@ -2368,10 +2366,10 @@ const OCR = {
       const line=lines[i];
       const direct=[...line.matchAll(/(?:rp\.?|idr|rupiah|usd|sgd|myr|eur|gbp|jpy|\$|€|£|¥)?\s*([0-9][0-9.,]*)/gi)];
       for(const m of direct)consider(m[1],line,i,0);
-      if(labelStrong.test(line)&&i+1<lines.length){
+      if(labelOnly.test(line)&&i+1<lines.length){
         const next=lines[i+1];
         const m=next.match(/(?:rp\.?|idr|rupiah|usd|sgd|myr|eur|gbp|jpy|\$|€|£|¥)?\s*([0-9][0-9.,]*)/i);
-        if(m)consider(m[1],line+' '+next,i+1,35);
+        if(m)consider(m[1],next,i+1,95);
       }
     }
     return best?best.value:0;
@@ -2423,45 +2421,77 @@ const OCR = {
   },
   cleanRecipient(value){
     let s=this.normalizeText(value).replace(/^[\-:|>\"']+|[\-:|>\"']+$/g,'').trim();
-    s=s.replace(/\s+(?:rp|idr|nominal|amount|jumlah|tanggal|tgl|date)\b.*$/i,'').trim();
-    s=s.replace(/[\u200B-\u200D\uFEFF]/g,'').trim();
+    s=s.replace(/^(?:payment\s*)?(?:to|recipient|penerima|beneficiary|receiver|payee|tujuan|kepada)\s*[:=\-]?\s*/i,'').trim();
+    s=s.replace(/^(?:transfer|transferred|dikirim|ditransfer|sent|send|paid)\s+(?:to|ke|kepada)\s*[:=\-]?\s*/i,'').trim();
+    s=s.replace(/^(?:payment|paid)\s+from\s*[:=\-]?\s*/i,'').trim();
+    s=s.replace(/\b(?:no\.?\s*rekening|rekening|account(?:\s*no\.?)?|a\/c)\s*[:#\-]?\s*[0-9xX* .\-]{6,}\b/ig,'').trim();
+    s=s.replace(/\s+(?:rp|idr|usd|nominal|amount|jumlah|tanggal|tgl|date|status|saldo|balance)\b.*$/i,'').trim();
+    s=s.replace(/[\s\-:|]+$/g,'').trim();
     if(!s||s.length<2||s.length>140)return '';
     if(/^\d[\d\s.,\-\/]*$/.test(s))return '';
-    if(/^(nominal|amount|jumlah|saldo|balance|tanggal|tgl|date|time|waktu|reference|ref|kode|status|success|berhasil|transfer|payment|from)$/i.test(s))return '';
     return s;
   },
   extractRecipient(text){
     const raw=String(text||'');
     const lines=raw.split(/\r?\n/).map(x=>this.normalizeText(x)).filter(Boolean);
-    const toPatterns=[
-      /^(?:payment\s*[\"']?\s*to\s*[\"']?|payment\s+to|paid\s+to|transfer(?:red)?\s+(?:to|ke|kepada)|dikirim\s+(?:ke|kepada)|ditransfer\s+(?:ke|kepada))\s*[:>\-]?\s*(.+)$/i,
-      /^(?:to|kepada|penerima|beneficiary|recipient|receiver|tujuan|nama\s+penerima|nama\s+tujuan)\s*[:>\-]?\s+(.+)$/i
-    ];
-    for(let i=0;i<lines.length;i++){
-      for(const re of toPatterns){const m=lines[i].match(re);if(m){const x=this.cleanRecipient(m[1]);if(x)return x;}}
-      if(/^payment$/i.test(lines[i])&&i+2<lines.length&&/^to$/i.test(lines[i+1])){
-        const x=this.cleanRecipient(lines[i+2]);if(x)return x;
+    const isBankHeader=(x)=>/^(?:bank\s+)?(?:bca|m-bca|mbca|bca\s+mobile|bca\s+mobile\s+banking|bank\s+central\s+asia|pt\s+bank\s+central\s+asia(?:\s+tbk)?|bri|bni|mandiri|bank\s+mandiri|cimb|permata|btn|danamon|ocbc|uob|hsbc|seabank|bank\s+jago)(?:\s+(?:mobile|digital|internet|banking))?$/i.test(String(x||'').trim());
+    const valid=(value)=>{
+      const s=this.cleanRecipient(value);
+      if(!s||isBankHeader(s))return '';
+      if(/^(?:payment|payment to|paymentto|to|from|penerima|recipient|beneficiary|receiver|payee|tujuan|nominal|amount|jumlah|saldo|balance|tanggal|tgl|date|status|success|berhasil|completed|transfer)$/i.test(s))return '';
+      if(/\b(?:otp|pin|password|kode akses|reference|referensi)\b/i.test(s))return '';
+      return /[A-Za-zÀ-ÿ]/.test(s)?s:'';
+    };
+    const labelValue=(line,labels)=>{
+      const clean=this.normalizeText(line);
+      for(const label of labels){
+        const re=new RegExp('^(?:'+label.replace(/\s+/g,'\\s*')+')\\s*[:=>\-]?\\s*(.*)$','i');
+        const m=clean.match(re);
+        if(m)return {found:true,value:m[1]||''};
       }
-      if(/^to$/i.test(lines[i])&&i+1<lines.length){
-        const x=this.cleanRecipient(lines[i+1]);if(x)return x;
+      return {found:false,value:''};
+    };
+    const scan=(i,labels)=>{
+      const direct=labelValue(lines[i],labels);
+      const d=valid(direct.value); if(d)return d;
+      const normalized=this.normalizeText(lines[i]).toLowerCase().replace(/["']/g,'').replace(/[\s:_=|>\-]+/g,' ').trim();
+      for(const label of labels){
+        const lc=label.toLowerCase();
+        if(normalized===lc||normalized===lc.replace(/\s+/g,'')){
+          for(let j=1;j<=4;j++){const candidate=valid(lines[i+j]);if(candidate)return candidate;}
+        }
+      }
+      return '';
+    };
+    const toLabels=['payment to','paymentto','payment recipient','paid to','pay to','sent to','send to','transfer to','transferred to','transfer ke','transfer kepada','ditransfer ke','ditransfer kepada','dikirim ke','dikirim kepada','penerima','beneficiary','recipient','receiver','payee','tujuan','nama penerima','nama tujuan','kepada','to'];
+    for(let i=0;i<lines.length;i++){
+      const d=scan(i,toLabels); if(d)return d;
+      if(/^payment$/i.test(lines[i])&&i+1<lines.length&&/^to$/i.test(lines[i+1])){
+        for(let j=2;j<=5;j++){const d2=valid(lines[i+j]);if(d2)return d2;}
       }
     }
-    const fromPatterns=[
-      /^(?:payment\s*[\"']?\s*from\s*[\"']?|payment\s+from|paid\s+from|transfer(?:red)?\s+(?:from|dari)|dikirim\s+dari|berasal\s+dari)\s*[:>\-]?\s*(.+)$/i,
-      /^(?:from|dari|pengirim|sender|remitter)\s*[:>\-]?\s+(.+)$/i
-    ];
+    const fromLabels=['payment from','paymentfrom','paid from','sent from','transfer from','transferred from','transfer dari','dikirim dari','berasal dari','from','dari','pengirim','sender','remitter'];
     for(let i=0;i<lines.length;i++){
-      for(const re of fromPatterns){const m=lines[i].match(re);if(m){const x=this.cleanRecipient(m[1]);if(x)return x;}}
-      if(/^payment$/i.test(lines[i])&&i+2<lines.length&&/^from$/i.test(lines[i+1])){
-        const x=this.cleanRecipient(lines[i+2]);if(x)return x;
+      const d=scan(i,fromLabels); if(d)return d;
+      if(/^payment$/i.test(lines[i])&&i+1<lines.length&&/^from$/i.test(lines[i+1])){
+        for(let j=2;j<=5;j++){const d2=valid(lines[i+j]);if(d2)return d2;}
       }
-      if(/^from$/i.test(lines[i])&&i+1<lines.length){
-        const x=this.cleanRecipient(lines[i+1]);if(x)return x;
+    }
+    const transferContext=/(transfer|payment|paid|dikirim|ditransfer|penerima|beneficiary|recipient|payee|tujuan|berhasil|successful)/i.test(raw);
+    if(transferContext){
+      for(const line of lines){
+        if(isBankHeader(line))continue;
+        const d=valid(line);
+        if(!d)continue;
+        if(/^\d[\d\s.,\/\-]*$/.test(d))continue;
+        return d;
       }
     }
     return '';
   },
-  fuelMatch(text){
+  isBankOnlyRecipient(value){
+    return /^(?:bank\s+)?(?:bca|m-bca|mbca|bca\s+mobile|bca\s+mobile\s+banking|bank\s+central\s+asia|pt\s+bank\s+central\s+asia(?:\s+tbk)?|bri|bni|mandiri|bank\s+mandiri|cimb|permata|btn|danamon|ocbc|uob|hsbc|seabank|bank\s+jago)(?:\s+(?:mobile|digital|internet|banking))?$/i.test(String(value||'').trim());
+  },\n  fuelMatch(text){
     return /\b(pertamina|spbu|shell|vivo|bp(?:\s*(?:ultimate|92|95|diesel))?|revvo|pertamax|pertalite|dexlite|pertamina\s*dex|v-power|biosolar|solar|bbm|bensin)\b/i.test(String(text||''));
   },
   fuelGrade(text){
@@ -2479,29 +2509,45 @@ const OCR = {
   },
   enrichParsed(parsed, rawText){
     const p=Object.assign({},parsed||{});
-    const text=this.normalizeText([rawText,p.brand,p.detail,p.note,p.recipient].filter(Boolean).join('\n'));
-    const recipient=this.extractRecipient(rawText)||String(p.recipient||'').trim();
-    const amount=this.extractAmount(rawText);
-    const date=this.extractDate(rawText);
-    const combined=[rawText,p.brand,p.detail,p.note,recipient].filter(Boolean).join(' ');
-    if(recipient)p.recipient=recipient;
+    const raw=String(rawText||'');
+    const serverRecipient=this.cleanRecipient(p.recipient||'');
+    const recipient=this.extractRecipient(raw)||((serverRecipient&&!this.isBankOnlyRecipient(serverRecipient))?serverRecipient:'');
+    const amount=this.extractAmount(raw);
+    const date=this.extractDate(raw);
+    const combined=[raw,p.brand,p.detail,p.note,recipient].filter(Boolean).join(' ');
+    if(recipient)p.recipient=recipient; else delete p.recipient;
     if(amount)p.amount=amount;
     if(date)p.date=date;
-    if(this.fuelMatch(combined))p.category='Bensin';
-    else if(recipient && /\b(transfer|payment|paid|pembayaran|dikirim|ditransfer|debit|to)\b/i.test(rawText))p.category='Lainnya';
+
+    const t=combined.toLowerCase();
+    const fuel=this.fuelMatch(combined);
+    const service=/(bengkel|tambal ban|ganti oli|service|servis|ahass|planet ban|shop&drive|sparepart|onderdil|carwash|cuci|tune up|auto2000)/i.test(t);
+    const toll=/(?:\btol\b|e-?toll|gerbang tol|jasa marga)/i.test(t);
+    const parkir=/(parkir|parking|valet)/i.test(t);
+    const makan=/(coffee|latte|cappuccino|espresso|kopi|teh|tea|bakery|croissant|roti|resto|restaurant|cafe|kafe|warung|makan|minum|boba|ice cream|seafood|soto|bakso|nasi|ayam|mie|beverage|food|kitchen|eatery|diner|catering)/i.test(t);
+    if(fuel)p.category='Bensin';
+    else if(service)p.category='Servis';
+    else if(toll)p.category='Tol';
+    else if(parkir)p.category='Parkir';
+    else if(makan&&!recipient)p.category='Makan';
+    else if(recipient)p.category='Lainnya';
+
     if(recipient)p.brand=recipient;
-    if(this.fuelMatch(combined) && !p.detail){
+    else if(this.isBankOnlyRecipient(String(p.brand||'')))p.brand='';
+    if(fuel&&!p.detail){
       const grade=this.fuelGrade(combined); if(grade)p.detail=grade;
     }
     if(recipient){
       const method=/qr|qris/i.test(combined)?'QRIS':/transfer/i.test(combined)?'Transfer':'';
       const parts=[];
-      if(p.note && !/^ke:/i.test(String(p.note).trim()))parts.push(String(p.note).trim());
+      if(p.note&&!/^ke:/i.test(String(p.note).trim()))parts.push(String(p.note).trim());
       parts.push('Ke: '+recipient);
-      if(method && !new RegExp(method,'i').test(parts.join(' • ')))parts.push(method);
+      if(method&&!new RegExp(method,'i').test(parts.join(' • ')))parts.push(method);
       p.note=parts.join(' • ');
-      if(!p.detail || /^merchant$/i.test(String(p.detail)))p.detail='Transfer ke '+recipient;
+      if(fuel)p.detail=this.fuelGrade(combined)||p.detail||('Pembayaran ke '+recipient);
+      else p.detail='Transfer ke '+recipient;
     }
+    if(this.isBankOnlyRecipient(String(p.detail||'')))p.detail='';
     return p;
   },
   downscale(file, maxSide, quality) {
