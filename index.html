@@ -2360,6 +2360,7 @@ const OCR = {
     for(let i=0;i<lines.length;i++){
       const line=lines[i], prev=lines[i-1]||'';
       if(metadata.test(line)||metadataOnly.test(prev))continue;
+      if(/^(?:balance|saldo|available\s+balance|current\s+balance)\s*[:=\-]?$/i.test(prev))continue;
       const matches=[...line.matchAll(/(?:rp\.?|idr|rupiah)\s*([0-9][0-9.,]*)/gi)];
       for(const m of matches){
         const value=this.parseMoneyToken(m[1],line);
@@ -2740,7 +2741,7 @@ const OCR = {
       'paymentto','paymentrecipient','transferto','transferredto','recipient','penerima','beneficiary','receiver','payee',
       'namapenerima','namatujuan','rekeningtujuan','tujuanpembayaran','merchant','merchantname','namamerchant','storename','namatoko',
       'amount','nominal','jumlah','total','grandtotal','totalpayment','totalpaid','totalpesanan','tanggal','tgl','date','transactiondate',
-      'location','lokasi','merchantlocation','lokasimerchant','address','alamat','outlet','cabang','cashier','kasir','rrn','reference',
+      'location','lokasi','merchantlocation','lokasimerchant','address','alamat','outlet','cabang','cashier','kasir','balance','saldo','availablebalance','currentbalance','rrn','reference',
       'transactionid','terminalid','merchantid','merchantpan','acquirer','approval','invoice','receipt','status','description','detail'
     ];
     return keys.includes(k);
@@ -2749,7 +2750,7 @@ const OCR = {
     const s=this.normalizeText(value).trim();
     if(!s)return true;
     if(this.isDateTimeLike(s)||this.isReceiptMeta(s)||this.isBankHeaderValue(s))return true;
-    if(/^(?:location|lokasi|merchant\s+location|lokasi\s+merchant|address|alamat|outlet|cabang|store\s+location|city|kota|bank|merchant\s+pan|merchant\s+id|terminal\s+id|tid|mid|acquirer|rrn|reference|approval|invoice|receipt|cashier|kasir|payment|transaction|transaksi|successful|successfull|success|berhasil|completed|from|to|penerima|recipient|beneficiary|receiver|payee|tujuan)$/i.test(s))return true;
+    if(/^(?:location|lokasi|merchant\s+location|lokasi\s+merchant|address|alamat|outlet|cabang|store\s+location|city|kota|bank|merchant\s+pan|merchant\s+id|terminal\s+id|tid|mid|acquirer|rrn|reference|approval|invoice|receipt|cashier|kasir|payment|transaction|transaksi|successful|successfull|success|berhasil|completed|from|to|penerima|recipient|beneficiary|receiver|payee|tujuan|balance|saldo|available\s+balance|current\s+balance|shopee|seabank|mybca|m-bca|mbca|bca\s+mobile|brimo|bni\s+mobile|livin|qris)$/i.test(s))return true;
     if(/^\d[\d\s.,\/-]*$/.test(s))return true;
     return false;
   },
