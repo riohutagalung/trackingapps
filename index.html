@@ -2872,7 +2872,8 @@ const OCR = {
     };
 
     const financial=/(?:sea\s*bank|seabank|mybca|m-bca|mbca|bca\s+mobile|cashflow\s*[-–]\s*(?:spending|earning)|m-transfer|transfer\s+(?:successful|berhasil)|payment\s+to|transfer\s+to|qris\s+payment|penerima|beneficiary|recipient|account\s+transactions)/i.test(raw);
-    const merchant=/shopee|struk|nota|receipt|subtotal|grand\s+total|total\s+pesanan|qty|quantity/i.test(raw);
+    const knownMerchant=this.knownMerchantFromText(raw);
+    const merchant=/shopee|struk|nota|receipt|subtotal|grand\s+total|total\s+pesanan|qty|quantity|item|items|produk|product|menu|barang|kasir|cashier|order\s*no|table|meja|total\s+belanja/i.test(raw) || !!knownMerchant;
     const mode=financial?'financial':(merchant?'merchant':'unknown');
     p.mode=mode;
 
