@@ -1306,12 +1306,35 @@ const App = {
       if (status) status.textContent = 'Gagal sinkron';
       this.setConnection('error', 'Offline');
       this.toast('Sinkronisasi terlalu lama. Data lama tetap dipertahankan.');
-    }, 25000);
-    google.script.run.withSuccessHandler(r => {
-      clearTimeout(timeout);
-      done();
+    }, 40000);
+
+    google.script.run.withSuccessHandler(async r => {
       this.data = r && r.dashboard ? r.dashboard : (this.data || {});
       this.config = r && r.config ? r.config : (this.config || {});
+
+      try {
+        // Dashboard cards/trend must use an authoritative expense window, not
+        // getBootstrap's fast 160-row cache. This keeps UI totals identical to
+        // the Expenses sheet for the current and previous month.
+        const today = TodayLocal();
+        const [yy,mm] = String(today).split('-').map(Number);
+        const prevStart = new Date(yy, (mm||1)-2, 1);
+        const pad = n => String(n).padStart(2,'0');
+        const from = prevStart.getFullYear()+'-'+pad(prevStart.getMonth()+1)+'-01';
+        const all = await new Promise((resolve,reject) => {
+          google.script.run
+            .withSuccessHandler(rows => resolve(Array.isArray(rows)?rows:[]))
+            .withFailureHandler(reject)
+            .getExpenseHistory({from:from,to:today});
+        });
+        this.applyAuthoritativeExpenseWindow(all, from, today);
+      } catch (e) {
+        console.warn('[RH] authoritative expense window unavailable:', e);
+        this.data._expenseAggregateAuthoritative = false;
+      }
+
+      clearTimeout(timeout);
+      done();
       this.setConnection('connected', 'Connected');
       if (status) status.textContent = 'Connected';
       try { this.render(); } catch (renderErr) {
@@ -1326,6 +1349,56 @@ const App = {
       this.setConnection('error', 'Offline');
       this.hideSplash();
     }).getBootstrap();
+  },
+
+  applyAuthoritativeExpenseWindow(expenses, from, today) {
+    const rows = Array.isArray(expenses) ? expenses.filter(e => e && e.date) : [];
+    const month = String(today).slice(0,7);
+    const prev = String(from).slice(0,7);
+    const weekStartDate = new Date(String(today)+'T00:00:00');
+    weekStartDate.setDate(weekStartDate.getDate()-7);
+    const weekStart = weekStartDate.getFullYear()+'-'+String(weekStartDate.getMonth()+1).padStart(2,'0')+'-'+String(weekStartDate.getDate()).padStart(2,'0');
+
+    const totals={today:0,week:0,month:0,prevMonth:0};
+    const cats={};
+    const trend={[prev]:0,[month]:0};
+
+    rows.forEach(e=>{
+      const amount=Number(e.amount||0);
+      const d=String(e.date||'').slice(0,10);
+      if(!Number.isFinite(amount))return;
+      if(d===today)totals.today+=amount;
+      if(d>=weekStart&&d<=today)totals.week+=amount;
+      if(d.slice(0,7)===month){
+        totals.month+=amount;
+        cats[e.category||'Lainnya']=(cats[e.category||'Lainnya']||0)+amount;
+        trend[month]=(trend[month]||0)+amount;
+      }
+      if(d.slice(0,7)===prev){
+        totals.prevMonth+=amount;
+        trend[prev]=(trend[prev]||0)+amount;
+      }
+    });
+
+    this.data.today=totals.today;
+    this.data.week=totals.week;
+    this.data.month=totals.month;
+    this.data.prevMonth=totals.prevMonth;
+    this.data.cats=cats;
+    this.data.monthTrend=[
+      {month:prev,total:trend[prev]||0},
+      {month:month,total:trend[month]||0}
+    ];
+    this.data.monthFuel=rows
+      .filter(e=>String(e.date||'').slice(0,7)===month && String(e.category||'')==='Bensin')
+      .reduce((sum,e)=>sum+Number(e.amount||0),0);
+    this.data.monthFuelLiters=rows
+      .filter(e=>String(e.date||'').slice(0,7)===month && String(e.category||'')==='Bensin')
+      .reduce((sum,e)=>sum+Number(e.liters||0),0);
+    this.data.recent=rows.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).slice(0,5);
+    this.data._expenseAggregateAuthoritative=true;
+    this.data._expenseAggregateFrom=from;
+    this.data._expenseAggregateTo=today;
   },
   render() {
     const d = this.data || {};
