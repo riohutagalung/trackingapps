@@ -2949,12 +2949,32 @@ const OCR = {
     return '';
   },
   structuredMerchant(rawLines, normalizedLines, rawText, source){
-    // For Shopee, the platform name is the source, not the store name.
+    // Shopee: prefer the seller/shop field, never the platform name.
     if(source==='Shopee'){
       const seller=this.findLabeledValue(rawLines,normalizedLines,['nama toko','toko','seller','shop'],6);
       if(seller)return seller.value;
-      // Never guess Brand from arbitrary receipt lines: addresses often appear
-    // above the merchant and were the source of "Jakarta selat, 12320, id".
+      for(let i=0;i<Math.min(8,normalizedLines.length);i++){
+        const m=normalizedLines[i].match(/^toko(?:\s+|\s*[:=-]\s+)(.+)$/i);
+        if(m){
+          const v=this.cleanTarget(m[1]);
+          if(v)return v;
+        }
+      }
+    }
+
+    const explicit=this.findLabeledValue(
+      rawLines,
+      normalizedLines,
+      ['merchant name','nama merchant','store name','nama toko','seller','shop'],
+      5
+    );
+    if(explicit)return explicit.value;
+
+    const known=this.knownMerchantFromText(rawText);
+    if(known)return known;
+
+    // Conservative fallback: only inspect the very top of a physical receipt.
+    // Never accept addresses, locations, postal codes, bank metadata or long OCR blocks.
     for(let i=0;i<Math.min(5,normalizedLines.length);i++){
       const line=normalizedLines[i];
       if(/^(?:struk|nota|receipt|bill|guest\s*check|qris|payment|transaction|transaksi|tanggal|tgl|date|waktu|time|kasir|cashier|outlet|cabang|lokasi|alamat|address|telp|phone|npwp|pos|powered|total|subtotal|grand\s+total)/i.test(line))continue;
