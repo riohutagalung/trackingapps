@@ -89,6 +89,63 @@ async function savePointBatches(tripId,points){
     if(result && result.ok===false) throw new Error(result.error||'Gagal menyimpan titik GPS.');
   }
 }
+function jakartaDateString(date){
+  return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Jakarta',year:'numeric',month:'2-digit',day:'2-digit'}).format(date||new Date());
+}
+function previousMonthStart(today){
+  const [y,m]=String(today).split('-').map(Number);
+  const d=new Date(Date.UTC(y||1970,(m||1)-2,1));
+  return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-01';
+}
+function overlayAuthoritativeExpenseTotals(bootstrapPayload, historyPayload){
+  if(!bootstrapPayload || bootstrapPayload.ok!==true || !bootstrapPayload.result?.dashboard) return bootstrapPayload;
+  if(!historyPayload || historyPayload.ok!==true || !Array.isArray(historyPayload.result)) return bootstrapPayload;
+  const today=jakartaDateString(new Date());
+  const from=previousMonthStart(today);
+  const month=today.slice(0,7), prev=from.slice(0,7);
+  const startWeek=new Date(Date.UTC(...today.split('-').map((v,i)=>i===1?Number(v)-1:Number(v))));
+  startWeek.setUTCDate(startWeek.getUTCDate()-7);
+  const week=startWeek.getUTCFullYear()+'-'+String(startWeek.getUTCMonth()+1).padStart(2,'0')+'-'+String(startWeek.getUTCDate()).padStart(2,'0');
+
+  const totals={today:0,week:0,month:0,prevMonth:0};
+  const cats={}, trend={[prev]:0,[month]:0};
+  const rows=historyPayload.result.filter(e=>e && e.date);
+  rows.forEach(e=>{
+    const d=String(e.date).slice(0,10), amount=Number(e.amount||0);
+    if(!Number.isFinite(amount))return;
+    if(d===today)totals.today+=amount;
+    if(d>=week&&d<=today)totals.week+=amount;
+    if(d.slice(0,7)===month){
+      totals.month+=amount;
+      const cat=String(e.category||'Lainnya')||'Lainnya';
+      cats[cat]=(cats[cat]||0)+amount;
+      trend[month]=(trend[month]||0)+amount;
+    }
+    if(d.slice(0,7)===prev){
+      totals.prevMonth+=amount;
+      trend[prev]=(trend[prev]||0)+amount;
+    }
+  });
+
+  const d=bootstrapPayload.result.dashboard;
+  d.today=totals.today;
+  d.week=totals.week;
+  d.month=totals.month;
+  d.prevMonth=totals.prevMonth;
+  d.cats=cats;
+  d.monthTrend=[{month:prev,total:trend[prev]||0},{month:month,total:trend[month]||0}];
+  d.monthChangePct=totals.prevMonth?((totals.month-totals.prevMonth)/totals.prevMonth)*100:null;
+  d.monthFuel=rows.filter(e=>String(e.date||'').slice(0,7)===month&&String(e.category||'')==='Bensin')
+    .reduce((sum,e)=>sum+Number(e.amount||0),0);
+  d.monthFuelLiters=rows.filter(e=>String(e.date||'').slice(0,7)===month&&String(e.category||'')==='Bensin')
+    .reduce((sum,e)=>sum+Number(e.liters||0),0);
+  d.recent=rows.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).slice(0,5);
+  d._expenseAggregateAuthoritative=true;
+  d._expenseAggregateFrom=from;
+  d._expenseAggregateTo=today;
+  return bootstrapPayload;
+}
+
 async function forward(body){
   const fn=String(body.fn);
   const args=Array.isArray(body.args)?body.args:[];
@@ -113,6 +170,22 @@ async function forward(body){
     }
   }
   if(fn==='analyzeReceipt') return invokePost(fn,args);
+  if(fn==='getBootstrap'){
+    const bootstrap=await invokeGet(fn,args);
+    if(bootstrap && bootstrap.ok!==false){
+      try{
+        const today=jakartaDateString(new Date());
+        const from=previousMonthStart(today);
+        const history=await invokeGet('getExpenseHistory',[{from:from,to:today}]);
+        return overlayAuthoritativeExpenseTotals(bootstrap,history);
+      }catch(e){
+        // Keep the fast bootstrap response if the authoritative aggregation
+        // cannot be fetched; the UI has its own compatibility fallback.
+        console.warn('[RH rpc] authoritative expense overlay:',e);
+      }
+    }
+    return bootstrap;
+  }
   return invokeGet(fn,args);
 }
 module.exports=async function handler(req,res){
