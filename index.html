@@ -2350,36 +2350,58 @@ const OCR = {
   },
   extractAmount(text){
     const raw=String(text||'');
-    const lines=raw.split(/\r?\n/).map(x=>String(x||'').replace(/\r/g,'')).filter(x=>x.trim()).map(x=>this.normalizeText(x));
+    const lines=raw.split(/\r?\n/).map(x=>this.normalizeText(x)).filter(Boolean);
     const labelStrong=/(total|grand\s*total|jumlah|nominal|amount|total\s+payment|total\s+paid|total\s+pesanan|dibayar|payment|paid|harga|nilai|debit|transfer|pembayaran|top\s*up|withdrawal)/i;
     const labelOnly=/^(?:total|grand\s*total|jumlah|nominal|amount|total\s+payment|total\s+paid|total\s+pesanan|dibayar|payment|paid|harga|nilai|debit|transfer|pembayaran|top\s*up)\s*[:=\-]?$/i;
-    const negative=/(saldo|balance|saldo\s+(?:awal|akhir)|biaya|admin|fee|cashback|diskon|potongan|rekening|account|nomor|no\.?\s*rekening|rrn|reference|transaction\s*id|terminal\s*id|merchant\s*(?:id|pan)|approval|auth|stan|trace|invoice|receipt|batch|kode|otp|tanggal|tgl|date|waktu|time|location|lokasi|address|alamat|cashier|kasir)/i;
+    const metadataLine=/(saldo|balance|saldo\s+(?:awal|akhir)|biaya|admin|fee|cashback|diskon|potongan|rekening|account|nomor|no\.?\s*rekening|rrn|reference|transaction\s*id|terminal\s*id|merchant\s*(?:id|pan)|approval|auth|stan|trace|invoice|receipt|batch|kode|otp|tanggal|tgl|date|waktu|time|location|lokasi|address|alamat|cashier|kasir)/i;
+
+    // Pass 1: explicit currency token wins. This prevents an account/balance
+    // number later in the screenshot from replacing the actual amount.
+    let explicitBest=null;
+    for(let i=0;i<lines.length;i++){
+      const line=lines[i];
+      if(metadataLine.test(line))continue;
+      const matches=[...line.matchAll(/(?:rp\.?|idr|rupiah)\s*([0-9][0-9.,]*)/gi)];
+      for(const m of matches){
+        const value=this.parseMoneyToken(m[1],line);
+        if(!(value>=1000)||value>500000000)continue;
+        let score=100;
+        if(labelStrong.test(line))score+=90;
+        if(labelOnly.test(line))score+=40;
+        if(/(?:transfer|payment|paid|pembayaran|debit|spending)/i.test(line))score+=15;
+        if(i>=Math.max(0,lines.length-6))score+=5;
+        if(!explicitBest||score>explicitBest.score||(score===explicitBest.score&&value>explicitBest.value)){
+          explicitBest={value,score};
+        }
+      }
+    }
+    if(explicitBest)return explicitBest.value;
+
+    // Pass 2: only when OCR produced no explicit currency token.
     let best=null;
     const consider=(rawNum,line,idx,bonus=0)=>{
       if(!rawNum||/[\/:]\d/.test(rawNum))return;
       if(/^\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4}$/.test(rawNum))return;
+      if(metadataLine.test(line))return;
       if(/\b(?:tanggal|tgl|date|waktu|time)\b/i.test(line)&&!labelStrong.test(line))return;
       const value=this.parseMoneyToken(rawNum,line);
       if(!(value>=1000)||value>500000000)return;
       let score=Number(bonus||0);
       if(labelStrong.test(line))score+=90;
       if(labelOnly.test(line))score+=40;
-      if(/(?:rp|idr|rupiah)\s*[0-9]/i.test(line))score+=55;
       if(/(?:transfer|payment|paid|pembayaran|debit|spending)/i.test(line))score+=15;
-      if(negative.test(line))score-=80;
       if(idx>=Math.max(0,lines.length-6))score+=5;
       if(!best||score>best.score||(score===best.score&&value>best.value))best={value,score};
     };
+
     for(let i=0;i<lines.length;i++){
       const line=lines[i];
-      const explicit=[...line.matchAll(/(?:rp\.?|idr|rupiah)\s*([0-9][0-9.,]*)/gi)];
-      for(const m of explicit)consider(m[1],line,i,80);
-      const direct=[...line.matchAll(/(?:rp\.?|idr|rupiah|usd|sgd|myr|eur|gbp|jpy|\$|€|£|¥)?\s*([0-9][0-9.,]*)/gi)];
+      const direct=[...line.matchAll(/(?:usd|sgd|myr|eur|gbp|jpy|\$|€|£|¥)?\s*([0-9][0-9.,]*)/gi)];
       for(const m of direct)consider(m[1],line,i,0);
       if(labelOnly.test(line)&&i+1<lines.length){
         const next=lines[i+1];
         const m=next.match(/(?:rp\.?|idr|rupiah)?\s*([0-9][0-9.,]*)/i);
-        if(m)consider(m[1],next,i+1,100);
+        if(m)consider(m[1],next,i+1,80);
       }
     }
     return best&&best.score>=10?best.value:0;
@@ -2740,6 +2762,8 @@ const OCR = {
   },
   cleanTarget(value){
     let s=this.normalizeText(value).replace(/^[\-:|>"']+|[\-:|>"']+$/g,'').trim();
+    // Money is never a recipient/merchant. This catches SeaBank lines such as "-Rp 27.200".
+    if(/^(?:-?\s*)(?:rp\.?|idr|rupiah)\s*[0-9][0-9.,]*/i.test(s)||/^[-+]?\s*[0-9][0-9.,]*\s*(?:rp\.?|idr|rupiah)\b/i.test(s))return '';
     s=s.replace(/^(?:payment|paid|pay|sent|send|transfer(?:red)?|dikirim|ditransfer)\s*(?:to|from|ke|kepada|dari)?\s*[:=\-]?\s*/i,'').trim();
     s=s.replace(/^(?:from|to|ke|kepada|penerima|recipient|beneficiary|receiver|payee|tujuan|nama\s+penerima|nama\s+tujuan)\s*[:=\-]?\s*/i,'').trim();
     s=s.replace(/\b(?:merchant\s+pan|merchant\s+id|terminal\s+id|approval\s+code|reference(?:\s+(?:no|number))?|rrn)\b.*$/i,'').trim();
@@ -2803,7 +2827,7 @@ const OCR = {
       [/yoshinoya/i,'Yoshinoya'],[/sushi\s+tei/i,'Sushi Tei'],[/marugame\s+udon/i,'Marugame Udon'],
       [/richeese|richese/i,'Richeese Factory'],[/mixue/i,'Mixue'],[/fore\s+coffee/i,'Fore Coffee'],
       [/kopi\s+kenangan/i,'Kopi Kenangan'],[/janji\s*jiwa/i,'Janji Jiwa'],
-      [/tokopedia/i,'Tokopedia'],[/shopee/i,'Shopee']
+      [/tokopedia/i,'Tokopedia']
     ];
     for(const [re,name] of list)if(re.test(t))return name;
     return '';
@@ -2840,13 +2864,35 @@ const OCR = {
     return '';
   },
   structuredMerchant(rawLines, normalizedLines, rawText, source){
-    const explicit=this.findLabeledValue(rawLines,normalizedLines,['merchant name','nama merchant','store name','nama toko','toko','seller','shop'],5);
+    // Shopee: the seller/store is a field, while "Shopee" itself is only the source app.
+    if(source==='Shopee'){
+      const shopLabels=['nama toko','toko','seller','shop'];
+      const explicit=this.findLabeledValue(rawLines,normalizedLines,shopLabels,6);
+      if(explicit)return explicit.value;
+      for(let i=0;i<Math.min(8,normalizedLines.length);i++){
+        const m=normalizedLines[i].match(/^toko\s*[:=-]?\s+(.+)$/i);
+        if(m){
+          const v=this.cleanTarget(m[1]);
+          if(v)return v;
+        }
+      }
+    }
+
+    const explicit=this.findLabeledValue(
+      rawLines,
+      normalizedLines,
+      ['merchant name','nama merchant','store name','nama toko','seller','shop'],
+      5
+    );
     if(explicit)return explicit.value;
+
     const known=this.knownMerchantFromText(rawText);
     if(known)return known;
+
+    // Physical/POS receipt: merchant is normally near the header, before item/total fields.
     for(let i=0;i<Math.min(8,normalizedLines.length);i++){
       const line=normalizedLines[i];
-      if(/^(?:struk|nota|receipt|bill|guest\s+check|qris|payment|transaction|transaksi|tanggal|tgl|date|waktu|time|kasir|cashier|outlet|cabang|lokasi|alamat|address|telp|phone|npwp|pos|powered|total|subtotal|grand\s+total)/i.test(line))continue;
+      if(/^(?:struk|nota|receipt|bill|guest\s*check|qris|payment|transaction|transaksi|tanggal|tgl|date|waktu|time|kasir|cashier|outlet|cabang|lokasi|alamat|address|telp|phone|npwp|pos|powered|total|subtotal|grand\s+total)/i.test(line))continue;
       if(this.isBadTargetValue(line))continue;
       if(/^\d[\d\s.,:\/-]*$/.test(line))continue;
       if(/(?:jl\.?|jalan|street|telp|phone|www\.|https?:\/\/)/i.test(line))continue;
@@ -2855,6 +2901,7 @@ const OCR = {
     }
     return '';
   },
+
   enrichParsed(parsed, rawText){
     const raw=String(rawText||'');
     const rawLines=raw.split(/\r?\n/).map(x=>String(x||'').replace(/\r/g,'')).filter(x=>x.trim());
@@ -2898,7 +2945,7 @@ const OCR = {
       const service=/(bengkel|tambal\s+ban|ganti\s+oli|service|servis|ahass|planet\s+ban|shop&drive|sparepart|onderdil|carwash|tune\s+up|auto2000)/i.test(raw+' '+target);
       const toll=/(?:\btol\b|e-?toll|gerbang\s+tol|jasa\s+marga)/i.test(raw);
       const parkir=/(parkir|parking|valet)/i.test(raw);
-      const makan=/(coffee|latte|cappuccino|espresso|kopi|teh|tea|bakery|croissant|roti|resto|restaurant|cafe|kafe|warung|makan|minum|boba|ice\s+cream|seafood|soto|bakso|nasi|ayam|mie|beverage|food|kitchen|eatery|diner|catering|hokben|hoka\s+hoka\s+bento|kfc|mcdonald'?s|mcd|burger\s+king|starbucks|j\.?\s*co|chatime|solaria|breadtalk|pizza\s+h?ut|domino'?s|yoshinoya|sushi\s+tei|richeese|mixue|fore\s+coffee|kopi\s+kenangan|janji\s+jiwa|indomaret|alfamart|tokopedia|shopee)/i.test(raw+' '+target);
+      const makan=/(coffee|latte|cappuccino|espresso|kopi|teh|tea|bakery|croissant|roti|resto|restaurant|cafe|kafe|warung|makan|minum|boba|ice\s+cream|seafood|soto|bakso|nasi|ayam|mie|beverage|food|kitchen|eatery|diner|catering|hokben|hoka\s+hoka\s+bento|kfc|mcdonald'?s|mcd|burger\s+king|starbucks|j\.?\s*co|chatime|solaria|breadtalk|pizza\s+h?ut|domino'?s|yoshinoya|sushi\s+tei|richeese|mixue|fore\s+coffee|kopi\s+kenangan|janji\s+jiwa|/i.test(raw+' '+target);
       if(fuel)p.category='Bensin'; else if(service)p.category='Servis'; else if(toll)p.category='Tol'; else if(parkir)p.category='Parkir'; else if(makan)p.category='Makan';
     }else if(mode==='merchant'){
       const merchantName=this.structuredMerchant(rawLines,lines,raw,source);
@@ -2908,7 +2955,7 @@ const OCR = {
       const service=/(bengkel|tambal\s+ban|ganti\s+oli|service|servis|ahass|planet\s+ban|shop&drive|sparepart|onderdil|carwash|cuci|tune\s+up|auto2000)/i.test(combined);
       const toll=/(?:\btol\b|e-?toll|gerbang\s+tol|jasa\s+marga)/i.test(combined);
       const parkir=/(parkir|parking|valet)/i.test(combined);
-      const makan=/(coffee|latte|cappuccino|espresso|kopi|teh|tea|bakery|croissant|roti|resto|restaurant|cafe|kafe|warung|makan|minum|boba|ice\s+cream|seafood|soto|bakso|nasi|ayam|mie|beverage|food|kitchen|eatery|diner|catering|hokben|hoka\s+hoka\s+bento|kfc|mcdonald'?s|mcd|burger\s+king|starbucks|j\.?\s*co|chatime|solaria|breadtalk|pizza\s+h?ut|domino'?s|yoshinoya|sushi\s+tei|richeese|mixue|fore\s+coffee|kopi\s+kenangan|janji\s+jiwa|indomaret|alfamart|tokopedia|shopee)/i.test(combined);
+      const makan=/(coffee|latte|cappuccino|espresso|kopi|teh|tea|bakery|croissant|roti|resto|restaurant|cafe|kafe|warung|makan|minum|boba|ice\s+cream|seafood|soto|bakso|nasi|ayam|mie|beverage|food|kitchen|eatery|diner|catering|hokben|hoka\s+hoka\s+bento|kfc|mcdonald'?s|mcd|burger\s+king|starbucks|j\.?\s*co|chatime|solaria|breadtalk|pizza\s+h?ut|domino'?s|yoshinoya|sushi\s+tei|richeese|mixue|fore\s+coffee|kopi\s+kenangan|janji\s+jiwa|indomaret|alfamart|tokopedia|tokopedia)/i.test(combined);
       if(fuel)p.category='Bensin'; else if(service)p.category='Servis'; else if(toll)p.category='Tol'; else if(parkir)p.category='Parkir'; else if(makan)p.category='Makan'; else p.category='Lainnya';
       const item=this.extractPurchaseDetail(raw)
         .replace(/(?:^|[,;]\s*)(?:virtual\s+account|shopeepay|spaylater|cash|tunai|debit|credit|bca|mandiri)\b/ig,'')
@@ -3260,7 +3307,7 @@ window.addEventListener('load', function () {
       const service=/(bengkel|tambal\s+ban|ganti\s+oli|service|servis|ahass|planet\s+ban|shop&drive|sparepart|onderdil|carwash|cuci|tune\s+up|auto2000)/i.test(combined);
       const toll=/(?:\btol\b|e-?toll|gerbang\s+tol|jasa\s+marga)/i.test(combined);
       const parkir=/(parkir|parking|valet)/i.test(combined);
-      const makan=/(coffee|latte|cappuccino|espresso|kopi|teh|tea|bakery|croissant|roti|resto|restaurant|cafe|kafe|warung|makan|minum|boba|ice\s+cream|seafood|soto|bakso|nasi|ayam|mie|beverage|food|kitchen|eatery|diner|catering|hokben|hoka\s+hoka\s+bento|kfc|mcdonald'?s|mcd|burger\s+king|starbucks|j\.?\s*co|chatime|solaria|breadtalk|pizza\s+h?ut|domino'?s|yoshinoya|sushi\s+tei|richeese|mixue|fore\s+coffee|kopi\s+kenangan|janji\s+jiwa|indomaret|alfamart|tokopedia|shopee)/i.test(combined);
+      const makan=/(coffee|latte|cappuccino|espresso|kopi|teh|tea|bakery|croissant|roti|resto|restaurant|cafe|kafe|warung|makan|minum|boba|ice\s+cream|seafood|soto|bakso|nasi|ayam|mie|beverage|food|kitchen|eatery|diner|catering|hokben|hoka\s+hoka\s+bento|kfc|mcdonald'?s|mcd|burger\s+king|starbucks|j\.?\s*co|chatime|solaria|breadtalk|pizza\s+h?ut|domino'?s|yoshinoya|sushi\s+tei|richeese|mixue|fore\s+coffee|kopi\s+kenangan|janji\s+jiwa|/i.test(combined);
       if(fuel)p.category='Bensin'; else if(service)p.category='Servis'; else if(toll)p.category='Tol'; else if(parkir)p.category='Parkir'; else if(makan)p.category='Makan'; else p.category='Lainnya';
       const item=this.extractPurchaseDetail(raw);
       if(fuel)p.detail=this.fuelGrade(combined)||item||''; else if(item)p.detail=item;
