@@ -2351,57 +2351,50 @@ const OCR = {
   extractAmount(text){
     const raw=String(text||'');
     const lines=raw.split(/\r?\n/).map(x=>this.normalizeText(x)).filter(Boolean);
-    const labelStrong=/(total|grand\s*total|jumlah|nominal|amount|total\s+payment|total\s+paid|total\s+pesanan|dibayar|payment|paid|harga|nilai|debit|transfer|pembayaran|top\s*up|withdrawal)/i;
-    const labelOnly=/^(?:total|grand\s*total|jumlah|nominal|amount|total\s+payment|total\s+paid|total\s+pesanan|dibayar|payment|paid|harga|nilai|debit|transfer|pembayaran|top\s*up)\s*[:=\-]?$/i;
-    const metadataLine=/(saldo|balance|saldo\s+(?:awal|akhir)|biaya|admin|fee|cashback|diskon|potongan|rekening|account|nomor|no\.?\s*rekening|rrn|reference|transaction\s*id|terminal\s*id|merchant\s*(?:id|pan)|approval|auth|stan|trace|invoice|receipt|batch|kode|otp|tanggal|tgl|date|waktu|time|location|lokasi|address|alamat|cashier|kasir)/i;
+    const strong=/(total|grand\s*total|jumlah|nominal|amount|total\s+payment|total\s+paid|total\s+pesanan|dibayar|payment|paid|harga|nilai|debit|transfer|pembayaran|top\s*up|withdrawal)/i;
+    const metadata=/(saldo|balance|saldo\s+(?:awal|akhir)|biaya|admin|fee|cashback|diskon|potongan|rekening|account|nomor|no\.?\s*rekening|rrn|reference|transaction\s*id|terminal\s*id|merchant\s*(?:id|pan)|approval|auth|stan|trace|invoice|receipt|batch|kode|otp|tanggal|tgl|date|waktu|time|location|lokasi|address|alamat|cashier|kasir)/i;
+    const metadataOnly=/^(?:saldo|balance|saldo\s+(?:awal|akhir)|location|lokasi|address|alamat|outlet|cabang|merchant\s*(?:id|pan)|terminal\s*id|tid|mid|acquirer|rrn|reference|approval|invoice|receipt|cashier|kasir)\s*[:=\-]?$/i;
 
-    // Pass 1: explicit currency token wins. This prevents an account/balance
-    // number later in the screenshot from replacing the actual amount.
-    let explicitBest=null;
+    // Pass 1: an explicit monetary token is authoritative.
+    let best=null;
     for(let i=0;i<lines.length;i++){
-      const line=lines[i];
-      if(metadataLine.test(line))continue;
+      const line=lines[i], prev=lines[i-1]||'';
+      if(metadata.test(line)||metadataOnly.test(prev))continue;
       const matches=[...line.matchAll(/(?:rp\.?|idr|rupiah)\s*([0-9][0-9.,]*)/gi)];
       for(const m of matches){
         const value=this.parseMoneyToken(m[1],line);
         if(!(value>=1000)||value>500000000)continue;
         let score=100;
-        if(labelStrong.test(line))score+=90;
-        if(labelOnly.test(line))score+=40;
+        if(strong.test(line))score+=90;
         if(/(?:transfer|payment|paid|pembayaran|debit|spending)/i.test(line))score+=15;
         if(i>=Math.max(0,lines.length-6))score+=5;
-        if(!explicitBest||score>explicitBest.score||(score===explicitBest.score&&value>explicitBest.value)){
-          explicitBest={value,score};
-        }
+        // Outflow/inflow sign is useful context, but never changes the magnitude.
+        if(/^[\s]*[-−]\s*(?:rp\.?|idr|rupiah)/i.test(line))score+=8;
+        if(!best||score>best.score||(score===best.score&&value>best.value))best={value,score};
       }
     }
-    if(explicitBest)return explicitBest.value;
+    if(best)return best.value;
 
-    // Pass 2: only when OCR produced no explicit currency token.
-    let best=null;
-    const consider=(rawNum,line,idx,bonus=0)=>{
-      if(!rawNum||/[\/:]\d/.test(rawNum))return;
+    // Pass 2: only when OCR contains no usable explicit IDR token.
+    const consider=(rawNum,line,idx)=>{
+      if(!rawNum||metadata.test(line)||metadataOnly.test(lines[idx-1]||''))return;
       if(/^\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4}$/.test(rawNum))return;
-      if(metadataLine.test(line))return;
-      if(/\b(?:tanggal|tgl|date|waktu|time)\b/i.test(line)&&!labelStrong.test(line))return;
+      if(/\b(?:tanggal|tgl|date|waktu|time)\b/i.test(line)&&!strong.test(line))return;
       const value=this.parseMoneyToken(rawNum,line);
       if(!(value>=1000)||value>500000000)return;
-      let score=Number(bonus||0);
-      if(labelStrong.test(line))score+=90;
-      if(labelOnly.test(line))score+=40;
+      let score=0;
+      if(strong.test(line))score+=90;
       if(/(?:transfer|payment|paid|pembayaran|debit|spending)/i.test(line))score+=15;
       if(idx>=Math.max(0,lines.length-6))score+=5;
       if(!best||score>best.score||(score===best.score&&value>best.value))best={value,score};
     };
-
     for(let i=0;i<lines.length;i++){
       const line=lines[i];
       const direct=[...line.matchAll(/(?:usd|sgd|myr|eur|gbp|jpy|\$|€|£|¥)?\s*([0-9][0-9.,]*)/gi)];
-      for(const m of direct)consider(m[1],line,i,0);
-      if(labelOnly.test(line)&&i+1<lines.length){
-        const next=lines[i+1];
-        const m=next.match(/(?:rp\.?|idr|rupiah)?\s*([0-9][0-9.,]*)/i);
-        if(m)consider(m[1],next,i+1,80);
+      for(const m of direct)consider(m[1],line,i);
+      if(/^(?:total|grand\s*total|jumlah|nominal|amount|dibayar|payment|paid|debit|transfer|pembayaran)\s*[:=\-]?$/i.test(line)&&i+1<lines.length){
+        const m=lines[i+1].match(/(?:rp\.?|idr|rupiah)?\s*([0-9][0-9.,]*)/i);
+        if(m)consider(m[1],lines[i+1],i+1);
       }
     }
     return best&&best.score>=10?best.value:0;
@@ -2827,7 +2820,6 @@ const OCR = {
       [/yoshinoya/i,'Yoshinoya'],[/sushi\s+tei/i,'Sushi Tei'],[/marugame\s+udon/i,'Marugame Udon'],
       [/richeese|richese/i,'Richeese Factory'],[/mixue/i,'Mixue'],[/fore\s+coffee/i,'Fore Coffee'],
       [/kopi\s+kenangan/i,'Kopi Kenangan'],[/janji\s*jiwa/i,'Janji Jiwa'],
-      [/tokopedia/i,'Tokopedia']
     ];
     for(const [re,name] of list)if(re.test(t))return name;
     return '';
@@ -2853,11 +2845,15 @@ const OCR = {
     const explicitMerchant=this.findLabeledValue(rawLines,normalizedLines,['merchant name','nama merchant','payment merchant'],6);
     if(explicitMerchant)return explicitMerchant.value;
     if(source==='SeaBank'){
-      const ai=normalizedLines.findIndex(x=>/(amount|nominal|jumlah|debit|credit|\brp\b|\bidr\b)/i.test(x));
+      // SeaBank commonly shows the transaction party above the signed amount.
+      // Anchor to the first explicit +Rp/-Rp/IDR amount, not to a later balance.
+      const ai=normalizedLines.findIndex(x=>/^[\s]*[-+−＋]?\s*(?:rp\.?|idr|rupiah)\s*[0-9]/i.test(x));
       if(ai>=0){
         for(let i=Math.max(0,ai-5);i<ai;i++){
-          const v=this.cleanTarget(normalizedLines[i]);
-          if(v&&!/(transaction|transaksi|date|tanggal|waktu|time|status|successful|success|berhasil|cashflow|spending|earning)/i.test(v))return v;
+          const candidate=normalizedLines[i]||'';
+          if(this.isFieldLabel(candidate)||this.isBadTargetValue(candidate))continue;
+          const v=this.cleanTarget(candidate);
+          if(v)return v;
         }
       }
     }
