@@ -2864,13 +2864,12 @@ const OCR = {
     return '';
   },
   structuredMerchant(rawLines, normalizedLines, rawText, source){
-    // Shopee: the seller/store is a field, while "Shopee" itself is only the source app.
+    // For Shopee, the platform name is the source, not the store name.
     if(source==='Shopee'){
-      const shopLabels=['nama toko','toko','seller','shop'];
-      const explicit=this.findLabeledValue(rawLines,normalizedLines,shopLabels,6);
-      if(explicit)return explicit.value;
+      const seller=this.findLabeledValue(rawLines,normalizedLines,['nama toko','toko','seller','shop'],6);
+      if(seller)return seller.value;
       for(let i=0;i<Math.min(8,normalizedLines.length);i++){
-        const m=normalizedLines[i].match(/^toko\s*[:=-]?\s+(.+)$/i);
+        const m=normalizedLines[i].match(/^toko\s*[:=-]\s+(.+)$/i);
         if(m){
           const v=this.cleanTarget(m[1]);
           if(v)return v;
@@ -2889,7 +2888,6 @@ const OCR = {
     const known=this.knownMerchantFromText(rawText);
     if(known)return known;
 
-    // Physical/POS receipt: merchant is normally near the header, before item/total fields.
     for(let i=0;i<Math.min(8,normalizedLines.length);i++){
       const line=normalizedLines[i];
       if(/^(?:struk|nota|receipt|bill|guest\s*check|qris|payment|transaction|transaksi|tanggal|tgl|date|waktu|time|kasir|cashier|outlet|cabang|lokasi|alamat|address|telp|phone|npwp|pos|powered|total|subtotal|grand\s+total)/i.test(line))continue;
@@ -2901,7 +2899,6 @@ const OCR = {
     }
     return '';
   },
-
   enrichParsed(parsed, rawText){
     const raw=String(rawText||'');
     const rawLines=raw.split(/\r?\n/).map(x=>String(x||'').replace(/\r/g,'')).filter(x=>x.trim());
@@ -2945,7 +2942,7 @@ const OCR = {
       const service=/(bengkel|tambal\s+ban|ganti\s+oli|service|servis|ahass|planet\s+ban|shop&drive|sparepart|onderdil|carwash|tune\s+up|auto2000)/i.test(raw+' '+target);
       const toll=/(?:\btol\b|e-?toll|gerbang\s+tol|jasa\s+marga)/i.test(raw);
       const parkir=/(parkir|parking|valet)/i.test(raw);
-      const makan=/(coffee|latte|cappuccino|espresso|kopi|teh|tea|bakery|croissant|roti|resto|restaurant|cafe|kafe|warung|makan|minum|boba|ice\s+cream|seafood|soto|bakso|nasi|ayam|mie|beverage|food|kitchen|eatery|diner|catering|hokben|hoka\s+hoka\s+bento|kfc|mcdonald'?s|mcd|burger\s+king|starbucks|j\.?\s*co|chatime|solaria|breadtalk|pizza\s+h?ut|domino'?s|yoshinoya|sushi\s+tei|richeese|mixue|fore\s+coffee|kopi\s+kenangan|janji\s+jiwa|/i.test(raw+' '+target);
+      const makan=/(coffee|latte|cappuccino|espresso|kopi|teh|tea|bakery|croissant|roti|resto|restaurant|cafe|kafe|warung|makan|minum|boba|ice\s+cream|seafood|soto|bakso|nasi|ayam|mie|beverage|food|kitchen|eatery|diner|catering|hokben|hoka\s+hoka\s+bento|kfc|mcdonald'?s|mcd|burger\s+king|starbucks|j\.?\s*co|chatime|solaria|breadtalk|pizza\s+h?ut|domino'?s|yoshinoya|sushi\s+tei|richeese|mixue|fore\s+coffee|kopi\s+kenangan|janji\s+jiwa)/i.test(raw+' '+target);
       if(fuel)p.category='Bensin'; else if(service)p.category='Servis'; else if(toll)p.category='Tol'; else if(parkir)p.category='Parkir'; else if(makan)p.category='Makan';
     }else if(mode==='merchant'){
       const merchantName=this.structuredMerchant(rawLines,lines,raw,source);
@@ -2955,7 +2952,7 @@ const OCR = {
       const service=/(bengkel|tambal\s+ban|ganti\s+oli|service|servis|ahass|planet\s+ban|shop&drive|sparepart|onderdil|carwash|cuci|tune\s+up|auto2000)/i.test(combined);
       const toll=/(?:\btol\b|e-?toll|gerbang\s+tol|jasa\s+marga)/i.test(combined);
       const parkir=/(parkir|parking|valet)/i.test(combined);
-      const makan=/(coffee|latte|cappuccino|espresso|kopi|teh|tea|bakery|croissant|roti|resto|restaurant|cafe|kafe|warung|makan|minum|boba|ice\s+cream|seafood|soto|bakso|nasi|ayam|mie|beverage|food|kitchen|eatery|diner|catering|hokben|hoka\s+hoka\s+bento|kfc|mcdonald'?s|mcd|burger\s+king|starbucks|j\.?\s*co|chatime|solaria|breadtalk|pizza\s+h?ut|domino'?s|yoshinoya|sushi\s+tei|richeese|mixue|fore\s+coffee|kopi\s+kenangan|janji\s+jiwa|indomaret|alfamart|tokopedia|tokopedia)/i.test(combined);
+       const makan=/(coffee|latte|cappuccino|espresso|kopi|teh|tea|bakery|croissant|roti|resto|restaurant|cafe|kafe|warung|makan|minum|boba|ice\s+cream|seafood|soto|bakso|nasi|ayam|mie|beverage|food|kitchen|eatery|diner|catering|hokben|hoka\s+hoka\s+bento|kfc|mcdonald'?s|mcd|burger\s+king|starbucks|j\.?\s*co|chatime|solaria|breadtalk|pizza\s+h?ut|domino'?s|yoshinoya|sushi\s+tei|richeese|mixue|fore\s+coffee|kopi\s+kenangan|janji\s+jiwa)/i.test(combined);
       if(fuel)p.category='Bensin'; else if(service)p.category='Servis'; else if(toll)p.category='Tol'; else if(parkir)p.category='Parkir'; else if(makan)p.category='Makan'; else p.category='Lainnya';
       const item=this.extractPurchaseDetail(raw)
         .replace(/(?:^|[,;]\s*)(?:virtual\s+account|shopeepay|spaylater|cash|tunai|debit|credit|bca|mandiri)\b/ig,'')
