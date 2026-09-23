@@ -2821,10 +2821,21 @@ const OCR = {
     ];
     return keys.includes(k);
   },
+  isAddressOrGeoLike(value){
+    const s=this.normalizeText(value).replace(/\s+/g,' ').trim();
+    if(!s)return true;
+    const compact=s.toLowerCase();
+    if(/\b(?:jakarta(?:\s+(?:selatan|selat|barat|timur|utara|pusat))?|tangerang(?:\s+(?:selatan|kota))?|bekasi|depok|bogor|bandung|surabaya|semarang|yogyakarta|jogja|medan|palembang|makassar|denpasar|batam|pekanbaru|padang|malang|solo|surakarta|cirebon|serang|banten|jawa\s+(?:barat|tengah|timur)|dki|indonesia)\b/i.test(compact))return true;
+    if(/(?:^|[\s,.-])\d{5}(?:[\s,.-]|$)/.test(s))return true;
+    if(/(?:,|\b)\s*(?:id|ind|indonesia)\s*$/i.test(s))return true;
+    if(/\b(?:jl\.?|jln\.?|jalan|street|st\.?|no\.?\s*\d+|rt\.?\s*\d+|rw\.?\s*\d+|kelurahan|kecamatan|kabupaten|kota|provinsi|province|postal|kode\s*pos|zip)\b/i.test(s))return true;
+    if(/(?:\b(?:location|lokasi|alamat|address|outlet|cabang|store\s+location|merchant\s+location|city|kota)\b).*(?:,|\d{5}|\bindonesia\b)/i.test(s))return true;
+    return false;
+  },
   isBadTargetValue(value){
     const s=this.normalizeText(value).trim();
     if(!s)return true;
-    if(this.isDateTimeLike(s)||this.isReceiptMeta(s)||this.isBankHeaderValue(s))return true;
+    if(this.isDateTimeLike(s)||this.isReceiptMeta(s)||this.isBankHeaderValue(s)||this.isAddressOrGeoLike(s))return true;
     if(/^(?:location|lokasi|merchant\s+location|lokasi\s+merchant|address|alamat|outlet|cabang|store\s+location|city|kota|bank|merchant\s+pan|merchant\s+id|terminal\s+id|tid|mid|acquirer|rrn|reference|approval|invoice|receipt|cashier|kasir|payment|transaction|transaksi|successful|successfull|success|berhasil|completed|from|to|penerima|recipient|beneficiary|receiver|payee|tujuan|balance|saldo|available\s+balance|current\s+balance|shopee|seabank|mybca|m-bca|mbca|bca\s+mobile|brimo|bni\s+mobile|livin|qris)$/i.test(s))return true;
     if(/^\d[\d\s.,\/-]*$/.test(s))return true;
     return false;
@@ -2942,32 +2953,15 @@ const OCR = {
     if(source==='Shopee'){
       const seller=this.findLabeledValue(rawLines,normalizedLines,['nama toko','toko','seller','shop'],6);
       if(seller)return seller.value;
-      for(let i=0;i<Math.min(8,normalizedLines.length);i++){
-        const m=normalizedLines[i].match(/^toko(?:\s+|\s*[:=-]\s+)(.+)$/i);
-        if(m){
-          const v=this.cleanTarget(m[1]);
-          if(v)return v;
-        }
-      }
-    }
-
-    const explicit=this.findLabeledValue(
-      rawLines,
-      normalizedLines,
-      ['merchant name','nama merchant','store name','nama toko','seller','shop'],
-      5
-    );
-    if(explicit)return explicit.value;
-
-    const known=this.knownMerchantFromText(rawText);
-    if(known)return known;
-
-    for(let i=0;i<Math.min(8,normalizedLines.length);i++){
+      // Never guess Brand from arbitrary receipt lines: addresses often appear
+    // above the merchant and were the source of "Jakarta selat, 12320, id".
+    for(let i=0;i<Math.min(5,normalizedLines.length);i++){
       const line=normalizedLines[i];
       if(/^(?:struk|nota|receipt|bill|guest\s*check|qris|payment|transaction|transaksi|tanggal|tgl|date|waktu|time|kasir|cashier|outlet|cabang|lokasi|alamat|address|telp|phone|npwp|pos|powered|total|subtotal|grand\s+total)/i.test(line))continue;
       if(this.isBadTargetValue(line))continue;
       if(/^\d[\d\s.,:\/-]*$/.test(line))continue;
       if(/(?:jl\.?|jalan|street|telp|phone|www\.|https?:\/\/)/i.test(line))continue;
+      if(line.split(/\s+/).filter(Boolean).length>8)continue;
       const v=this.cleanTarget(line);
       if(v)return v;
     }
