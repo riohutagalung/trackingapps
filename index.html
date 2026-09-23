@@ -2758,10 +2758,9 @@ const OCR = {
       }
       const line=normalizedLines[i]||'';
       for(const label of labels){
-        const safe=String(label).replace(/[.*+?^()|[\]\\]/g,'\\        const safe=String(label).replace(/[.*+?^()|[\]\\]/g,'\\$&').replace(/\s+/g,'\\s*');
-        const re=new RegExp('^'+safe+'\\s*[:=>\\-]?\\s*(.*)$','i');').replace(/\s+/g,'\\s*');
+        const labelEsc=String(label).replace(/[.*+?^()|[\\]\\\\]/g,'\\$&').replace(/\\s+/g,'\\s*');
         const singleWord=!/\\s/.test(String(label).trim());
-        const re=new RegExp('^'+safe+(singleWord?'(?:\\s{2,}|\\s*[:=>\\-]\\s*)':'\\s*[:=>\\-]?\\s*')+'(.*)
+        const re=new RegExp('^'+labelEsc+(singleWord?'(?:\\s{2,}|\\s*[:=>\\-]\\s*)':'\\s*[:=>\\-]?\\s*')+'(.*)$','i');
         const m=line.match(re);
         if(m){
           const inline=this.cleanTarget(m[1]||'');
