@@ -1782,7 +1782,12 @@ function RHFilterGpsTrack(points) {
     if(dt1>0&&dt2>0&&dt1<=12&&dt2<=12){
       const d1=Haversine(a.lat,a.lng,b.lat,b.lng),d2=Haversine(b.lat,b.lng,c.lat,c.lng),dc=Haversine(a.lat,a.lng,c.lat,c.lng);
       const s1=d1*3600/dt1,s2=d2*3600/dt2,middle=Number(b.filteredSpeedKmh||0),sideMedian=RHMedian([s1,s2]);
-      if(middle>0&&sideMedian<Math.max(12,middle*0.55)&&d1+d2>dc*1.70)continue;
+      const detourRatio=(d1+d2)/Math.max(dc,0.001);
+      // A GPS jump that leaves a point far away and immediately returns creates
+      // two very fast legs but a short direct distance between the neighbors.
+      // Reject that isolated triangle; sustained real motion is unaffected.
+      if(detourRatio>2.20&&dt1<=8&&dt2<=8&&Math.min(s1,s2)>Math.max(70,sideMedian*0.60))continue;
+      if(middle>0&&sideMedian<Math.max(12,middle*0.55)&&detourRatio>1.70)continue;
     }
     out.push(b);
   }
@@ -2064,7 +2069,9 @@ const GPS = {
       }
       this.stopping=false;this.reset();App.toast('Perjalanan terlalu singkat untuk disimpan.');return;
     }
-    this.pending={distance:stats.distanceKm,durationMin:stats.durationMin,avgSpeed:stats.avgSpeedKmh,maxSpeed:stats.maxSpeedKmh,movingTimeMin:stats.movingTimeMin,stopTimeMin:stats.stopTimeMin,stopCount:stats.stopCount,...route,gpsPoints:stats.points.slice(),startTime:new Date(this.start).toISOString(),endTime:new Date(this.end).toISOString(),date:new Date(this.start).toISOString().slice(0,10),id:sid};
+    const metricStart=stats.points.length?stats.points[0].time:this.start;
+    const metricEnd=stats.points.length?stats.points[stats.points.length-1].time:this.end;
+    this.pending={distance:stats.distanceKm,durationMin:stats.durationMin,avgSpeed:stats.avgSpeedKmh,maxSpeed:stats.maxSpeedKmh,movingTimeMin:stats.movingTimeMin,stopTimeMin:stats.stopTimeMin,stopCount:stats.stopCount,...route,gpsPoints:stats.points.slice(),startTime:new Date(metricStart).toISOString(),endTime:new Date(metricEnd).toISOString(),date:new Date(metricStart).toISOString().slice(0,10),id:sid};
     document.getElementById('modal-distance').textContent=Num(stats.distanceKm,2)+' km';
     document.getElementById('modal-duration').textContent=Num(stats.durationMin,1)+' mnt';
     document.getElementById('modal-avg').textContent=Num(stats.avgSpeedKmh,1)+' km/h';
@@ -2122,8 +2129,10 @@ const GPS = {
     App.toast('Perjalanan dibatalkan.');
   },
   stats(endMs){
-    const startMs=this.start||0;
-    return RHComputeGpsMetrics(this.points,startMs,endMs||Date.now());
+    const usable=RHNormalizeGpsPoints(this.points);
+    const firstTime=usable.length?usable[0].time:(this.start||0);
+    const lastTime=usable.length?usable[usable.length-1].time:(endMs||Date.now());
+    return RHComputeGpsMetrics(this.points,firstTime,lastTime);
   },
   detectRoute(trackPoints){
     const pts=Array.isArray(trackPoints)?trackPoints:this.points;
