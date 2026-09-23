@@ -2719,6 +2719,17 @@ const OCR = {
   isBankHeaderValue(value){
     return /^(?:bank\s+)?(?:bca|m-bca|mbca|mybca|bca\s+mobile|brimo|bri\s+mobile|bni\s+mobile|wondr(?:\s+by\s+bni)?|livin(?:\s+by\s+mandiri)?|mandiri|bank\s+mandiri|cimb|octo(?:\s+mobile)?|permata|btn|danamon|ocbc|uob|hsbc|dbs|digibank|jenius|seabank|bank\s+jago|blu)(?:\s+(?:mobile|digital|internet|banking))?$/i.test(String(value||'').trim());
   },
+  isFieldLabel(value){
+    const k=this.labelKey(value);
+    const keys=[
+      'paymentto','paymentrecipient','transferto','transferredto','recipient','penerima','beneficiary','receiver','payee',
+      'namapenerima','namatujuan','rekeningtujuan','tujuanpembayaran','merchant','merchantname','namamerchant','storename','namatoko',
+      'amount','nominal','jumlah','total','grandtotal','totalpayment','totalpaid','totalpesanan','tanggal','tgl','date','transactiondate',
+      'location','lokasi','merchantlocation','lokasimerchant','address','alamat','outlet','cabang','cashier','kasir','rrn','reference',
+      'transactionid','terminalid','merchantid','merchantpan','acquirer','approval','invoice','receipt','status','description','detail'
+    ];
+    return keys.includes(k);
+  },
   isBadTargetValue(value){
     const s=this.normalizeText(value).trim();
     if(!s)return true;
@@ -2754,13 +2765,17 @@ const OCR = {
           const inline=this.cleanTarget(m[1]||'');
           if(inline)return {value:inline,index:i};
           for(let j=1;j<=maxLookAhead;j++){
-            const next=this.cleanTarget(normalizedLines[i+j]||'');
+            const nextLine=normalizedLines[i+j]||'';
+            if(this.isFieldLabel(nextLine))break;
+            const next=this.cleanTarget(nextLine);
             if(next)return {value:next,index:i+j};
           }
         }
         if(this.labelKey(line)===this.labelKey(label)){
           for(let j=1;j<=maxLookAhead;j++){
-            const next=this.cleanTarget(normalizedLines[i+j]||'');
+            const nextLine=normalizedLines[i+j]||'';
+            if(this.isFieldLabel(nextLine))break;
+            const next=this.cleanTarget(nextLine);
             if(next)return {value:next,index:i+j};
           }
         }
@@ -2856,7 +2871,7 @@ const OCR = {
       note:''
     };
 
-    const financial=source==='SeaBank'||source==='myBCA'||source==='BCA'||/(cashflow\s*[-–]\s*(?:spending|earning)|payment\s+to|transfer\s+to|qris\s+payment|penerima|beneficiary|recipient)/i.test(raw);
+    const financial=/(?:sea\s*bank|seabank|mybca|m-bca|mbca|bca\s+mobile|cashflow\s*[-–]\s*(?:spending|earning)|m-transfer|transfer\s+(?:successful|berhasil)|payment\s+to|transfer\s+to|qris\s+payment|penerima|beneficiary|recipient|account\s+transactions)/i.test(raw);
     const merchant=/shopee|struk|nota|receipt|subtotal|grand\s+total|total\s+pesanan|qty|quantity/i.test(raw);
     const mode=financial?'financial':(merchant?'merchant':'unknown');
     p.mode=mode;
