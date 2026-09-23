@@ -2759,7 +2759,9 @@ const OCR = {
     // Money is never a recipient/merchant. This catches SeaBank lines such as "-Rp 27.200".
     if(/^(?:-?\s*)(?:rp\.?|idr|rupiah)\s*[0-9][0-9.,]*/i.test(s)||/^[-+]?\s*[0-9][0-9.,]*\s*(?:rp\.?|idr|rupiah)\b/i.test(s))return '';
     s=s.replace(/^(?:payment|paid|pay|sent|send|transfer(?:red)?|dikirim|ditransfer)\s*(?:to|from|ke|kepada|dari)?\s*[:=\-]?\s*/i,'').trim();
-    s=s.replace(/^(?:from|to|ke|kepada|penerima|recipient|beneficiary|receiver|payee|tujuan|nama\s+penerima|nama\s+tujuan)\s*[:=\-]?\s*/i,'').trim();
+    // Do not strip ordinary words beginning with "to"/"ke"/"from" such as
+    // "Toko ABC". Explicit label parsing already removes the field label.
+    s=s.replace(/^(?:penerima|recipient|beneficiary|receiver|payee|tujuan|nama\s+penerima|nama\s+tujuan)\s*[:=\-]\s*/i,'').trim();
     s=s.replace(/\b(?:merchant\s+pan|merchant\s+id|terminal\s+id|approval\s+code|reference(?:\s+(?:no|number))?|rrn)\b.*$/i,'').trim();
     s=s.replace(/^\b(?:bank\s+)?(?:bca|bri|bni|mandiri|cimb|permata|btn|danamon|ocbc|uob|hsbc|dbs)\b\s+/i,'').trim();
     s=s.replace(/\s+(?:rp|idr|usd|nominal|amount|jumlah|tanggal|tgl|date|status|saldo|balance)\b.*$/i,'').trim();
@@ -2866,7 +2868,7 @@ const OCR = {
       const seller=this.findLabeledValue(rawLines,normalizedLines,['nama toko','toko','seller','shop'],6);
       if(seller)return seller.value;
       for(let i=0;i<Math.min(8,normalizedLines.length);i++){
-        const m=normalizedLines[i].match(/^toko\s*[:=-]\s+(.+)$/i);
+        const m=normalizedLines[i].match(/^toko(?:\s+|\s*[:=-]\s+)(.+)$/i);
         if(m){
           const v=this.cleanTarget(m[1]);
           if(v)return v;
