@@ -1313,21 +1313,23 @@ const App = {
       this.config = r && r.config ? r.config : (this.config || {});
 
       try {
-        // Dashboard cards/trend must use an authoritative expense window, not
-        // getBootstrap's fast 160-row cache. This keeps UI totals identical to
-        // the Expenses sheet for the current and previous month.
-        const today = TodayLocal();
-        const [yy,mm] = String(today).split('-').map(Number);
-        const prevStart = new Date(yy, (mm||1)-2, 1);
-        const pad = n => String(n).padStart(2,'0');
-        const from = prevStart.getFullYear()+'-'+pad(prevStart.getMonth()+1)+'-01';
-        const all = await new Promise((resolve,reject) => {
-          google.script.run
-            .withSuccessHandler(rows => resolve(Array.isArray(rows)?rows:[]))
-            .withFailureHandler(reject)
-            .getExpenseHistory({from:from,to:today});
-        });
-        this.applyAuthoritativeExpenseWindow(all, from, today);
+        // Vercel / Android RPC now overlays totals from the authoritative
+        // Expense history. Keep this fallback for direct Apps Script launches
+        // that may still be running the older deployment.
+        if (!this.data._expenseAggregateAuthoritative) {
+          const today = TodayLocal();
+          const [yy,mm] = String(today).split('-').map(Number);
+          const prevStart = new Date(yy, (mm||1)-2, 1);
+          const pad = n => String(n).padStart(2,'0');
+          const from = prevStart.getFullYear()+'-'+pad(prevStart.getMonth()+1)+'-01';
+          const all = await new Promise((resolve,reject) => {
+            google.script.run
+              .withSuccessHandler(rows => resolve(Array.isArray(rows)?rows:[]))
+              .withFailureHandler(reject)
+              .getExpenseHistory({from:from,to:today});
+          });
+          this.applyAuthoritativeExpenseWindow(all, from, today);
+        }
       } catch (e) {
         console.warn('[RH] authoritative expense window unavailable:', e);
         this.data._expenseAggregateAuthoritative = false;
