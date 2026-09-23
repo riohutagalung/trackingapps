@@ -1847,7 +1847,7 @@ const GPS = {
   active:false,watch:null,timer:null,start:null,end:null,points:[],pending:null,wakeLock:null,
   speedSamples:[],
   storageKey:'rh_active_trip_v4',lastPersist:0,resumeBound:false,sessionId:null,nativeMode:false,nativeReady:false,
-  stopping:false, lastNativeCount:-1,
+  stopping:false, lastNativeCount:-1, lastNativeServerPoints:[], lastNativeSyncAt:0, nativeRefreshPromise:null,
   zones:[{name:'Bintaro',lat:-6.273,lng:106.742,r:4.0},{name:'Ciputat',lat:-6.310,lng:106.765,r:4.0}],
   toggle(){this.active?this.stop():this.startTracking();},
   isNative(){return !!(window.RHNativeGPS&&window.RHNativeGPS.isNative&&window.RHNativeGPS.isNative());},
@@ -1875,7 +1875,12 @@ const GPS = {
       this.nativeMode=this.isNative();this.updateButton(true);
       if(this.nativeMode&&window.RHNativeGPS){ await window.RHNativeGPS.start(this.sessionId); }
       else this.ensureWatch();
-      this.timer=setInterval(()=>this.renderLive(),1000);this.requestWakeLock();this.renderLive();
+      this.timer=setInterval(()=>{
+      this.renderLive();
+      if(this.nativeMode&&this.sessionId&&Date.now()-Number(this.lastNativeSyncAt||0)>=RH_GPS_CFG.serverSyncIntervalMs){
+        this.refreshNativePoints(this.sessionId);
+      }
+    },1000);this.requestWakeLock();this.renderLive();
       if(this.nativeMode)this.refreshNativePoints(this.sessionId);
       App.toast('Perjalanan GPS yang belum selesai dipulihkan dari HP.');
     }catch(e){try{localStorage.removeItem(this.storageKey);}catch(_){} }
@@ -1936,7 +1941,7 @@ const GPS = {
 
     if(!this.nativeMode&&!navigator.geolocation){App.toast('Browser tidak mendukung GPS.');return;}
 
-    this.active=true;this.stopping=false;this.start=Date.now();this.end=null;this.points=[];this.pending=null;this.speedSamples=[];this.sessionId='trip_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);this.lastNativeCount=-1;this.updateButton(true);this.persist();
+    this.active=true;this.stopping=false;this.start=Date.now();this.end=null;this.points=[];this.pending=null;this.speedSamples=[];this.sessionId='trip_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);this.lastNativeCount=-1;this.lastNativeServerPoints=[];this.lastNativeSyncAt=0;this.updateButton(true);this.persist();
     try{
       if(this.nativeMode&&window.RHNativeGPS){
         await window.RHNativeGPS.start(this.sessionId);
@@ -1998,22 +2003,27 @@ const GPS = {
   async refreshNativePoints(sessionIdOverride){
     const sid=String(sessionIdOverride||this.sessionId||'').trim();
     if(!this.nativeMode||!sid||!window.google?.script?.run)return [];
-    return new Promise(resolve=>{
+    if(this.nativeRefreshPromise)return this.nativeRefreshPromise;
+    this.nativeRefreshPromise=new Promise(resolve=>{
       google.script.run.withSuccessHandler(rows=>{
         try{
           const valid=this.dedupePoints(Array.isArray(rows)?rows:[]);
           this.lastNativeCount=valid.length;
           this.lastNativeServerPoints=valid;
-          // Pull server-only points into the live UI even when WebView missed callbacks.
-          const merged=this.dedupePoints(this.points.concat(valid));
-          this.points=merged;
+          this.points=this.dedupePoints(this.points.concat(valid));
           this.renderLive();
           this.persist();
+          this.lastNativeSyncAt=Date.now();
           resolve(valid);
         }catch(e){resolve([]);}
-      }).withFailureHandler(()=>resolve([])).getNativeTripPoints(sid);
-    });
+      }).withFailureHandler(e=>{
+        console.warn('[RHGPS] native server refresh:',e);
+        resolve([]);
+      }).getNativeTripPoints(sid);
+    }).finally(()=>{this.nativeRefreshPromise=null;});
+    return this.nativeRefreshPromise;
   },
+
   async waitForNativeFlush(sid, timeoutMs=8000){
     const started=Date.now();let stable=0;let lastCount=-1;let best=[];
     while(Date.now()-started<timeoutMs){
@@ -2087,7 +2097,7 @@ const GPS = {
 
     // TripPoints is the single authoritative GPS store. addTrip() reads it when
     // gpsPoints is empty, avoiding a second copy of the same route in Trips.
-    const payload={id:sid,date:p.date,origin:p.origin,destination:p.destination,routeName:p.routeName,distanceKm:p.distance,durationMin:p.durationMin,avgSpeed:p.avgSpeed,maxSpeed:p.maxSpeed,movingTimeMin:p.movingTimeMin,stopTimeMin:p.stopTimeMin,stopCount:p.stopCount,routeVariant:p.routeVariant,note:p.note,source:GPS.nativeMode?'gps-native':'gps-browser',vehicle:document.getElementById('trip-vehicle')?.value||'Motor',startTime:p.startTime,endTime:p.endTime,gpsPoints:[]};
+    const payload={id:sid,date:p.date,origin:p.origin,destination:p.destination,routeName:p.routeName,distanceKm:p.distance,durationMin:p.durationMin,avgSpeed:p.avgSpeed,maxSpeed:p.maxSpeed,movingTimeMin:p.movingTimeMin,stopTimeMin:p.stopTimeMin,stopCount:p.stopCount,routeVariant:p.routeVariant,note:p.note,source:GPS.nativeMode?'gps-native':'gps-browser',vehicle:document.getElementById('trip-vehicle')?.value||'Motor',startTime:p.startTime,endTime:p.endTime,gpsPoints:allPoints};
 
     const fail=(e)=>{if(btn)btn.disabled=false;App.error(e);};
     const save=()=>google.script.run.withSuccessHandler(()=>{
@@ -2149,7 +2159,7 @@ const GPS = {
     document.getElementById('float-time').textContent=TimeFmt(s.durationMin*60);
     document.getElementById('float-avg').textContent=Num(s.avgSpeedKmh,1)+' km/h';
   },
-  reset(){this.active=false;this.stopping=false;this.points=[];this.speedSamples=[];this.start=null;this.end=null;this.pending=null;this.sessionId=null;this.nativeMode=false;this.clearPersist();if(this.watch!==null){navigator.geolocation.clearWatch(this.watch);this.watch=null;}clearInterval(this.timer);this.timer=null;this.updateButton(false);['gps-speed','gps-distance','gps-avg','gps-max'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=id==='gps-distance'?'0.00':'0';});const tm=document.getElementById('gps-time');if(tm)tm.textContent='00:00';const rt=document.getElementById('gps-route');if(rt)rt.textContent='GPS STANDBY';const q=document.getElementById('gps-quality');if(q){q.textContent='GPS standby';q.className='gps-quality';}document.getElementById('gps-floating')?.classList.remove('show');}
+  reset(){this.active=false;this.stopping=false;this.points=[];this.speedSamples=[];this.start=null;this.end=null;this.pending=null;this.sessionId=null;this.nativeMode=false;this.lastNativeServerPoints=[];this.lastNativeSyncAt=0;this.nativeRefreshPromise=null;this.clearPersist();if(this.watch!==null){navigator.geolocation.clearWatch(this.watch);this.watch=null;}clearInterval(this.timer);this.timer=null;this.updateButton(false);['gps-speed','gps-distance','gps-avg','gps-max'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=id==='gps-distance'?'0.00':'0';});const tm=document.getElementById('gps-time');if(tm)tm.textContent='00:00';const rt=document.getElementById('gps-route');if(rt)rt.textContent='GPS STANDBY';const q=document.getElementById('gps-quality');if(q){q.textContent='GPS standby';q.className='gps-quality';}document.getElementById('gps-floating')?.classList.remove('show');}
 };
 
 const OCR = {
