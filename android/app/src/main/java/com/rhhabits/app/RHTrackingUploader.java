@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Set;
 
 final class RHTrackingUploader {
+    private static final Object SYNC_LOCK = new Object();
     private RHTrackingUploader() {}
 
     static final class SyncResult {
@@ -25,23 +26,25 @@ final class RHTrackingUploader {
     }
 
     static SyncResult syncAll(Context context, String endpoint, int timeoutMs) throws Exception {
-        TrackingDb db = TrackingDb.get(context);
-        SyncResult result = new SyncResult();
-        Set<String> ids = db.getPendingTripIds();
-        for (String tripId : ids) {
-            while (true) {
-                List<TrackingDb.Point> batch = db.getPending(tripId, 25);
-                if (batch.isEmpty()) break;
-                boolean ok = postBatch(endpoint, tripId, batch, timeoutMs);
-                if (!ok) break;
-                ArrayList<Long> uploaded = new ArrayList<>();
-                for (TrackingDb.Point p : batch) uploaded.add(p.id);
-                db.markUploaded(uploaded);
-                result.tripIds.add(tripId);
+        synchronized (SYNC_LOCK) {
+            TrackingDb db = TrackingDb.get(context);
+            SyncResult result = new SyncResult();
+            Set<String> ids = db.getPendingTripIds();
+            for (String tripId : ids) {
+                while (true) {
+                    List<TrackingDb.Point> batch = db.getPending(tripId, 25);
+                    if (batch.isEmpty()) break;
+                    boolean ok = postBatch(endpoint, tripId, batch, timeoutMs);
+                    if (!ok) break;
+                    ArrayList<Long> uploaded = new ArrayList<>();
+                    for (TrackingDb.Point p : batch) uploaded.add(p.id);
+                    db.markUploaded(uploaded);
+                    result.tripIds.add(tripId);
+                }
             }
+            for (String tripId : ids) result.remaining += db.remaining(tripId);
+            return result;
         }
-        for (String tripId : ids) result.remaining += db.remaining(tripId);
-        return result;
     }
 
     private static boolean postBatch(String endpoint, String tripId, List<TrackingDb.Point> points, int timeoutMs) {
