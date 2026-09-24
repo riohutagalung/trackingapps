@@ -44,6 +44,7 @@ public class RHTrackingService extends Service {
     private String tripId = "";
     private String endpoint = "https://rhhabits.vercel.app/api/native-location";
     private volatile boolean stopping = false;
+    private boolean updatesRequested = false;
 
     @Override public void onCreate() {
         super.onCreate();
@@ -90,7 +91,7 @@ public class RHTrackingService extends Service {
 
         try {
             startForegroundCompat();
-            requestLocationUpdates();
+            if (!updatesRequested) requestLocationUpdates();
         } catch (Exception e) {
             prefs.edit().putBoolean("running", false).apply();
             stopSelf();
@@ -112,6 +113,7 @@ public class RHTrackingService extends Service {
                 .build();
 
         fused.requestLocationUpdates(request, callback, Looper.getMainLooper());
+        updatesRequested = true;
         scheduler.scheduleAtFixedRate(() -> {
             try {
                 RHTrackingUploader.syncAll(getApplicationContext(), endpoint, 8000);
@@ -168,7 +170,7 @@ public class RHTrackingService extends Service {
         Notification n = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("RH Habits • GPS aktif")
                 .setContentText("RH Habits sedang merekam perjalanan")
-                .setSmallIcon(getApplicationInfo().icon)
+.setSmallIcon(android.R.drawable.ic_menu_mylocation)
                 .setOngoing(true)
                 .setCategory(NotificationCompat.CATEGORY_SERVICE)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
