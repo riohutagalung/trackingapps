@@ -30,9 +30,12 @@
   }
 
   function backgroundGranted(perm){
-    if(!isIOS()) return true;
     const s=perm&&perm.backgroundLocation;
-    return s==='granted'||s==='always';
+    if(isIOS()) return s==='granted'||s==='always';
+    // Android 10+ exposes a distinct backgroundLocation state. Require it
+    // whenever the plugin reports that state so lock-screen tracking is explicit.
+    if(platform()==='android' && typeof s==='string') return s==='granted'||s==='always';
+    return platform()!=='android';
   }
 
   async function requestPermissions(){
@@ -40,17 +43,13 @@
     if(!bg?.requestPermissions) return null;
     try{
       const perm=await bg.requestPermissions({
-        permissions:isIOS()
-          ? ['location','backgroundLocation','notification']
-          : ['location','notification']
+        permissions:['location','backgroundLocation','notification']
       });
 
-      // iOS may first grant "When In Use". For locked-screen tracking we need
-      // the Always/background authorization before starting the trip.
-      if(isIOS()&&!backgroundGranted(perm)){
+      if(!backgroundGranted(perm)){
         return Object.assign({},perm,{
-          location:'denied',
-          backgroundLocation:perm?.backgroundLocation||'when_in_use'
+          location:perm?.location||'denied',
+          backgroundLocation:perm?.backgroundLocation||'denied'
         });
       }
       return perm;
@@ -63,10 +62,10 @@
   async function checkPermissions(){
     const perm=await getPermissionState();
     if(!perm)return null;
-    if(isIOS()&&!backgroundGranted(perm)){
+    if(!backgroundGranted(perm)){
       return Object.assign({},perm,{
-        location:'denied',
-        backgroundLocation:perm.backgroundLocation||'when_in_use'
+        location:perm?.location||'denied',
+        backgroundLocation:perm?.backgroundLocation||'denied'
       });
     }
     return perm;
@@ -79,8 +78,11 @@
     const url=APP_ORIGIN+'/api/native-location?tripId='+encodeURIComponent(id);
 
     const perm=await getPermissionState();
-    if(isIOS()&&!backgroundGranted(perm)){
-      throw new Error('Izin Always/Background Location belum aktif. Pilih Allow Always di Pengaturan iPhone agar GPS tetap merekam saat layar dikunci.');
+    if(!backgroundGranted(perm)){
+      const msg=isIOS()
+        ? 'Izin Always/Background Location belum aktif. Pilih Allow Always di Pengaturan iPhone agar GPS tetap merekam saat layar dikunci.'
+        : 'Izin lokasi di latar belakang belum aktif. Izinkan "Allow all the time" di Pengaturan Android agar GPS tetap merekam saat layar dikunci.';
+      throw new Error(msg);
     }
 
     await bg.start({
@@ -88,6 +90,7 @@
       backgroundTitle:'RH Habits • GPS aktif',
       requestPermissions:false,
       stale:false,
+      backgroundLocation:true,
       distanceFilter:3,
       minIntervalMs:1000,
       url,
