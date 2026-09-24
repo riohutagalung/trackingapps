@@ -2144,8 +2144,9 @@ const GPS = {
     const stats=this.stats(this.end);
     const route=this.detectRoute(stats.points);
     if(stats.distanceKm<.05||stats.durationMin<1||stats.points.length<2){
-      if(wasNative&&sid&&window.google?.script?.run){
-        try{google.script.run.withFailureHandler(()=>{}).deleteNativeTripPoints(sid);}catch(_){}
+      if(wasNative&&sid){
+        try{await window.RHNativeGPS?.clearTrip?.(sid);}catch(_){}
+        if(window.google?.script?.run){try{google.script.run.withFailureHandler(()=>{}).deleteNativeTripPoints(sid);}catch(_){}}
       }
       this.stopping=false;this.reset();App.toast('Perjalanan terlalu singkat untuk disimpan.');return;
     }
@@ -2218,14 +2219,15 @@ const GPS = {
     save();
   },
 
-  cancelSave(){
+  async cancelSave(){
     const sid=this.pending?.id;
     const native=GPS.nativeMode;
     App.closeModal('trip-modal');
-    this.reset();
-    if(native&&sid&&window.google?.script?.run){
-      try{google.script.run.withFailureHandler(()=>{}).deleteNativeTripPoints(sid);}catch(_){}
+    if(native&&sid){
+      try{await window.RHNativeGPS?.clearTrip?.(sid);}catch(_){}
+      if(window.google?.script?.run){try{google.script.run.withFailureHandler(()=>{}).deleteNativeTripPoints(sid);}catch(_){}}
     }
+    this.reset();
     App.toast('Perjalanan dibatalkan.');
   },
   stats(endMs){
