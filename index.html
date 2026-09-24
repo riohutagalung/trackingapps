@@ -769,7 +769,8 @@ body.device-android .mobile-header { padding-top:12px; }
   transition: opacity .28s ease, visibility .28s ease;
 }
 #rh-splash.hide { opacity: 0; visibility: hidden; pointer-events: none; }
-.rh-splash-inner { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; transform:translateY(4px); }
+.rh-splash-inner { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; transform:translateY(4px); }
+.rh-splash-title { width:112px; max-width:100%; text-align:center; line-height:1; white-space:nowrap; overflow:hidden; text-overflow:clip; }
 .rh-splash-logo-wrap { width:120px; height:120px; display:grid; place-items:center; background:transparent; border:0; border-radius:0; box-shadow:none; overflow:visible; }
 .rh-splash-logo { width:112px; height:112px; border-radius:0; object-fit:contain; display:block; }
 .rh-splash-title { margin-top:2px; font-family:'Space Grotesk',sans-serif; font-size:24px; font-weight:600; letter-spacing:.2px; color:#f5f8fc; text-transform:none; }
@@ -1997,13 +1998,21 @@ const GPS = {
     if(this.nativeMode&&window.RHNativeGPS){
       try{
         let perm=await window.RHNativeGPS.checkPermissions?.();
+        const androidNative=String(window.Capacitor?.getPlatform?.()||'')==='android';
         const needsLocation=!perm||perm.location!=='granted';
+        const needsBackground=androidNative && !!perm && typeof perm.backgroundLocation==='string' && !['granted','always'].includes(perm.backgroundLocation);
         const needsNotification=!!(perm&&perm.notification&&perm.notification!=='granted');
-        if(needsLocation||needsNotification) perm=await window.RHNativeGPS.requestPermissions?.()||perm;
+        if(needsLocation||needsBackground||needsNotification) perm=await window.RHNativeGPS.requestPermissions?.()||perm;
         const locationState=perm&&perm.location;
+        const backgroundState=perm&&perm.backgroundLocation;
         const notificationState=perm&&perm.notification;
         if(locationState&&locationState!=='granted'){
           App.toast('Izin lokasi wajib diizinkan untuk merekam perjalanan.');
+          try{await window.RHNativeGPS.openSettings?.();}catch(_){}
+          return;
+        }
+        if(androidNative && backgroundState && !['granted','always'].includes(backgroundState)){
+          App.toast('Izinkan lokasi "Selalu / Allow all the time" agar GPS tetap merekam saat layar dikunci.');
           try{await window.RHNativeGPS.openSettings?.();}catch(_){}
           return;
         }
@@ -2179,7 +2188,7 @@ const GPS = {
 
     // TripPoints is the single authoritative GPS store. addTrip() reads it when
     // gpsPoints is empty, avoiding a second copy of the same route in Trips.
-    const payload={id:sid,date:p.date,origin:p.origin,destination:p.destination,routeName:p.routeName,distanceKm:p.distance,durationMin:p.durationMin,avgSpeed:p.avgSpeed,maxSpeed:p.maxSpeed,movingTimeMin:p.movingTimeMin,stopTimeMin:p.stopTimeMin,stopCount:p.stopCount,routeVariant:p.routeVariant,note:p.note,source:GPS.nativeMode?'gps-native':'gps-browser',vehicle:document.getElementById('trip-vehicle')?.value||'Motor',startTime:p.startTime,endTime:p.endTime,gpsPoints:allPoints};
+    const payload={id:sid,date:p.date,origin:p.origin,destination:p.destination,routeName:p.routeName,distanceKm:p.distance,durationMin:p.durationMin,avgSpeed:p.avgSpeed,maxSpeed:p.maxSpeed,movingTimeMin:p.movingTimeMin,stopTimeMin:p.stopTimeMin,stopCount:p.stopCount,routeVariant:p.routeVariant,note:p.note,source:GPS.nativeMode?'gps-native':'gps-browser',vehicle:document.getElementById('trip-vehicle')?.value||'Motor',startTime:p.startTime,endTime:p.endTime,gpsPoints:GPS.nativeMode?[]:allPoints};
 
     const fail=(e)=>{if(btn)btn.disabled=false;App.error(e);};
     const save=()=>google.script.run.withSuccessHandler(()=>{
@@ -3162,7 +3171,12 @@ const Trip = {
       el.innerHTML=`<div class="empty" style="padding:30px;text-align:center"><b>Peta belum tersedia offline.</b><div style="margin-top:8px">Koordinat GPS tetap tersimpan. Gunakan tombol Google Maps untuk membuka jalur berdasarkan titik awal/akhir.</div><div style="margin-top:14px"><button class="btn small" type="button" onclick="Trip.openGoogleMaps('${EscAttr(t.id)}')">${Icon('route',15)} Buka Google Maps</button></div></div>`;
       return;
     }
-    const latlngs=points.map(p=>[Number(p.lat!==undefined?p.lat:p.latitude),Number(p.lng!==undefined?p.lng:p.longitude)]);
+    let drawPoints=points;
+    try{
+      const filtered=RHFilterGpsTrack(points);
+      if(Array.isArray(filtered)&&filtered.length>=2)drawPoints=filtered;
+    }catch(e){console.warn('[RH Trip Map] filter skipped:',e);}
+    const latlngs=drawPoints.map(p=>[Number(p.lat!==undefined?p.lat:p.latitude),Number(p.lng!==undefined?p.lng:p.longitude)]);
     this._map=L.map(el,{zoomControl:true,attributionControl:true,preferCanvas:true});
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,crossOrigin:true,attribution:'© OpenStreetMap contributors'}).addTo(this._map);
     const line=L.polyline(latlngs,{weight:5,opacity:.9,smoothFactor:.12}).addTo(this._map);
