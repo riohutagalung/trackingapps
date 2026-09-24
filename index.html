@@ -2134,7 +2134,13 @@ const GPS = {
 
     if(wasNative){
       this.lastNativeServerPoints=await this.waitForNativeFlush(sid,6500);
-      if(window.RHNativeGPS){try{await window.RHNativeGPS.stop();}catch(e){console.warn('[RHGPS] native stop',e);}}
+      if(window.RHNativeGPS){
+        try{await window.RHNativeGPS.stop();}catch(e){console.warn('[RHGPS] native stop',e);}
+        // Read the durable SQLite buffer once more after the native service
+        // receives the stop command so the final fix is included in metrics.
+        try{await new Promise(r=>setTimeout(r,350));}catch(_){}
+        try{await this.refreshNativePoints(sid);}catch(e){console.warn('[RHGPS] final local refresh',e);}
+      }
     }
 
     this.points=this.dedupePoints(this.points);
