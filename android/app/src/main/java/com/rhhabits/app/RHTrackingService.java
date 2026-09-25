@@ -45,6 +45,7 @@ public class RHTrackingService extends Service {
     private String endpoint = "https://rhhabits.vercel.app/api/native-location";
     private volatile boolean stopping = false;
     private boolean updatesRequested = false;
+    private Location lastSavedLocation = null;
 
     @Override public void onCreate() {
         super.onCreate();
@@ -107,8 +108,8 @@ public class RHTrackingService extends Service {
         LocationRequest request = new LocationRequest.Builder(
                 Priority.PRIORITY_HIGH_ACCURACY, 1000L)
                 .setMinUpdateIntervalMillis(500L)
-                .setMaxUpdateDelayMillis(3000L)
-                .setMinUpdateDistanceMeters(3f)
+                .setMaxUpdateDelayMillis(2000L)
+                .setMinUpdateDistanceMeters(2f)
                 .setWaitForAccurateLocation(false)
                 .build();
 
@@ -123,15 +124,34 @@ public class RHTrackingService extends Service {
 
     private void saveLocation(Location l) {
         if (l == null || tripId.isEmpty()) return;
+        if (Build.VERSION.SDK_INT >= 18 && l.isMock()) return;
+
         long t = l.getTime() > 0 ? l.getTime() : System.currentTimeMillis();
         double accuracy = l.hasAccuracy() ? l.getAccuracy() : 0;
-        if (accuracy > 150) return;
-        double speedKmh = l.hasSpeed() ? Math.max(0, l.getSpeed() * 3.6) : 0;
+        if (accuracy > 75) return;
+
+        double providerSpeedKmh = l.hasSpeed() ? Math.max(0, l.getSpeed() * 3.6) : 0;
+
+        // Do not trust a cached/provider speed on the first fix. Store and publish
+        // speed only when it is supported by actual coordinate movement.
+        double storedSpeedKmh = 0;
+        if (lastSavedLocation != null) {
+            float meters = lastSavedLocation.distanceTo(l);
+            long previousTime = lastSavedLocation.getTime() > 0 ? lastSavedLocation.getTime() : t;
+            long dtMs = t - previousTime;
+            if (dtMs > 0 && meters >= 6) {
+                double coordinateSpeed = meters * 3.6 / (dtMs / 1000.0);
+                if (coordinateSpeed >= 3 && coordinateSpeed <= 320) {
+                    storedSpeedKmh = coordinateSpeed;
+                }
+            }
+        }
+
         Double bearing = l.hasBearing() ? (double) l.getBearing() : null;
         Double altitude = l.hasAltitude() ? l.getAltitude() : null;
 
         TrackingDb.get(this).insert(tripId, t, l.getLatitude(), l.getLongitude(),
-                accuracy, speedKmh, bearing, altitude);
+                accuracy, storedSpeedKmh, bearing, altitude);
 
         Intent i = new Intent(RHTrackingPlugin.ACTION_LOCATION);
         i.setPackage(getPackageName());
@@ -139,11 +159,14 @@ public class RHTrackingService extends Service {
         i.putExtra("latitude", l.getLatitude());
         i.putExtra("longitude", l.getLongitude());
         i.putExtra("accuracy", accuracy);
-        i.putExtra("speedKmh", speedKmh);
+        i.putExtra("speedKmh", storedSpeedKmh);
+        i.putExtra("providerSpeedKmh", providerSpeedKmh);
         i.putExtra("time", t);
         if (bearing != null) i.putExtra("bearing", bearing);
         if (altitude != null) i.putExtra("altitude", altitude);
         sendBroadcast(i);
+
+        lastSavedLocation = new Location(l);
     }
 
     private void requestStopAndFlush() {
