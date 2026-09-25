@@ -49,6 +49,9 @@
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+img, svg, video, canvas, iframe { max-width: 100%; }
+button, input, select, textarea { max-width: 100%; box-sizing: border-box; }
+.grid > *, .cards > *, .stats > *, .form-grid > *, .dashboard-grid > *, .shell > * { min-width: 0; }
 
 html {
   width: 100%;
@@ -328,11 +331,31 @@ button { cursor: pointer; border: none; background: none; }
 .stat .label { font-size: 10.5px; color: var(--muted); font-weight: 700; }
 .stat .value {
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 24px;
+  font-size: clamp(17px, 4.2vw, 24px);
   font-weight: 700;
   margin-top: 6px;
   letter-spacing: -0.5px;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.08;
 }
+.stats-mobile > .stat { min-width: 0; }
+.stat-value-row { display:flex; align-items:center; gap:8px; min-width:0; }
+.stat-value-row .value { flex:1 1 auto; margin-top:6px; }
+.stat-value-row .privacy-toggle {
+  flex:0 0 auto;
+  width:30px; height:30px; padding:0;
+  display:grid; place-items:center;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:rgba(255,255,255,.035);
+  color:var(--muted);
+  cursor:pointer;
+}
+.stat-value-row .privacy-toggle:active { transform:scale(.96); }
+.amount-hidden { letter-spacing:2px !important; }
 .stat.green .value { color: var(--green); }
 .stat.blue2 .value { color: var(--blue); }
 
@@ -728,7 +751,7 @@ body.device-mobile .card:hover { border-color:var(--line); }
 body.device-ios .mobile-header { padding-top:calc(12px + env(safe-area-inset-top)); }
 body.device-android .mobile-header { padding-top:12px; }
 @media (max-width:380px) {
-  .mobile-brand-sub { display:none; }
+  .mobile-brand-sub { display:block; font-size:8px; }
   .mobile-brand-name { font-size:13px; }
   .mobile-logo { width:36px; height:36px; flex-basis:36px; }
   .topbar .status { display:none; }
@@ -746,12 +769,14 @@ body.device-android .mobile-header { padding-top:12px; }
   transition: opacity .28s ease, visibility .28s ease;
 }
 #rh-splash.hide { opacity: 0; visibility: hidden; pointer-events: none; }
-.rh-splash-inner { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; transform:translateY(4px); }
-.rh-splash-logo-wrap { width:88px; height:88px; display:grid; place-items:center; border:1px solid rgba(67,170,255,.28); border-radius:24px; background:rgba(10,22,38,.60); box-shadow:0 18px 48px rgba(0,0,0,.42); overflow:hidden; }
-.rh-splash-logo { width:76px; height:76px; border-radius:20px; object-fit:cover; display:block; }
-.rh-splash-title { font-family:'Space Grotesk',sans-serif; font-size:20px; font-weight:600; letter-spacing:.2px; color:#f5f8fc; text-transform:lowercase; }
+.rh-splash-inner { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; transform:translateY(4px); }
+.rh-splash-title { width:112px; max-width:100%; text-align:center; line-height:1; white-space:nowrap; overflow:hidden; text-overflow:clip; }
+.rh-splash-logo-wrap { width:120px; height:120px; display:grid; place-items:center; background:transparent; border:0; border-radius:0; box-shadow:none; overflow:visible; }
+.rh-splash-logo { width:112px; height:112px; border-radius:0; object-fit:contain; display:block; }
+.rh-splash-title { margin-top:2px; font-family:'Space Grotesk',sans-serif; font-size:24px; font-weight:600; letter-spacing:.2px; color:#f5f8fc; text-transform:none; }
 .rh-splash-sub { display:none; }
-@media (max-width:600px){ .rh-splash-logo-wrap{width:78px;height:78px;border-radius:22px}.rh-splash-logo{width:68px;height:68px;border-radius:18px}.rh-splash-title{font-size:26px}.rh-splash-sub{font-size:9px} }
+@media (max-width:600px){ .rh-splash-logo-wrap{width:116px;height:116px}.rh-splash-logo{width:108px;height:108px}.rh-splash-title{font-size:24px}.rh-splash-sub{font-size:9px} }
+
 
 /* ===== RH HABITS MOBILE CONNECTION + GPS HISTORY ===== */
 .mobile-connection { display:none; align-items:center; gap:5px; padding:5px 8px; border:1px solid var(--line); border-radius:999px; background:rgba(255,255,255,.04); color:var(--muted); font-size:8px; font-weight:800; letter-spacing:.55px; white-space:nowrap; }
@@ -769,6 +794,26 @@ body.device-android .mobile-header { padding-top:12px; }
 .trip-summary-main { min-width:0; }
 .trip-summary-title { font-size:14px; font-weight:800; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .trip-summary-sub { margin-top:4px; color:var(--muted); font-size:10px; line-height:1.5; }
+.trip-route-full { font-size:11px; line-height:1.55; color:var(--text); }
+.trip-route-full b { font-weight:800; }
+.trip-route-via { margin-top:4px; color:var(--muted); }
+.trip-gps-facts { margin-top:10px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.trip-gps-fact { padding:9px 10px; border:1px solid var(--line); border-radius:12px; background:rgba(255,255,255,.015); }
+.trip-gps-fact span { display:block; font-size:8px; color:var(--muted); letter-spacing:.4px; }
+.trip-gps-fact b { display:block; margin-top:4px; font-size:10.5px; word-break:break-word; }
+.trip-data-note { margin-top:9px; padding:8px 10px; border-radius:10px; background:rgba(67,170,255,.05); color:var(--muted); font-size:9px; line-height:1.5; }
+.traffic-choice-list { display:grid; gap:10px; margin-top:12px; }
+.traffic-choice {
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:12px 13px; border:1px solid var(--line); border-radius:14px;
+  background:rgba(255,255,255,.018); cursor:pointer; color:inherit; text-decoration:none;
+}
+.traffic-choice:active { transform:translateY(1px); }
+.traffic-choice-main { min-width:0; }
+.traffic-choice-title { display:flex; align-items:center; gap:7px; font-size:12px; font-weight:800; }
+.traffic-choice-sub { margin-top:4px; color:var(--muted); font-size:9.5px; line-height:1.45; }
+.traffic-choice-arrow { flex:0 0 auto; color:var(--muted); font-size:18px; }
+.traffic-choice-note { margin-top:10px; color:var(--dim); font-size:8.5px; line-height:1.45; }
 .trip-summary-metrics { display:flex; gap:10px; flex:0 0 auto; }
 .trip-summary-metric { text-align:right; min-width:55px; }
 .trip-summary-metric span { display:block; font-size:8px; color:var(--muted); letter-spacing:.5px; }
@@ -790,7 +835,7 @@ body.device-android .mobile-header { padding-top:12px; }
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
-<script>if(!window.L){document.write('<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"><\/script>');}</script>
+<script>if(!window.L){document.write('<\/script>');}</script>
 </head>
 <body>
 <div id="rh-splash" aria-hidden="true">
@@ -798,7 +843,7 @@ body.device-android .mobile-header { padding-top:12px; }
     <div class="rh-splash-logo-wrap" aria-hidden="true">
       <img class="rh-splash-logo" alt="RH" src="data:image/png;base64,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">
     </div>
-    <div class="RH-splash-title">Habits</div>
+    <div class="rh-splash-title">Habits</div>
   </div>
 </div>
 <div id="app">
@@ -843,7 +888,6 @@ body.device-android .mobile-header { padding-top:12px; }
         </div>
         <div class="mobile-header-right">
           <span class="mobile-connection" id="mobile-connection"><span class="mobile-connection-dot"></span><span id="mobile-status-text">Menghubungkan...</span></span>
-          <span class="mobile-device-badge" id="mobile-device-badge">WEB</span>
           <button class="mobile-refresh-btn" type="button" aria-label="Refresh data" onclick="App.refresh()"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.7-4.2L4 9"/><path d="M4 4v5h5"/><path d="M4 13a8 8 0 0 0 14.7 4.2L20 15"/><path d="M20 20v-5h-5"/></svg></button>
         </div>
       </div>
@@ -889,7 +933,7 @@ body.device-android .mobile-header { padding-top:12px; }
 
         <div class="grid grid-3 stats-mobile" style="margin-top:16px">
           <div class="stat green"><div class="label">Hari Ini</div><div class="value" id="sum-today">Rp0</div></div>
-          <div class="stat blue2"><div class="label">Bulan Ini</div><div class="value" id="sum-month">Rp0</div></div>
+          <div class="stat blue2"><div class="label">Bulan Ini</div><div class="stat-value-row"><div class="value" id="sum-month">Rp0</div><button class="privacy-toggle" type="button" onclick="App.toggleAmountPrivacy()" aria-label="Sembunyikan nominal bulan ini" title="Sembunyikan nominal"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-5 10-5 10 5 10 5-3.5 5-10 5-10-5-10-5Z"/><circle cx="12" cy="12" r="2.5"/></svg></button></div></div>
           <div class="stat"><div class="label">Total Trip</div><div class="value" id="sum-trips">0</div></div>
         </div>
 
@@ -1034,7 +1078,7 @@ body.device-android .mobile-header { padding-top:12px; }
             <div class="card-head"><div><div class="eyebrow">Traffic Engine</div><div class="card-title">Google Routes API</div></div></div>
             <div class="traffic-note">Masukkan API key Google Routes API agar cek ETA di dalam aplikasi memakai kondisi lalu lintas Google secara real-time. Key disimpan aman di Script Properties.</div>
             <form id="traffic-settings-form" onsubmit="return false;">
-              <div class="field" style="margin-top:15px"><label>API Key</label><input class="input" id="traffic-key" type="password" placeholder="AIza..."></div>
+              <div class="field" style="margin-top:15px"><label>API Key</label><input class="input" id="traffic-key" type="password" autocomplete="new-password" placeholder="AIza..."></div>
               <div style="display:flex;gap:8px;margin-top:14px">
                 <button class="btn primary" type="button" onclick="Settings.saveKey()">Simpan Key</button>
                 <button class="btn red" type="button" onclick="Settings.clearKey()">Hapus Key</button>
@@ -1139,7 +1183,7 @@ body.device-android .mobile-header { padding-top:12px; }
 <div id="traffic-modal" class="modal"><div class="modal-box">
   <h3 class="modal-title">Cek Rute Live</h3><div class="modal-sub" id="traffic-modal-sub">Memeriksa rute...</div>
   <div id="traffic-modal-content"></div>
-  <div style="display:flex;gap:8px;margin-top:16px"><button class="btn small" id="traffic-open-maps" type="button">Buka Google Maps Live</button><button class="btn full" onclick="App.closeModal('traffic-modal')">Tutup</button></div>
+  <div style="margin-top:16px"><button class="btn full" onclick="App.closeModal('traffic-modal')">Tutup</button></div>
 </div></div>
 
 <div id="history-modal" class="modal">
@@ -1175,9 +1219,9 @@ body.device-android .mobile-header { padding-top:12px; }
 <div id="quick-backdrop" class="quick-backdrop" aria-hidden="true" onclick="App.closeQuickMenu()"></div>
 <div id="toast" class="toast"></div>
 
-<script src="gas-bridge.js?v=20260921-r7"></script>
+<script src="gas-bridge.js?v=20260922-r10"></script>
 <script src="rh-native-gps.js"></script>
-<script src="rh-native-media.js"></script>
+<script src="rh-native-media.js?v=20260922-r12"></script>
 <script>
 const Weather = {
   refresh(force) {
@@ -1264,12 +1308,37 @@ const App = {
       if (status) status.textContent = 'Gagal sinkron';
       this.setConnection('error', 'Offline');
       this.toast('Sinkronisasi terlalu lama. Data lama tetap dipertahankan.');
-    }, 25000);
-    google.script.run.withSuccessHandler(r => {
-      clearTimeout(timeout);
-      done();
+    }, 40000);
+
+    google.script.run.withSuccessHandler(async r => {
       this.data = r && r.dashboard ? r.dashboard : (this.data || {});
       this.config = r && r.config ? r.config : (this.config || {});
+
+      try {
+        // Vercel / Android RPC now overlays totals from the authoritative
+        // Expense history. Keep this fallback for direct Apps Script launches
+        // that may still be running the older deployment.
+        if (!this.data._expenseAggregateAuthoritative) {
+          const today = TodayLocal();
+          const [yy,mm] = String(today).split('-').map(Number);
+          const prevStart = new Date(yy, (mm||1)-2, 1);
+          const pad = n => String(n).padStart(2,'0');
+          const from = prevStart.getFullYear()+'-'+pad(prevStart.getMonth()+1)+'-01';
+          const all = await new Promise((resolve,reject) => {
+            google.script.run
+              .withSuccessHandler(rows => resolve(Array.isArray(rows)?rows:[]))
+              .withFailureHandler(reject)
+              .getExpenseHistory({from:from,to:today});
+          });
+          this.applyAuthoritativeExpenseWindow(all, from, today);
+        }
+      } catch (e) {
+        console.warn('[RH] authoritative expense window unavailable:', e);
+        this.data._expenseAggregateAuthoritative = false;
+      }
+
+      clearTimeout(timeout);
+      done();
       this.setConnection('connected', 'Connected');
       if (status) status.textContent = 'Connected';
       try { this.render(); } catch (renderErr) {
@@ -1285,10 +1354,61 @@ const App = {
       this.hideSplash();
     }).getBootstrap();
   },
+
+  applyAuthoritativeExpenseWindow(expenses, from, today) {
+    const rows = Array.isArray(expenses) ? expenses.filter(e => e && e.date) : [];
+    const month = String(today).slice(0,7);
+    const prev = String(from).slice(0,7);
+    const weekStartDate = new Date(String(today)+'T00:00:00');
+    weekStartDate.setDate(weekStartDate.getDate()-7);
+    const weekStart = weekStartDate.getFullYear()+'-'+String(weekStartDate.getMonth()+1).padStart(2,'0')+'-'+String(weekStartDate.getDate()).padStart(2,'0');
+
+    const totals={today:0,week:0,month:0,prevMonth:0};
+    const cats={};
+    const trend={[prev]:0,[month]:0};
+
+    rows.forEach(e=>{
+      const amount=Number(e.amount||0);
+      const d=String(e.date||'').slice(0,10);
+      if(!Number.isFinite(amount))return;
+      if(d===today)totals.today+=amount;
+      if(d>=weekStart&&d<=today)totals.week+=amount;
+      if(d.slice(0,7)===month){
+        totals.month+=amount;
+        cats[e.category||'Lainnya']=(cats[e.category||'Lainnya']||0)+amount;
+        trend[month]=(trend[month]||0)+amount;
+      }
+      if(d.slice(0,7)===prev){
+        totals.prevMonth+=amount;
+        trend[prev]=(trend[prev]||0)+amount;
+      }
+    });
+
+    this.data.today=totals.today;
+    this.data.week=totals.week;
+    this.data.month=totals.month;
+    this.data.prevMonth=totals.prevMonth;
+    this.data.cats=cats;
+    this.data.monthTrend=[
+      {month:prev,total:trend[prev]||0},
+      {month:month,total:trend[month]||0}
+    ];
+    this.data.monthFuel=rows
+      .filter(e=>String(e.date||'').slice(0,7)===month && String(e.category||'')==='Bensin')
+      .reduce((sum,e)=>sum+Number(e.amount||0),0);
+    this.data.monthFuelLiters=rows
+      .filter(e=>String(e.date||'').slice(0,7)===month && String(e.category||'')==='Bensin')
+      .reduce((sum,e)=>sum+Number(e.liters||0),0);
+    this.data.recent=rows.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).slice(0,5);
+    this.data._expenseAggregateAuthoritative=true;
+    this.data._expenseAggregateFrom=from;
+    this.data._expenseAggregateTo=today;
+  },
   render() {
     const d = this.data || {};
     document.getElementById('sum-today').textContent = Money(d.today);
     document.getElementById('sum-month').textContent = Money(d.month);
+    this.applyAmountPrivacy();
     document.getElementById('sum-trips').textContent = d.totTrip || 0;
     document.getElementById('cost-per-km').textContent = d.costPerKm ? Money(Math.round(d.costPerKm)) : 'Rp0';
     document.getElementById('month-distance').textContent = Num(d.monthDistance, 1) + ' km';
@@ -1306,6 +1426,25 @@ const App = {
     if (this.config.krlFare) document.getElementById('krl-fare').value = this.config.krlFare;
     if (this.config.tjFare) document.getElementById('tj-fare').value = this.config.tjFare;
   },
+  applyAmountPrivacy(){
+    const el=document.getElementById('sum-month'), btn=document.querySelector('.privacy-toggle');
+    if(!el)return;
+    let hidden=false;
+    try{hidden=localStorage.getItem('rh_hide_amounts_v1')==='1';}catch(_){}
+    const value=this.data?.month;
+    el.classList.toggle('amount-hidden',hidden);
+    el.textContent=hidden?'••••••••':Money(value);
+    if(btn){
+      btn.setAttribute('aria-label',hidden?'Tampilkan nominal bulan ini':'Sembunyikan nominal bulan ini');
+      btn.title=hidden?'Tampilkan nominal':'Sembunyikan nominal';
+      btn.innerHTML=hidden?'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 3 18 18"/><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"/><path d="M9.9 5.2A11.9 11.9 0 0 1 12 5c7 0 10 7 10 7a18 18 0 0 1-3.1 3.9M6.1 6.1C3.5 7.9 2 12 2 12s3 7 10 7c1 0 1.9-.1 2.8-.4"/></svg>':'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-5 10-5 10 5 10 5-3.5 5-10 5-10-5-10-5Z"/><circle cx="12" cy="12" r="2.5"/></svg>';
+    }
+  },
+  toggleAmountPrivacy(){
+    let hidden=false;
+    try{hidden=localStorage.getItem('rh_hide_amounts_v1')==='1'; localStorage.setItem('rh_hide_amounts_v1',hidden?'0':'1');}catch(_){}
+    this.applyAmountPrivacy();
+  },
   renderExpenses(arr,id,compact){
     const el=document.getElementById(id); if(!el)return;
     const icons={Bensin:'fuel',Parkir:'map',Tol:'route',Makan:'receipt',Servis:'receipt',Lainnya:'receipt'};
@@ -1317,20 +1456,39 @@ const App = {
       return `<div class="item"><div class="item-row"><div class="cat-icon">${Icon(icons[e.category]||'route',18)}</div><div class="item-text"><div class="item-title">${Esc(primary)}</div><div class="item-sub">${Esc(secondary)}</div>${detail?`<span class="expense-detail-line">${Esc(detail)}</span>`:''}</div></div><div class="item-actions"><div class="item-value">${Money(e.amount)}</div>${e.receiptUrl&&!compact?`<button class="btn small" onclick="window.open('${EscAttr(e.receiptUrl)}','_blank','noopener')">${Icon('map',14)} Struk</button>`:''}${compact?'':`<button class="btn small" onclick="Expense.remove('${EscAttr(e.id)}')">${Icon('trash',15)} Hapus</button>`}</div></div>`;
     }).join(''):'<div class="empty">Belum ada transaksi.</div>';
   },
+  compactTripRoute(t){
+    const origin=String(t?.origin||'GPS').trim();
+    const destination=String(t?.destination||'Tujuan').trim();
+    const o=/pamulang|mansion garden/i.test(origin)?'Rumah':/gama|kantor|setiabudi/i.test(origin)?'Kantor':(origin||'GPS');
+    const d=/pamulang|mansion garden/i.test(destination)?'Rumah':/gama|kantor|setiabudi/i.test(destination)?'Kantor':(destination||'Tujuan');
+    const via=String(t?.routeName||'').match(/\bvia\s+(.+)$/i);
+    return via?o+' → '+d+' via '+via[1]:o+' → '+d;
+  },
+  fullTripRoute(t){
+    const origin=String(t?.origin||'GPS').trim(), destination=String(t?.destination||'Tujuan').trim();
+    const via=String(t?.routeName||'').match(/\bvia\s+(.+)$/i);
+    return {origin:origin,destination:destination,via:via?via[1].trim():''};
+  },
+  tripCoord(p){
+    if(!p||!isFinite(Number(p.lat))||!isFinite(Number(p.lng)))return '—';
+    return Number(p.lat).toFixed(6)+', '+Number(p.lng).toFixed(6);
+  },
   renderTrips(arr){
     const el=document.getElementById('trip-history'); if(!el)return;
     this.data.trips=arr||[];
     if(!arr||!arr.length){el.innerHTML='<div class="empty">Belum ada perjalanan GPS yang tersimpan.</div>';return;}
     const habitCounts={};
     (arr||[]).forEach(t=>{ const k=String(t.origin||'GPS')+'|'+String(t.destination||'Tujuan'); habitCounts[k]=(habitCounts[k]||0)+1; });
-    el.innerHTML=arr.map((t,idx)=>{
+    el.innerHTML=arr.map((t)=>{
       const pts=Array.isArray(t.gpsPoints)?t.gpsPoints:[];
       const key=String(t.origin||'GPS')+'|'+String(t.destination||'Tujuan');
       const repeat=habitCounts[key]||1;
       const habitLabel=repeat>=3?'Habit utama':repeat===2?'Mulai jadi habit':'Trip baru';
-      const route=t.routeName||((t.origin||'GPS')+' → '+(t.destination||'Tujuan'));
+      const route=this.compactTripRoute(t);
+      const full=this.fullTripRoute(t);
       const src=t.source==='gps-native'?'GPS native':'GPS browser';
       const date=t.date||'';
+      const startPoint=pts[0], endPoint=pts[pts.length-1];
       return `<details class="trip-card">
         <summary class="trip-summary">
           <div class="trip-summary-main">
@@ -1341,14 +1499,20 @@ const App = {
         </summary>
         <div class="trip-details">
           ${this.tripSparkline(pts)}
+          <div class="trip-route-full"><b>${Esc(full.origin)} → ${Esc(full.destination)}</b>${full.via?`<div class="trip-route-via">Via ${Esc(full.via)}</div>`:''}</div>
           <div class="trip-details-grid">
             <div class="trip-detail-box"><span>JARAK</span><b>${Num(t.distanceKm,2)} km</b></div>
             <div class="trip-detail-box"><span>DURASI</span><b>${Num(t.durationMin,1)} mnt</b></div>
-            <div class="trip-detail-box"><span>RATA-RATA</span><b>${Num(t.avgSpeed,1)} km/h</b></div>
-            <div class="trip-detail-box"><span>TERKENCANG</span><b>${Num(t.maxSpeed,1)} km/h</b></div>
+            <div class="trip-detail-box"><span>RATA-RATA GPS</span><b>${Num(t.avgSpeed,1)} km/h</b></div>
+            <div class="trip-detail-box"><span>TERCEPAT TEREKAM</span><b>${Num(t.maxSpeed,1)} km/h</b></div>
           </div>
-          <div class="trip-sub" style="margin-top:10px">${pts.length?pts.length+' titik GPS • jalur aktual tersimpan':'Jalur GPS tidak tersedia pada trip ini'} • ${Esc(src)}</div>
-          <div class="habit" style="margin-top:10px"><b>${Icon('route',15)} ${Esc(habitLabel)}</b><span>${repeat}x endpoint ${Esc(t.origin||'GPS')} → ${Esc(t.destination||'Tujuan')}. Jalur aktual dibandingkan dari titik GPS yang tersimpan.</span></div>
+          <div class="trip-gps-facts">
+            <div class="trip-gps-fact"><span>TITIK MULAI</span><b>${this.tripCoord(startPoint)}</b></div>
+            <div class="trip-gps-fact"><span>TITIK SELESAI</span><b>${this.tripCoord(endPoint)}</b></div>
+          </div>
+          <div class="trip-sub" style="margin-top:10px">${pts.length?`${pts.length} titik GPS • jalur aktual tersimpan`:'Jalur GPS tidak tersedia pada trip ini'} • ${Esc(src)}</div>
+          <div class="trip-data-note">Rata-rata dan kecepatan tertinggi berasal dari titik GPS yang benar-benar terekam dan lolos validasi perjalanan. Tidak menggunakan angka kecepatan estimasi.</div>
+          <div class="habit" style="margin-top:10px"><b>${Icon('route',15)} ${Esc(habitLabel)}</b><span>${repeat}x endpoint ${Esc(t.origin||'GPS')} → ${Esc(t.destination||'Tujuan')}. Habit dibentuk dari histori titik GPS aktual.</span></div>
           <div class="trip-actions">
             <button class="btn small" type="button" onclick="Trip.openMap('${EscAttr(t.id)}')">${Icon('map',15)} Lihat jalur GPS</button>
             <button class="btn small" type="button" onclick="Trip.openGoogleMaps('${EscAttr(t.id)}')">${Icon('route',15)} Google Maps</button>
@@ -1444,72 +1608,99 @@ const App = {
 };
 
 const Traffic = {
+  mapsUrl(direction, travelmode='driving'){
+    const c=App.config||{};
+    const origin=direction==='home-office'?(c.home||{}):(c.office||{});
+    const destination=direction==='home-office'?(c.office||{}):(c.home||{});
+    return 'https://www.google.com/maps/dir/?api=1'
+      +'&origin='+encodeURIComponent(origin.address||((origin.lat||'')+','+(origin.lng||'')))
+      +'&destination='+encodeURIComponent(destination.address||((destination.lat||'')+','+(destination.lng||'')))
+      +'&travelmode='+encodeURIComponent(travelmode);
+  },
+  openMaps(direction, travelmode='driving'){
+    const url=this.mapsUrl(direction,travelmode);
+    window.open(url,'_blank','noopener');
+  },
+  smoothestRoute(routes){
+    return (Array.isArray(routes)?routes:[]).filter(x=>x&&Number(x.durationMin)>0).sort((a,b)=>{
+      const da=Number(a.trafficDelayMin||0), db=Number(b.trafficDelayMin||0);
+      if(da!==db)return da-db;
+      return Number(a.durationMin||0)-Number(b.durationMin||0);
+    })[0]||null;
+  },
+  routeCard(title,subtitle,direction,mode){
+    return `<a class="traffic-choice" href="${EscAttr(this.mapsUrl(direction,mode))}" target="_blank" rel="noopener">
+      <div class="traffic-choice-main">
+        <div class="traffic-choice-title">${Icon(mode==='two-wheeler'?'navigation':'route',15)} ${Esc(title)}</div>
+        <div class="traffic-choice-sub">${Esc(subtitle)}</div>
+      </div>
+      <div class="traffic-choice-arrow">›</div>
+    </a>`;
+  },
   check(direction){
     const modal=document.getElementById('traffic-modal'); modal.classList.add('active');
-    document.getElementById('traffic-modal-sub').textContent='Menganalisis traffic + habit perjalanan...';
-    document.getElementById('traffic-modal-content').innerHTML='<div class="empty">Sedang mengambil rute...</div>';
-    const mapBtn=document.getElementById('traffic-open-maps'); if(mapBtn) mapBtn.onclick=()=>this.openMaps(direction);
+    document.getElementById('traffic-modal-sub').textContent='Menganalisis rute saat ini...';
+    document.getElementById('traffic-modal-content').innerHTML='<div class="empty">Sedang mengambil data traffic...</div>';
     google.script.run.withSuccessHandler(r=>{
-      const t=r?.traffic||{}, rec=r?.recommendation||{}, habits=r?.habits||[];
-      document.getElementById('traffic-modal-sub').textContent=t.origin&&t.destination?`${t.origin} → ${t.destination}`:'Rekomendasi perjalanan';
-      let html=rec.hasHistory ? `<div class="habit"><b>${Icon('route',15)} ${Esc(rec.habitLevel==='habit'?'Habit rute':rec.habitLevel==='mulai-habit'?'Rute mulai menjadi habit':'Baseline rute tercatat')}</b><span>${Esc(rec.message||'')}</span>${rec.avgSpeed?'<small style="display:block;margin-top:6px;color:var(--dim)">Avg '+Num(rec.avgSpeed,1)+' km/h • Max avg '+Num(rec.avgMaxSpeed||0,1)+' km/h • Moving '+Num(rec.avgMovingTime||0,1)+' menit</small>':''}</div>` : `<div class="habit"><b>${Icon('route',15)} Belum ada rekaman rute</b><span>Mulai satu Trip GPS untuk membuat baseline jarak, durasi, moving time, dan kecepatan.</span></div>`;
-      if(t.mode==='builtin'&&t.message) html+=`<div class="traffic-note" style="margin-bottom:10px">${Esc(t.message)}</div>`;
-      const routes=t.routes||[];
-      html+=routes.length?routes.map((x,i)=>`<div class="route-row" style="margin-top:8px"><div><div class="route-name">${i===0?'Rekomendasi tercepat':Esc(x.description||'Alternatif')}</div><div class="route-sub">${Num(x.distanceKm,1)} km • +${Num(x.trafficDelayMin,0)} mnt traffic</div></div><div class="eta"><strong>${Num(x.durationMin,0)} mnt</strong><span>ETA</span></div></div>`).join(''):`<div class="empty">${Esc(t.message||'Estimasi belum tersedia. Gunakan tombol Buka Navigasi untuk traffic live Google Maps.')}</div>`;
-      if(habits.length) html+=`<div class="eyebrow" style="margin-top:14px">HISTORY YANG MENDUKUNG REKOMENDASI</div>`+habits.slice(0,4).map(h=>`<div class="habit"><b>${Esc(h.routeName)}</b><span>${Num(h.avgDur||0,1)} menit • ${Num(h.avgDistance||h.avgDist||0,1)} km • ${Num(h.frequency||h.freq||0,0)}x</span></div>`).join('');
+      const t=r?.traffic||{}, habits=r?.habits||[];
+      const routes=Array.isArray(t.routes)?t.routes.slice():[];
+      routes.sort((a,b)=>Number(a.durationMin||0)-Number(b.durationMin||0));
+      const fastestCar=routes[0]||null;
+      const smooth=this.smoothestRoute(routes);
+      document.getElementById('traffic-modal-sub').textContent=t.origin&&t.destination?(`${t.origin} → ${t.destination}`):'Pilih cara perjalanan';
+      const carFastSub=fastestCar
+        ? `${Num(fastestCar.distanceKm,1)} km • ${Num(fastestCar.durationMin,0)} mnt${Number(fastestCar.trafficDelayMin||0)?' • traffic +'+Num(fastestCar.trafficDelayMin,0)+' mnt':''}`
+        : 'Data waktu belum tersedia • buka Google Maps untuk live';
+      const smoothSub=smooth
+        ? `${Num(smooth.distanceKm,1)} km • ${Num(smooth.durationMin,0)} mnt • traffic +${Num(smooth.trafficDelayMin,0)} mnt`
+        : 'Pilih rute dengan kondisi traffic terendah di Google Maps';
+      let html='<div class="traffic-choice-list">';
+      html+=this.routeCard('Motor • rute dua roda','Google Maps menghitung rute motor saat dibuka.',direction,'two-wheeler');
+      html+=this.routeCard('Mobil • tercepat',carFastSub,direction,'driving');
+      html+=this.routeCard('Terlancar • traffic terendah',smoothSub,direction,'driving');
+      html+='</div>';
+      if(habits.length){
+        html+='<div class="eyebrow" style="margin-top:14px">HISTORI PENDUKUNG</div>';
+        html+='<div class="traffic-note">Habit tetap berasal dari perjalanan yang benar-benar tersimpan. Detail histori dibuka dari menu Jalan.</div>';
+      }
+      html+='<div class="traffic-choice-note">Ketuk pilihan untuk langsung membuka Google Maps. Estimasi di sini hanya ditampilkan bila data traffic route engine tersedia.</div>';
       document.getElementById('traffic-modal-content').innerHTML=html;
       const target=direction==='home-office'?'home':'office';
-      if(routes[0]){document.getElementById('traffic-'+target).textContent=Num(routes[0].durationMin,0)+' mnt';document.getElementById('traffic-'+target+'-sub').textContent=`${Num(routes[0].distanceKm,1)} km • +${Num(routes[0].trafficDelayMin,0)} mnt`;}
-      else{document.getElementById('traffic-'+target).textContent=rec.avgDuration?Num(rec.avgDuration,0)+' mnt':'—';document.getElementById('traffic-'+target+'-sub').textContent=rec.hasHistory?'berdasarkan habit':'buka Maps untuk live';}
+      if(fastestCar){
+        document.getElementById('traffic-'+target).textContent=Num(fastestCar.durationMin,0)+' mnt';
+        document.getElementById('traffic-'+target+'-sub').textContent=`${Num(fastestCar.distanceKm,1)} km • traffic +${Num(fastestCar.trafficDelayMin||0,0)} mnt`;
+      }else{
+        document.getElementById('traffic-'+target).textContent='Maps';
+        document.getElementById('traffic-'+target+'-sub').textContent='live via Google Maps';
+      }
     }).withFailureHandler(e=>{
       const target=direction==='home-office'?'home':'office';
       const msg=(e&&e.message)||String(e)||'Rute tidak tersedia';
       document.getElementById('traffic-modal-sub').textContent='Google Maps siap untuk navigasi live';
-      document.getElementById('traffic-modal-content').innerHTML=`<div class="habit"><b>${Icon('route',15)} Data route engine belum tersedia</b><span>${Esc(msg)}</span></div><div class="traffic-note">Tanpa Google Routes API, RH Habits tidak membaca traffic live ke dalam dashboard. Tombol <b>Buka Google Maps Live</b> di bawah tetap membuka Google Maps untuk kondisi lalu lintas dan navigasi.</div>`;
+      document.getElementById('traffic-modal-content').innerHTML='<div class="traffic-choice-list">'
+        +this.routeCard('Motor • rute dua roda','Google Maps menghitung rute motor saat dibuka.',direction,'two-wheeler')
+        +this.routeCard('Mobil • rute live','Buka Google Maps untuk kondisi terkini.',direction,'driving')
+        +this.routeCard('Terlancar • cek traffic live',msg,direction,'driving')
+        +'</div>';
       document.getElementById('traffic-'+target).textContent='Maps';
       document.getElementById('traffic-'+target+'-sub').textContent='live via Google Maps';
     }).getRouteSuggestion(direction);
-  },
-  openMaps(direction){
-    const c=App.config||{};
-    const origin=direction==='home-office'?(c.home||{}):(c.office||{});
-    const destination=direction==='home-office'?(c.office||{}):(c.home||{});
-    const url='https://www.google.com/maps/dir/?api=1&origin='+encodeURIComponent(origin.address||((origin.lat||'')+','+(origin.lng||'')))+'&destination='+encodeURIComponent(destination.address||((destination.lat||'')+','+(destination.lng||'')))+'&travelmode=driving';
-    window.open(url,'_blank','noopener');
   }
 };
 
 const RH_GPS_CFG = Object.freeze({
   maxAccuracyM: 75,
-  maxSegmentSpeedKmh: 320,
   maxProviderSpeedKmh: 320,
   stationaryRadiusM: 5,
-  stationarySpeedKmh: 15,
+  stationarySpeedKmh: 3,
   movingSpeedKmh: 3,
   maxGapForDistanceS: 90,
   maxGapForMovingS: 90,
-  movementWindowS: 10,
+  movementWindowS: 4,
   movementDistanceM: 10,
-  liveSpeedWindow: 5,
-  liveSpeedMaxAgeMs: 2500
+  speedWindowS: 3,
+  serverSyncIntervalMs: 10000
 });
-
-function RHMedian(values) {
-  const v=(values||[]).filter(x=>isFinite(Number(x))).map(Number).sort((a,b)=>a-b);
-  if(!v.length)return NaN;
-  const m=Math.floor(v.length/2);
-  return v.length%2?v[m]:(v[m-1]+v[m])/2;
-}
-
-function RHLiveProviderSpeedKmh(samples, fallback) {
-  const now=Date.now();
-  const fresh=(samples||[]).filter(s=>s&&isFinite(Number(s.speed))&&s.speed>=0&&now-Number(s.time)<=RH_GPS_CFG.liveSpeedMaxAgeMs);
-  if(!fresh.length)return Number(fallback)||0;
-  const last=fresh.slice(-RH_GPS_CFG.liveSpeedWindow).map(s=>Number(s.speed));
-  const med=RHMedian(last);
-  if(!isFinite(med))return Number(fallback)||0;
-  return Math.max(0,med);
-}
 
 function RHGpsTimeMs(p) {
   const raw = p && (p.time !== undefined ? p.time : (p.timestamp !== undefined ? p.timestamp : p.ts));
@@ -1520,22 +1711,8 @@ function RHGpsTimeMs(p) {
   return isFinite(t) && t > 0 ? t : 0;
 }
 
-function RHGpsProviderSpeedKmh(p) {
-  if (!p) return NaN;
-  const candidates = [
-    p.providerSpeedKmh,
-    p.speedKmh,
-    p.speed
-  ];
-  for (let i=0;i<candidates.length;i++) {
-    const n=Number(candidates[i]);
-    if (isFinite(n) && n>=0) return n;
-  }
-  return NaN;
-}
-
 function RHNormalizeGpsPoints(points) {
-  const seen=new Set(), out=[];
+  const seen=new Set(),out=[];
   (Array.isArray(points)?points:[]).forEach(p=>{
     if(!p || p.simulated===true) return;
     const lat=Number(p.lat!==undefined?p.lat:p.latitude);
@@ -1548,8 +1725,8 @@ function RHNormalizeGpsPoints(points) {
     if(seen.has(key)) return;
     seen.add(key);
     out.push({
-      lat:lat,lng:lng,time:time,accuracy:isFinite(acc)?acc:0,
-      providerSpeedKmh:RHGpsProviderSpeedKmh(p),
+      lat,lng,time,accuracy:isFinite(acc)?acc:0,
+      providerSpeedKmh:Number(p.providerSpeedKmh),
       bearing:Number(p.bearing),
       altitude:Number(p.altitude),
       source:p.source||''
@@ -1559,172 +1736,129 @@ function RHNormalizeGpsPoints(points) {
   return out;
 }
 
+// For live speed and trip metrics RH derives speed from real coordinate movement
+// over a short window. Android's provider speed is retained for diagnostics only.
+function RHGpsWindowSpeedKmh(src,i) {
+  if(i<1) return 0;
+  const latest=src[i];
+  let j=i-1;
+  while(j>0 && (latest.time-src[j-1].time)/1000<=RH_GPS_CFG.speedWindowS) j--;
+  const a=src[j], b=latest, dt=(b.time-a.time)/1000;
+  if(!(dt>0)||dt>RH_GPS_CFG.maxGapForMovingS) return 0;
+  const dMeters=Haversine(a.lat,a.lng,b.lat,b.lng)*1000;
+  if(dMeters<RH_GPS_CFG.movementDistanceM) return 0;
+  return Math.min(RH_GPS_CFG.maxProviderSpeedKmh,Math.max(0,dMeters*3.6/dt));
+}
+
 function RHFilterGpsTrack(points) {
   const src=RHNormalizeGpsPoints(points);
-  if(src.length<2) return src.map(p=>({...p,filteredSpeedKmh:0}));
+  if(!src.length) return [];
+  if(src.length===1) return [{...src[0],filteredSpeedKmh:0,moving:false}];
 
-  const accepted=[];
-  let prev=null;
-  let prevSpeed=0;
+  const accepted=[{...src[0],filteredSpeedKmh:0,moving:false}];
+  let moving=false, stationarySince=null, last=src[0];
 
-  for(let i=0;i<src.length;i++){
-    const p=src[i];
-    if(!prev){
-      accepted.push({...p,filteredSpeedKmh:0});
-      prev=p;
-      continue;
-    }
-
-    const dt=(p.time-prev.time)/1000;
+  for(let i=1;i<src.length;i++){
+    const p=src[i], dt=(p.time-last.time)/1000;
     if(!(dt>0)) continue;
-
-    // A long gap means we know the endpoints but cannot safely infer the road
-    // path between them. Keep the point for the route, but don't count that jump.
     if(dt>RH_GPS_CFG.maxGapForDistanceS){
-      accepted.push({...p,filteredSpeedKmh:0,gapAfterPrevious:true});
-      prev=p;
-      prevSpeed=0;
-      continue;
+      moving=false; stationarySince=p.time;
+      accepted.push({...p,filteredSpeedKmh:0,moving:false,gapAfterPrevious:true});
+      last=p; continue;
     }
 
-    const d=Haversine(prev.lat,prev.lng,p.lat,p.lng);
-    const dMeters=d*1000;
-    const segmentSpeed=d*3600/dt;
+    const dMeters=Haversine(last.lat,last.lng,p.lat,p.lng)*1000;
+    const acc=Number(p.accuracy);
+    const jitterRadius=Math.max(RH_GPS_CFG.stationaryRadiusM,Math.min(15,isFinite(acc)&&acc>0?acc*0.20:5));
+    const segmentSpeed=dMeters*3.6/dt;
+    const windowStart=Math.max(0,i-4);
+    const w=src[windowStart];
+    const windowMove=Haversine(w.lat,w.lng,p.lat,p.lng)*1000;
+    const physicalMovement=dMeters>=Math.max(6,jitterRadius*1.25)||windowMove>=RH_GPS_CFG.movementDistanceM;
 
-    // Hard rejection for an impossible coordinate jump.
-    if(segmentSpeed>RH_GPS_CFG.maxSegmentSpeedKmh){
-      continue;
-    }
+    if(!moving&&physicalMovement){moving=true;stationarySince=null;}
 
-    const jitterRadius=Math.max(
-      RH_GPS_CFG.stationaryRadiusM,
-      Math.min(20, Number(p.accuracy||0)>0 ? Number(p.accuracy)*0.15 : RH_GPS_CFG.stationaryRadiusM)
-    );
-    const provider=p.providerSpeedKmh;
-    const stationary=dMeters<=jitterRadius && (segmentSpeed<RH_GPS_CFG.stationarySpeedKmh || (isFinite(provider) && provider<5));
-
-    let speed=segmentSpeed;
-    if(isFinite(provider) && provider<=RH_GPS_CFG.maxProviderSpeedKmh){
-      const mismatch=Math.abs(provider-segmentSpeed);
-      const tolerance=Math.max(35,segmentSpeed*0.50);
-      // Prefer the provider speed only when it broadly agrees with the
-      // physical movement between coordinates. This keeps useful GNSS speed,
-      // while rejecting classic "200 km/h while stopped" spikes.
-      speed=mismatch<=tolerance?provider:segmentSpeed;
-    }
-
+    const stationary=dMeters<=jitterRadius&&windowMove<RH_GPS_CFG.movementDistanceM&&segmentSpeed<RH_GPS_CFG.movingSpeedKmh;
     if(stationary){
-      speed=0;
+      if(stationarySince===null) stationarySince=p.time;
+      if(moving&&(p.time-stationarySince)>=1500) moving=false;
+    }else{
+      stationarySince=null;
     }
 
-    // Do not let a single provider spike create an impossible acceleration.
-    if(prevSpeed>0 && dt<=6){
-      const upLimit=10*dt*3.6+25;
-      const downLimit=12*dt*3.6+25;
-      if(speed-prevSpeed>upLimit) speed=segmentSpeed;
-      if(prevSpeed-speed>downLimit) speed=segmentSpeed;
+    // Reject only an isolated GPS jump that immediately returns near its prior path.
+    const next=src[i+1];
+    if(next){
+      const dtNext=(next.time-p.time)/1000;
+      if(dt<=8&&dtNext>0&&dtNext<=8){
+        const nextD=Haversine(p.lat,p.lng,next.lat,next.lng)*1000;
+        const nextSpeed=nextD*3.6/dtNext;
+        const direct=Haversine(last.lat,last.lng,next.lat,next.lng)*1000;
+        const detour=(dMeters+nextD)/Math.max(direct,1);
+        if(detour>2.2&&segmentSpeed>70&&nextSpeed>70) continue;
+      }
     }
 
-    if(!isFinite(speed)||speed<0) speed=0;
-    speed=Math.min(RH_GPS_CFG.maxProviderSpeedKmh,speed);
-    accepted.push({...p,filteredSpeedKmh:speed});
-    prev=p;
-    prevSpeed=speed;
+    const windowSpeed=RHGpsWindowSpeedKmh(src,i);
+    const speed=moving?(windowSpeed>0?windowSpeed:(dMeters>=Math.max(6,jitterRadius*1.25)?segmentSpeed:0)):0;
+    accepted.push({...p,filteredSpeedKmh:Math.max(0,Math.min(RH_GPS_CFG.maxProviderSpeedKmh,speed)),moving});
+    last=p;
   }
-
-  // Remove isolated trajectory spikes: a middle point that makes both
-  // adjacent segments very fast and creates a large detour is usually a GPS
-  // jump rather than a real road movement.
-  const out=[];
-  for(let i=0;i<accepted.length;i++){
-    if(i===0||i===accepted.length-1){out.push(accepted[i]);continue;}
-    const a=out[out.length-1], b=accepted[i], c=accepted[i+1];
-    const dt1=(b.time-a.time)/1000, dt2=(c.time-b.time)/1000;
-    if(dt1>0&&dt2>0){
-      const d1=Haversine(a.lat,a.lng,b.lat,b.lng);
-      const d2=Haversine(b.lat,b.lng,c.lat,c.lng);
-      const dc=Haversine(a.lat,a.lng,c.lat,c.lng);
-      const s1=d1*3600/dt1, s2=d2*3600/dt2;
-      if(s1>140&&s2>140&&dc>0&&d1+d2>dc*1.8) continue;
-    }
-    out.push(b);
-  }
-  return out;
+  return accepted;
 }
 
 function RHComputeGpsMetrics(points,startMs,endMs){
   const track=RHFilterGpsTrack(points);
-  let distance=0,movingMs=0,stopCount=0,idleStarted=null,prev=null,prevSpeed=0,maxSpeed=0;
-  const movementWindowMs=RH_GPS_CFG.movementWindowS*1000;
+  let distance=0,movingMs=0,maxSpeed=0,stopCount=0,prev=null,wasMoving=false,stoppedAt=null;
+
   for(let i=0;i<track.length;i++){
-    const p=track[i],speed=Number(p.filteredSpeedKmh||0);
-    if(speed>maxSpeed)maxSpeed=speed;
+    const p=track[i], speed=Math.max(0,Number(p.filteredSpeedKmh||0));
+    maxSpeed=Math.max(maxSpeed,speed);
+
     if(prev){
       const dt=(p.time-prev.time)/1000;
-      if(dt>0 && dt<=RH_GPS_CFG.maxGapForDistanceS){
-        const d=Haversine(prev.lat,prev.lng,p.lat,p.lng);
-        const dMeters=d*1000;
-        const segmentSpeed=d*3600/dt;
-        const jitterRadius=Math.max(
-          RH_GPS_CFG.stationaryRadiusM,
-          Math.min(20, Number(p.accuracy||0)>0 ? Number(p.accuracy)*0.15 : RH_GPS_CFG.stationaryRadiusM)
-        );
-        if(!(dMeters<=jitterRadius && segmentSpeed<RH_GPS_CFG.stationarySpeedKmh)) distance+=d;
+      if(dt>0&&dt<=RH_GPS_CFG.maxGapForDistanceS){
+        const dKm=Haversine(prev.lat,prev.lng,p.lat,p.lng);
+        const dMeters=dKm*1000;
+        const acc=Number(p.accuracy);
+        const jitter=Math.max(RH_GPS_CFG.stationaryRadiusM,Math.min(15,isFinite(acc)&&acc>0?acc*0.20:5));
 
-        // Stateful moving detection: a short speed dip does not immediately become a stop.
-        // A fix is considered moving when its validated speed is moving-speed OR the net
-        // displacement over the last ~10s reaches 10m (OpenTracks-inspired principle).
-        let anchor=track[Math.max(0,i-1)];
-        for(let w=i-1;w>=0;w--){
-          if(p.time-track[w].time>movementWindowMs)break;
-          anchor=track[w];
-        }
-        const windowMove=anchor?Haversine(anchor.lat,anchor.lng,p.lat,p.lng)*1000:0;
-        const movingEvidence=speed>=RH_GPS_CFG.movingSpeedKmh || windowMove>=RH_GPS_CFG.movementDistanceM;
-        const wasMoving=prevSpeed>=RH_GPS_CFG.movingSpeedKmh || (idleStarted===null);
-
-        if(movingEvidence){
-          if(idleStarted!==null && (p.time-idleStarted)>=60000)stopCount++;
-          idleStarted=null;
-          movingMs+=Math.min(dt,RH_GPS_CFG.maxGapForMovingS);
-        }else{
-          if(idleStarted===null)idleStarted=prev.time;
-          // Do not throw away the first seconds of a stop; allow a 10s confirmation window.
-          const stopConfirmed=(p.time-idleStarted)>=movementWindowMs;
-          if(!stopConfirmed)movingMs+=Math.min(dt,RH_GPS_CFG.maxGapForMovingS);
+        if(p.moving){
+          if(dMeters>jitter) distance+=dKm;
+          movingMs+=Math.min(dt,RH_GPS_CFG.maxGapForMovingS)*1000;
+          wasMoving=true; stoppedAt=null;
+        }else if(wasMoving){
+          if(stoppedAt===null) stoppedAt=p.time;
+          if(p.time-stoppedAt>=30000){
+            stopCount++;
+            stoppedAt=null;
+            wasMoving=false;
+          }
         }
       }
     }
     prev=p;
-    prevSpeed=speed;
   }
 
   const fallbackStart=track.length?track[0].time:0;
   const fallbackEnd=track.length?track[track.length-1].time:0;
-  const a=Number(startMs)||fallbackStart;
-  const b=Number(endMs)||fallbackEnd;
+  const a=Number(startMs)||fallbackStart,b=Number(endMs)||fallbackEnd;
   const durationMin=a&&b&&b>=a?(b-a)/60000:0;
-  const movingTimeMin=Math.min(durationMin,movingMs/60);
+  const movingTimeMin=Math.min(durationMin,movingMs/60000);
   const avgSpeed=movingTimeMin>0?distance/(movingTimeMin/60):0;
+
   return {
-    points:track,
-    pointCount:track.length,
-    distanceKm:distance,
-    durationMin:durationMin,
-    movingTimeMin:movingTimeMin,
-    stopTimeMin:Math.max(0,durationMin-movingTimeMin),
-    stopCount:stopCount,
-    avgSpeedKmh:avgSpeed,
-    maxSpeedKmh:maxSpeed,
+    points:track, pointCount:track.length, distanceKm:distance, durationMin,
+    movingTimeMin, stopTimeMin:Math.max(0,durationMin-movingTimeMin),
+    stopCount, avgSpeedKmh:avgSpeed, maxSpeedKmh:maxSpeed,
     currentSpeedKmh:track.length?Number(track[track.length-1].filteredSpeedKmh||0):0
   };
 }
-
 const GPS = {
   active:false,watch:null,timer:null,start:null,end:null,points:[],pending:null,wakeLock:null,
   speedSamples:[],
   storageKey:'rh_active_trip_v4',lastPersist:0,resumeBound:false,sessionId:null,nativeMode:false,nativeReady:false,
-  stopping:false, lastNativeCount:-1,
+  stopping:false, lastNativeCount:-1, lastNativeServerPoints:[], lastNativeSyncAt:0, nativeRefreshPromise:null,
   zones:[{name:'Bintaro',lat:-6.273,lng:106.742,r:4.0},{name:'Ciputat',lat:-6.310,lng:106.765,r:4.0}],
   toggle(){this.active?this.stop():this.startTracking();},
   isNative(){return !!(window.RHNativeGPS&&window.RHNativeGPS.isNative&&window.RHNativeGPS.isNative());},
@@ -1741,6 +1875,7 @@ const GPS = {
     window.addEventListener('pagehide',()=>this.persist());
     window.addEventListener('beforeunload',()=>this.persist());
     this.restore();
+    setTimeout(()=>{ try { GPS.reconcileNativeQueue?.(); } catch(e) { console.warn('[RH] native queue reconcile:',e); } }, 1800);
   },
   async restore(){
     try{
@@ -1748,11 +1883,16 @@ const GPS = {
       const x=JSON.parse(raw);
       if(!x||!x.active||!x.start||!Array.isArray(x.points))return;
       if(Date.now()-Number(x.start)>12*3600000){localStorage.removeItem(this.storageKey);return;}
-      this.active=true;this.start=Number(x.start);this.sessionId=x.sessionId||('trip_'+Date.now());this.points=this.dedupePoints(x.points);
+      this.active=true;this.start=Number(x.start);this.sessionId=x.sessionId||('trip_'+Date.now());this.points=this.dedupePoints(x.points);this.lastNativeServerPoints=[];
       this.nativeMode=this.isNative();this.updateButton(true);
       if(this.nativeMode&&window.RHNativeGPS){ await window.RHNativeGPS.start(this.sessionId); }
       else this.ensureWatch();
-      this.timer=setInterval(()=>this.renderLive(),1000);this.requestWakeLock();this.renderLive();
+      this.timer=setInterval(()=>{
+      this.renderLive();
+      if(this.nativeMode&&this.sessionId&&Date.now()-Number(this.lastNativeSyncAt||0)>=RH_GPS_CFG.serverSyncIntervalMs){
+        this.refreshNativePoints(this.sessionId);
+      }
+    },1000);this.requestWakeLock();this.renderLive();
       if(this.nativeMode)this.refreshNativePoints(this.sessionId);
       App.toast('Perjalanan GPS yang belum selesai dipulihkan dari HP.');
     }catch(e){try{localStorage.removeItem(this.storageKey);}catch(_){} }
@@ -1778,6 +1918,7 @@ const GPS = {
     if(!window.isSecureContext&&!this.isNative()){App.toast('GPS membutuhkan Web App HTTPS.');return;}
     if(this.active||this.stopping)return;
     this.nativeMode=this.isNative();
+    this.lastNativeServerPoints=[];
 
     if(this.nativeMode&&window.RHNativeGPS&&!window.RHNativeGPS.hasDisclosure()){
       const ok=window.confirm('RH Habits akan menggunakan lokasi saat Trip Tracking aktif, termasuk ketika layar HP dikunci, untuk merekam jarak, kecepatan, titik rute, dan analisis perjalanan. Data lokasi dipakai untuk fitur perjalanan RH Habits. Lanjutkan?');
@@ -1794,12 +1935,12 @@ const GPS = {
         const locationState=perm&&perm.location;
         const notificationState=perm&&perm.notification;
         if(locationState&&locationState!=='granted'){
-          App.toast('Izin lokasi wajib diizinkan untuk merekam perjalanan.');
+          App.toast('Izin lokasi presisi wajib diizinkan untuk merekam perjalanan.');
           try{await window.RHNativeGPS.openSettings?.();}catch(_){}
           return;
         }
         if(notificationState&&notificationState!=='granted'){
-          App.toast('Izin notifikasi diperlukan agar GPS tetap aktif di background.');
+          App.toast('Izin notifikasi diperlukan agar GPS foreground service tetap terlihat.');
           try{await window.RHNativeGPS.openSettings?.();}catch(_){}
           return;
         }
@@ -1812,7 +1953,7 @@ const GPS = {
 
     if(!this.nativeMode&&!navigator.geolocation){App.toast('Browser tidak mendukung GPS.');return;}
 
-    this.active=true;this.stopping=false;this.start=Date.now();this.end=null;this.points=[];this.pending=null;this.speedSamples=[];this.sessionId='trip_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);this.lastNativeCount=-1;this.updateButton(true);this.persist();
+    this.active=true;this.stopping=false;this.start=Date.now();this.end=null;this.points=[];this.pending=null;this.speedSamples=[];this.sessionId='trip_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);this.lastNativeCount=-1;this.lastNativeServerPoints=[];this.lastNativeSyncAt=0;this.updateButton(true);this.persist();
     try{
       if(this.nativeMode&&window.RHNativeGPS){
         await window.RHNativeGPS.start(this.sessionId);
@@ -1844,9 +1985,9 @@ const GPS = {
 
     const point={
       lat,lng,
-      speedKmh:isFinite(speedKmh)?speedKmh:NaN,
-      providerSpeedKmh:isFinite(speedKmh)?speedKmh:NaN,
-      displaySpeedKmh:isFinite(speedKmh)?speedKmh:0,
+      speedKmh:0,
+       providerSpeedKmh:isFinite(speedKmh)?speedKmh:NaN,
+       displaySpeedKmh:0,
       accuracy:isFinite(accuracy)?accuracy:0,
       time:ts,
       bearing:isFinite(bearing)?bearing:null,
@@ -1864,44 +2005,53 @@ const GPS = {
     }
 
     this.points.push(point);
-    if(isFinite(speedKmh)&&speedKmh>=0&&(!isFinite(accuracy)||accuracy<=40)){
-      this.speedSamples.push({speed:speedKmh,time:ts});
-      if(this.speedSamples.length>20)this.speedSamples.shift();
-    }
+    if(isFinite(speedKmh)&&speedKmh>=0&&(!isFinite(accuracy)||accuracy<=RH_GPS_CFG.maxAccuracyM)&&this.points.length>1){
+       this.speedSamples.push({speed:speedKmh,time:ts});
+       if(this.speedSamples.length>20)this.speedSamples.shift();
+     }
     if(this.points.length%5===0||Date.now()-this.lastPersist>5000)this.persist();
     this.renderLive();
   },
   async refreshNativePoints(sessionIdOverride){
     const sid=String(sessionIdOverride||this.sessionId||'').trim();
-    if(!this.nativeMode||!sid||!window.google?.script?.run)return [];
-    return new Promise(resolve=>{
-      google.script.run.withSuccessHandler(rows=>{
-        try{
-          const valid=this.dedupePoints(Array.isArray(rows)?rows:[]);
-          this.lastNativeCount=valid.length;
-          // Pull server-only points into the live UI even when WebView missed callbacks.
-          const merged=this.dedupePoints(this.points.concat(valid));
-          this.points=merged;
-          this.renderLive();
-          this.persist();
-          resolve(valid);
-        }catch(e){resolve([]);}
-      }).withFailureHandler(()=>resolve([])).getNativeTripPoints(sid);
-    });
+    if(!this.nativeMode||!sid)return [];
+    if(this.nativeRefreshPromise)return this.nativeRefreshPromise;
+    this.nativeRefreshPromise=(async()=>{
+      let local=[];
+      try{ local=await window.RHNativeGPS?.getPoints?.(sid)||[]; }catch(e){ console.warn('[RHGPS] local native points:',e); }
+      let remote=[];
+      if(window.google?.script?.run){
+        remote=await new Promise(resolve=>{
+          google.script.run.withSuccessHandler(r=>resolve(Array.isArray(r)?r:[])).withFailureHandler(()=>resolve([])).getNativeTripPoints(sid);
+        });
+      }
+      const valid=this.dedupePoints(local.concat(remote));
+      this.lastNativeCount=valid.length;
+      this.lastNativeServerPoints=this.dedupePoints(remote);
+      this.points=this.dedupePoints(this.points.concat(valid));
+      this.renderLive();
+      this.persist();
+      this.lastNativeSyncAt=Date.now();
+      return valid;
+    })().finally(()=>{this.nativeRefreshPromise=null;});
+    return this.nativeRefreshPromise;
   },
+
   async waitForNativeFlush(sid, timeoutMs=8000){
-    const started=Date.now();let stable=0;let lastCount=-1;let best=[];
+    const started=Date.now();
+    let best=[];
+    if(this.nativeMode){
+      try{ await window.RHNativeGPS?.sync?.(); }catch(e){ console.warn('[RHGPS] native sync before stop:',e); }
+    }
     while(Date.now()-started<timeoutMs){
       const rows=await this.refreshNativePoints(sid);
-      const count=rows.length;
-      if(count>0)best=rows;
-      if(count===lastCount)stable++; else stable=0;
-      lastCount=count;
-      if(count>=2&&stable>=2)break;
-      await new Promise(r=>setTimeout(r,650));
+      if(rows.length)best=rows;
+      if(rows.length>=2)break;
+      await new Promise(r=>setTimeout(r,500));
     }
     return best;
   },
+
   async stop(){
     if(!this.active||this.stopping)return;
     const sid=this.sessionId;
@@ -1913,8 +2063,14 @@ const GPS = {
     if(this.wakeLock){try{await this.wakeLock.release();}catch(e){}this.wakeLock=null;}
 
     if(wasNative){
-      await this.waitForNativeFlush(sid,6500);
-      if(window.RHNativeGPS){try{await window.RHNativeGPS.stop();}catch(e){console.warn('[RHGPS] native stop',e);}}
+      this.lastNativeServerPoints=await this.waitForNativeFlush(sid,6500);
+      if(window.RHNativeGPS){
+        try{await window.RHNativeGPS.stop();}catch(e){console.warn('[RHGPS] native stop',e);}
+        // Read the durable SQLite buffer once more after the native service
+        // receives the stop command so the final fix is included in metrics.
+        try{await new Promise(r=>setTimeout(r,350));}catch(_){}
+        try{await this.refreshNativePoints(sid);}catch(e){console.warn('[RHGPS] final local refresh',e);}
+      }
     }
 
     this.points=this.dedupePoints(this.points);
@@ -1924,9 +2080,15 @@ const GPS = {
     const stats=this.stats(this.end);
     const route=this.detectRoute(stats.points);
     if(stats.distanceKm<.05||stats.durationMin<1||stats.points.length<2){
+      if(wasNative&&sid){
+        try{await window.RHNativeGPS?.clearTrip?.(sid);}catch(_){}
+        if(window.google?.script?.run){try{google.script.run.withFailureHandler(()=>{}).deleteNativeTripPoints(sid);}catch(_){}}
+      }
       this.stopping=false;this.reset();App.toast('Perjalanan terlalu singkat untuk disimpan.');return;
     }
-    this.pending={distance:stats.distanceKm,durationMin:stats.durationMin,avgSpeed:stats.avgSpeedKmh,maxSpeed:stats.maxSpeedKmh,movingTimeMin:stats.movingTimeMin,stopTimeMin:stats.stopTimeMin,stopCount:stats.stopCount,...route,gpsPoints:stats.points.slice(),startTime:new Date(this.start).toISOString(),endTime:new Date(this.end).toISOString(),date:new Date(this.start).toISOString().slice(0,10),id:sid};
+    const metricStart=stats.points.length?stats.points[0].time:this.start;
+    const metricEnd=stats.points.length?stats.points[stats.points.length-1].time:this.end;
+    this.pending={distance:stats.distanceKm,durationMin:stats.durationMin,avgSpeed:stats.avgSpeedKmh,maxSpeed:stats.maxSpeedKmh,movingTimeMin:stats.movingTimeMin,stopTimeMin:stats.stopTimeMin,stopCount:stats.stopCount,...route,gpsPoints:stats.points.slice(),startTime:new Date(metricStart).toISOString(),endTime:new Date(metricEnd).toISOString(),date:new Date(metricStart).toISOString().slice(0,10),id:sid};
     document.getElementById('modal-distance').textContent=Num(stats.distanceKm,2)+' km';
     document.getElementById('modal-duration').textContent=Num(stats.durationMin,1)+' mnt';
     document.getElementById('modal-avg').textContent=Num(stats.avgSpeedKmh,1)+' km/h';
@@ -1949,28 +2111,66 @@ const GPS = {
   },
   async confirmSave(){
     if(!this.pending)return;
-    const p=this.pending, sid=p.id, btn=document.querySelector('#trip-modal .btn.primary');if(btn)btn.disabled=true;
-    const allPoints=this.dedupePoints(p.gpsPoints||[]);
-    const payload={id:sid,date:p.date,origin:p.origin,destination:p.destination,routeName:p.routeName,distanceKm:p.distance,durationMin:p.durationMin,avgSpeed:p.avgSpeed,maxSpeed:p.maxSpeed,movingTimeMin:p.movingTimeMin,stopTimeMin:p.stopTimeMin,stopCount:p.stopCount,routeVariant:p.routeVariant,note:p.note,source:GPS.nativeMode?'gps-native':'gps-browser',vehicle:document.getElementById('trip-vehicle')?.value||'Motor',startTime:p.startTime,endTime:p.endTime,gpsPoints:allPoints.slice(0,900)};
+    const p=this.pending, sid=p.id, btn=document.querySelector('#trip-modal .btn.primary');
+    if(btn)btn.disabled=true;
+
+    let syncResult={ok:true,remaining:0,tripIds:[]};
+    try{
+      if(GPS.nativeMode) syncResult=await window.RHNativeGPS.sync?.()||syncResult;
+    }catch(e){ console.warn('[RHGPS] final native sync:',e); }
+
+    const payload={
+      id:sid,date:p.date,origin:p.origin,destination:p.destination,routeName:p.routeName,
+      distanceKm:p.distance,durationMin:p.durationMin,avgSpeed:p.avgSpeedKmh,maxSpeed:p.maxSpeedKmh,
+      movingTimeMin:p.movingTimeMin,stopTimeMin:p.stopTimeMin,stopCount:p.stopCount,routeVariant:p.routeVariant,
+      note:p.note,source:GPS.nativeMode?'gps-native':'gps-browser',
+      vehicle:document.getElementById('trip-vehicle')?.value||'Motor',
+      startTime:p.startTime,endTime:p.endTime,
+      // Native Android/Capgo paths are server-fed from TripPoints. Browser keeps
+      // the old direct payload path.
+      gpsPoints:GPS.nativeMode?[]:this.dedupePoints(p.gpsPoints||[])
+    };
 
     const fail=(e)=>{if(btn)btn.disabled=false;App.error(e);};
-    const save=()=>google.script.run.withSuccessHandler(()=>{
-      google.script.run.withSuccessHandler(()=>{}).withFailureHandler(()=>{}).deleteNativeTripPoints(sid);
-      if(btn)btn.disabled=false;App.closeModal('trip-modal');this.reset();App.toast('Perjalanan + jalur GPS tersimpan ke Google Sheets.');App.refresh(true);
+
+    const save=()=>google.script.run.withSuccessHandler(async()=>{
+      if(GPS.nativeMode){
+        const left=Number(syncResult?.remaining||0);
+        if(left===0){
+          try{ await window.RHNativeGPS.clearTrip?.(sid); }catch(e){}
+          try{ google.script.run.withFailureHandler(()=>{}).deleteNativeTripPoints(sid); }catch(_){}
+          App.toast('Perjalanan + jalur GPS tersimpan ke Google Sheets.');
+        }else{
+          App.toast('Ringkasan perjalanan tersimpan. Jalur GPS masih tersimpan di HP dan akan disinkronkan saat koneksi tersedia.');
+        }
+      }else{
+        App.toast('Perjalanan + jalur GPS tersimpan ke Google Sheets.');
+      }
+      if(btn)btn.disabled=false;
+      App.closeModal('trip-modal');
+      this.reset();
+      App.refresh(true);
     }).withFailureHandler(fail).addTrip(payload);
 
-    // Upload the client-side points too. This is a redundancy for native/iOS where
-    // a final native POST may still be in-flight when the user taps Save.
-    if(allPoints.length){
-      google.script.run.withSuccessHandler(()=>save()).withFailureHandler(fail).saveTripPointsBatch(sid,allPoints);
-    } else {
-      save();
-    }
+    save();
   },
-  cancelSave(){App.closeModal('trip-modal');this.reset();App.toast('Perjalanan dibatalkan.');},
+
+  async cancelSave(){
+    const sid=this.pending?.id;
+    const native=GPS.nativeMode;
+    App.closeModal('trip-modal');
+    if(native&&sid){
+      try{await window.RHNativeGPS?.clearTrip?.(sid);}catch(_){}
+      if(window.google?.script?.run){try{google.script.run.withFailureHandler(()=>{}).deleteNativeTripPoints(sid);}catch(_){}}
+    }
+    this.reset();
+    App.toast('Perjalanan dibatalkan.');
+  },
   stats(endMs){
-    const startMs=this.start||0;
-    return RHComputeGpsMetrics(this.points,startMs,endMs||Date.now());
+    const usable=RHNormalizeGpsPoints(this.points);
+    const firstTime=usable.length?usable[0].time:(this.start||0);
+    const lastTime=usable.length?usable[usable.length-1].time:(endMs||Date.now());
+    return RHComputeGpsMetrics(this.points,firstTime,lastTime);
   },
   detectRoute(trackPoints){
     const pts=Array.isArray(trackPoints)?trackPoints:this.points;
@@ -1981,7 +2181,7 @@ const GPS = {
   },
   renderLive(){
     const s=this.stats(),route=s.points.length?this.detectRoute(s.points):{routeName:'GPS STANDBY',note:'Menunggu titik GPS...'},last=s.points[s.points.length-1];
-    const liveSpeed=RHLiveProviderSpeedKmh(this.speedSamples,s.currentSpeedKmh);
+    const liveSpeed=Number(s.currentSpeedKmh||0);
     document.getElementById('gps-speed').textContent=Num(liveSpeed,1);
     document.getElementById('gps-distance').textContent=Num(s.distanceKm,2);
     document.getElementById('gps-time').textContent=TimeFmt(s.durationMin*60);
@@ -2006,7 +2206,28 @@ const GPS = {
     document.getElementById('float-time').textContent=TimeFmt(s.durationMin*60);
     document.getElementById('float-avg').textContent=Num(s.avgSpeedKmh,1)+' km/h';
   },
-  reset(){this.active=false;this.stopping=false;this.points=[];this.speedSamples=[];this.start=null;this.end=null;this.pending=null;this.sessionId=null;this.nativeMode=false;this.clearPersist();if(this.watch!==null){navigator.geolocation.clearWatch(this.watch);this.watch=null;}clearInterval(this.timer);this.timer=null;this.updateButton(false);['gps-speed','gps-distance','gps-avg','gps-max'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=id==='gps-distance'?'0.00':'0';});const tm=document.getElementById('gps-time');if(tm)tm.textContent='00:00';const rt=document.getElementById('gps-route');if(rt)rt.textContent='GPS STANDBY';const q=document.getElementById('gps-quality');if(q){q.textContent='GPS standby';q.className='gps-quality';}document.getElementById('gps-floating')?.classList.remove('show');}
+  async reconcileNativeQueue(){
+    if(!this.isNative()||!window.RHNativeGPS?.sync)return;
+    try{
+      const result=await window.RHNativeGPS.sync();
+      const ids=Array.isArray(result?.tripIds)?result.tripIds:[];
+      if(!ids.length)return;
+      for(const id of ids){
+        if(!id)continue;
+        await new Promise(resolve=>{
+          google.script.run.withSuccessHandler(async r=>{
+            if(r?.updated){
+              try{ await window.RHNativeGPS.clearTrip?.(id); }catch(e){}
+              try{ google.script.run.withFailureHandler(()=>{}).deleteNativeTripPoints(id); }catch(_){}
+            }
+            resolve();
+          }).withFailureHandler(()=>resolve()).finalizeTripGpsFromPoints(id);
+        });
+      }
+      if(ids.length) App.refresh(true);
+    }catch(e){ console.warn('[RHGPS] reconcile native queue:',e); }
+  },
+  reset(){this.active=false;this.stopping=false;this.points=[];this.speedSamples=[];this.start=null;this.end=null;this.pending=null;this.sessionId=null;this.nativeMode=false;this.lastNativeServerPoints=[];this.lastNativeSyncAt=0;this.nativeRefreshPromise=null;this.clearPersist();if(this.watch!==null){navigator.geolocation.clearWatch(this.watch);this.watch=null;}clearInterval(this.timer);this.timer=null;this.updateButton(false);['gps-speed','gps-distance','gps-avg','gps-max'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=id==='gps-distance'?'0.00':'0';});const tm=document.getElementById('gps-time');if(tm)tm.textContent='00:00';const rt=document.getElementById('gps-route');if(rt)rt.textContent='GPS STANDBY';const q=document.getElementById('gps-quality');if(q){q.textContent='GPS standby';q.className='gps-quality';}document.getElementById('gps-floating')?.classList.remove('show');}
 };
 
 const OCR = {
@@ -2023,8 +2244,13 @@ const OCR = {
         await this.processBase64(picked.base64, 'image/' + (picked.format === 'png' ? 'png' : 'jpeg'));
       } catch (e) {
         console.error('[RHNativeMedia]', e);
-        App.toast('Kamera/galeri native gagal. Membuka picker alternatif...');
-        document.getElementById(source === 'camera' ? 'receipt-file-camera' : 'receipt-file-gallery').click();
+        const msg=String(e?.message||e||'');
+        if(/canceled|cancelled|dibatalkan/i.test(msg)) {
+          App.toast('Pemilihan foto dibatalkan.');
+        } else {
+          App.toast('Kamera/galeri gagal: ' + (msg || 'coba lagi.'));
+        }
+        document.getElementById('ocr-label').textContent = 'Pilih foto dari kamera atau galeri';
       }
       return;
     }
@@ -2034,79 +2260,843 @@ const OCR = {
     const file = input.files && input.files[0];
     if (!file) return;
     if (!file.type || file.type.indexOf('image/') !== 0) { App.toast('File harus berupa gambar.'); return; }
-    this.downscale(file, 1600, 0.85).then(base64 => this.processBase64(base64, 'image/jpeg')).catch(err => {
+    this.downscale(file, 1400, 0.78).then(base64 => this.processBase64(base64, 'image/jpeg')).catch(err => {
       console.error(err);
       document.getElementById('ocr-label').textContent = 'Gagal memproses foto';
       document.getElementById('ocr-progress').style.display = 'none';
-      App.toast('Gagal memproses foto: ' + ((err && err.message) || err));
+      const msg=String(err?.message||err||'');
+      if(/413|request entity too large|too large|payload/i.test(msg)) App.toast('Foto terlalu besar. Coba crop screenshot atau pilih foto yang lebih dekat.');
+      else App.toast('Gagal memproses foto: ' + msg);
     });
     input.value = '';
   },
-  processBase64(base64, mimeType) {
-    if (!base64) { App.toast('Foto kosong.'); return Promise.resolve(); }
-    document.getElementById('ocr-label').textContent = 'Membaca struk di server...';
+  async processBase64(base64, mimeType) {
+    if (!base64) { App.toast('Foto kosong.'); return; }
+    document.getElementById('ocr-label').textContent = 'Mengompres & membaca bukti transaksi...';
     document.getElementById('ocr-progress').style.display = 'block';
-    document.getElementById('ocr-bar').style.width = '30%';
-    return new Promise((resolve,reject)=>{
-      google.script.run.withSuccessHandler(r => {
-        document.getElementById('ocr-bar').style.width = '100%';
-        if (!r || !r.ok) {
+    document.getElementById('ocr-bar').style.width = '12%';
+
+    const callAnalyze=(optimized)=>new Promise((resolve,reject)=>{
+      const success=(r)=>{
+        if(!r || !r.ok){
           const msg=(r&&r.error)||'OCR tidak menemukan teks atau gagal membaca.';
-          document.getElementById('ocr-label').textContent='Foto atau unggah struk kembali';
-          document.getElementById('ocr-detection')?.classList.remove('show');
-          setTimeout(()=>document.getElementById('ocr-progress').style.display='none',1200);
-          App.toast(msg); reject(new Error(msg)); return;
+          reject(new Error(msg));
+          return;
         }
-        const p=r.parsed||{};
-        if(p.amount)document.getElementById('exp-amount').value=p.amount;
-        if(p.date&&/^\d{4}-\d{2}-\d{2}$/.test(p.date))document.getElementById('exp-date').value=p.date;
-        if(p.category)document.getElementById('exp-category').value=p.category;
-        if(p.brand)document.getElementById('exp-brand').value=p.brand;
-        if(p.detail)document.getElementById('exp-detail').value=p.detail;
-        if(p.note)document.getElementById('exp-note').value=p.note;
-        if(r.receiptUrl)document.getElementById('exp-receipt-url').value=r.receiptUrl;
-        document.getElementById('exp-category').dispatchEvent(new Event('change'));
-        const det=document.getElementById('ocr-detection');
-        if(det){const bits=[];if(p.brand)bits.push('Brand/Penerima: '+Esc(p.brand));if(p.date)bits.push('Tanggal: '+Esc(p.date));if(p.amount)bits.push('Nominal: '+Money(p.amount));if(p.category)bits.push('Kategori: '+Esc(p.category));if(p.detail)bits.push('Detail: '+Esc(p.detail));det.innerHTML=bits.join('<br>');det.classList.toggle('show',!!bits.length);}
-        App.saveDraft();
-        ['field-amount','field-date','field-cat','field-brand'].forEach(id=>{const el=document.getElementById(id);if(el){el.classList.remove('field-highlight');void el.offsetWidth;el.classList.add('field-highlight');}});
-        document.getElementById('ocr-label').textContent='✓ Struk berhasil dianalisis!';
-        App.toast('Data struk berhasil diekstrak!');
-        setTimeout(()=>document.getElementById('ocr-progress').style.display='none',1500);
         resolve(r);
-      }).withFailureHandler(e=>{
-        document.getElementById('ocr-label').textContent='Gagal membaca struk';
-        document.getElementById('ocr-progress').style.display='none';
-        App.error(e); reject(e);
-      }).analyzeReceipt(base64,mimeType||'image/jpeg');
+      };
+      const failure=(e)=>reject(e instanceof Error?e:new Error(String(e?.message||e||'OCR gagal.')));
+      try{
+        const useBridge=!!(window.RHBridge&&typeof window.RHBridge.rpc==='function' &&
+          (location.hostname.includes('vercel.app') || !!window.Capacitor?.isNativePlatform?.()));
+        if(useBridge){
+          window.RHBridge.rpc('analyzeReceipt',[optimized,'image/jpeg'],{success:success,failure:failure});
+          return;
+        }
+        if(window.google?.script?.run){
+          google.script.run.withSuccessHandler(success).withFailureHandler(failure).analyzeReceipt(optimized,'image/jpeg');
+          return;
+        }
+        failure(new Error('Jembatan OCR tidak tersedia.'));
+      }catch(e){ failure(e); }
     });
+
+    const is413=(e)=>/\b413\b|request entity too large|payload too large/i.test(String(e?.message||e||''));
+    const attempt=async(maxSide,maxBytes,quality,label)=>{
+      document.getElementById('ocr-label').textContent=label||'Membaca bukti transaksi...';
+      const optimized=await this.downscaleBase64(base64,mimeType||'image/jpeg',maxSide,quality,maxBytes);
+      document.getElementById('ocr-bar').style.width='28%';
+      try{
+        return await callAnalyze(optimized);
+      }catch(e){
+        if(is413(e) && maxBytes>120000){
+          document.getElementById('ocr-label').textContent='Foto masih terlalu besar, mengompres ulang...';
+          await new Promise(r=>setTimeout(r,120));
+          return attempt(Math.max(820,Math.round(maxSide*.82)),Math.max(120000,Math.round(maxBytes*.52)),Math.max(.58,quality-.05),label);
+        }
+        throw e;
+      }
+    };
+
+    try{
+      const r=await attempt(1400,450000,.78,'Mengompres & membaca bukti transaksi...');
+      document.getElementById('ocr-bar').style.width = '100%';
+
+      const rawText=String(r.text||'');
+      // Apps Script owns the OCR/parser rules. The client must not re-parse the
+      // same OCR text with a second divergent implementation.
+      const serverParsed=(r.parsed&&typeof r.parsed==='object')?r.parsed:{};
+      const p={
+        mode:serverParsed.mode||'unknown',
+        sourceApp:serverParsed.sourceApp||'',
+        amount:Number(serverParsed.amount||0),
+        date:serverParsed.date||TodayLocal(),
+        category:serverParsed.category||'Lainnya',
+        brand:String(serverParsed.brand||serverParsed.recipient||'').trim(),
+        recipient:String(serverParsed.recipient||'').trim(),
+        detail:String(serverParsed.detail||'').trim(),
+        note:String(serverParsed.note||'').trim()
+      };
+
+      // OCR result is authoritative for the scanned transaction. Never keep
+      // an old Brand/Detail/Note from a previous scan when the new parser says blank.
+      ['exp-amount','exp-date','exp-brand','exp-detail','exp-note','exp-receipt-url'].forEach(id=>{
+        const el=document.getElementById(id);
+        if(el)el.value='';
+      });
+      const catEl=document.getElementById('exp-category');
+      if(catEl)catEl.value='Lainnya';
+
+      const safeBrand=(this.isDateTimeLike(p.brand)||this.isLocationLike(p.brand))?'':String(p.brand||'').trim();
+      const safeRecipient=(this.isDateTimeLike(p.recipient)||this.isLocationLike(p.recipient))?'':String(p.recipient||'').trim();
+      const brandOrRecipient=safeRecipient||safeBrand;
+      const safeNote=this.isLocationLike(p.note)?'':String(p.note||'').trim();
+
+      if(p.amount)document.getElementById('exp-amount').value=p.amount;
+      if(p.date&&/^\d{4}-\d{2}-\d{2}$/.test(p.date))document.getElementById('exp-date').value=p.date;
+      if(p.category)document.getElementById('exp-category').value=p.category;
+      document.getElementById('exp-brand').value=brandOrRecipient;
+      document.getElementById('exp-detail').value=String(p.detail||'');
+      document.getElementById('exp-note').value=safeNote;
+      if(r.receiptUrl)document.getElementById('exp-receipt-url').value=r.receiptUrl;
+      document.getElementById('exp-category').dispatchEvent(new Event('change'));
+
+      const det=document.getElementById('ocr-detection');
+      if(det){
+        const bits=[];
+        if(brandOrRecipient)bits.push((p.recipient?'Payment To: ':'Brand/Tempat: ')+Esc(brandOrRecipient));
+        if(p.date)bits.push('Tanggal: '+Esc(p.date));
+        if(p.amount)bits.push('Nominal: '+Money(p.amount));
+        if(p.category)bits.push('Kategori: '+Esc(p.category));
+        if(p.detail)bits.push('Detail: '+Esc(p.detail));
+        det.innerHTML=bits.join('<br>');
+        det.classList.toggle('show',!!bits.length);
+      }
+      App.saveDraft();
+      ['field-amount','field-date','field-cat','field-brand'].forEach(id=>{
+        const el=document.getElementById(id);
+        if(el){el.classList.remove('field-highlight');void el.offsetWidth;el.classList.add('field-highlight');}
+      });
+      document.getElementById('ocr-label').textContent='✓ Bukti transaksi berhasil dianalisis!';
+      App.toast(brandOrRecipient ? (p.recipient ? 'Nominal, tanggal, dan penerima berhasil diekstrak.' : 'Nominal, tanggal, dan tempat berhasil diekstrak.') : 'Nominal dan tanggal berhasil diekstrak.');
+      setTimeout(()=>document.getElementById('ocr-progress').style.display='none',1200);
+      return r;
+    }catch(e){
+      document.getElementById('ocr-progress').style.display='none';
+      document.getElementById('ocr-label').textContent='Gagal membaca bukti transaksi';
+      const msg=String(e?.message||e||'');
+      if(is413(e)) App.toast('Foto masih terlalu besar. Pilih screenshot/crop yang lebih kecil.');
+      else App.error(e);
+      throw e;
+    }
+  },
+  normalizeText(text){
+    return String(text||'')
+      .replace(/[\u00a0\t]+/g,' ')
+      .replace(/[|¦]/g,' ')
+      .replace(/\s{2,}/g,' ')
+      .trim();
+  },
+  parseMoneyToken(raw, textContext){
+    let s=String(raw||'').replace(/[^0-9,\.\-]/g,'');
+    if(!s)return 0;
+    const ctx=String(textContext||'').toUpperCase();
+    const isIDR=/\b(?:IDR|RP|RUPIAH)\b|\bRP\.?\s*[0-9]/.test(ctx);
+    const lc=s.lastIndexOf(','),ld=s.lastIndexOf('.');
+    if(isIDR){
+      const lastSep=Math.max(lc,ld);
+      const tail=lastSep>=0?s.slice(lastSep+1):'';
+      if(lastSep>=0&&tail.length===2&&/^\d{2}$/.test(tail))s=s.slice(0,lastSep);
+      return Number(s.replace(/[^0-9]/g,'')||0);
+    }
+    if(lc>=0&&ld>=0){
+      if(ld>lc)s=s.replace(/,/g,'');
+      else s=s.replace(/\./g,'').replace(',','.');
+    }else if(lc>=0){
+      const tail=s.length-lc-1;
+      s=tail<=2?s.replace(/,/g,'.'):s.replace(/,/g,'');
+    }else if(ld>=0){
+      const tail=s.length-ld-1;
+      s=tail<=2?s:s.replace(/\./g,'');
+    }
+    return Number(s||0);
+  },
+  extractAmount(text){
+    const raw=String(text||'');
+    const lines=raw.split(/\r?\n/).map(x=>this.normalizeText(x)).filter(Boolean);
+    const strong=/(total|grand\s*total|jumlah|nominal|amount|total\s+payment|total\s+paid|total\s+pesanan|dibayar|payment|paid|harga|nilai|debit|transfer|pembayaran|top\s*up|withdrawal)/i;
+    const metadata=/(saldo|balance|saldo\s+(?:awal|akhir)|biaya|admin|fee|cashback|diskon|potongan|rekening|account|nomor|no\.?\s*rekening|rrn|reference|transaction\s*id|terminal\s*id|merchant\s*(?:id|pan)|approval|auth|stan|trace|invoice|receipt|batch|kode|otp|tanggal|tgl|date|waktu|time|location|lokasi|address|alamat|cashier|kasir)/i;
+    const metadataOnly=/^(?:saldo|balance|saldo\s+(?:awal|akhir)|location|lokasi|address|alamat|outlet|cabang|merchant\s*(?:id|pan)|terminal\s*id|tid|mid|acquirer|rrn|reference|approval|invoice|receipt|cashier|kasir)\s*[:=\-]?$/i;
+
+    // Pass 1: an explicit monetary token is authoritative.
+    let best=null;
+    for(let i=0;i<lines.length;i++){
+      const line=lines[i], prev=lines[i-1]||'';
+      if(metadata.test(line)||metadataOnly.test(prev))continue;
+      if(/^(?:balance|saldo|available\s+balance|current\s+balance)\s*[:=\-]?$/i.test(prev))continue;
+      const matches=[...line.matchAll(/(?:rp\.?|idr|rupiah)\s*([0-9][0-9.,]*)/gi)];
+      for(const m of matches){
+        const value=this.parseMoneyToken(m[1],line);
+        if(!(value>=1000)||value>500000000)continue;
+        let score=100;
+        if(strong.test(line))score+=90;
+        if(/(?:transfer|payment|paid|pembayaran|debit|spending)/i.test(line))score+=15;
+        if(i>=Math.max(0,lines.length-6))score+=5;
+        // Outflow/inflow sign is useful context, but never changes the magnitude.
+        if(/^[\s]*[-−]\s*(?:rp\.?|idr|rupiah)/i.test(line))score+=8;
+        if(!best||score>best.score||(score===best.score&&value>best.value))best={value,score};
+      }
+    }
+    if(best)return best.value;
+
+    // Pass 2: only when OCR contains no usable explicit IDR token.
+    const consider=(rawNum,line,idx)=>{
+      if(!rawNum||metadata.test(line)||metadataOnly.test(lines[idx-1]||''))return;
+      if(/^\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4}$/.test(rawNum))return;
+      if(/\b(?:tanggal|tgl|date|waktu|time)\b/i.test(line)&&!strong.test(line))return;
+      const value=this.parseMoneyToken(rawNum,line);
+      if(!(value>=1000)||value>500000000)return;
+      let score=0;
+      if(strong.test(line))score+=90;
+      if(/(?:transfer|payment|paid|pembayaran|debit|spending)/i.test(line))score+=15;
+      if(idx>=Math.max(0,lines.length-6))score+=5;
+      if(!best||score>best.score||(score===best.score&&value>best.value))best={value,score};
+    };
+    for(let i=0;i<lines.length;i++){
+      const line=lines[i];
+      const direct=[...line.matchAll(/(?:usd|sgd|myr|eur|gbp|jpy|\$|€|£|¥)?\s*([0-9][0-9.,]*)/gi)];
+      for(const m of direct)consider(m[1],line,i);
+      if(/^(?:total|grand\s*total|jumlah|nominal|amount|dibayar|payment|paid|debit|transfer|pembayaran)\s*[:=\-]?$/i.test(line)&&i+1<lines.length){
+        const m=lines[i+1].match(/(?:rp\.?|idr|rupiah)?\s*([0-9][0-9.,]*)/i);
+        if(m)consider(m[1],lines[i+1],i+1);
+      }
+    }
+    return best&&best.score>=10?best.value:0;
+  },
+
+  datePartsToISO(y,m,d){
+    y=Number(y);m=Number(m);d=Number(d);
+    if(y<100)y+=2000;
+    if(y<2000||y>2099||m<1||m>12||d<1||d>31)return '';
+    const dt=new Date(Date.UTC(y,m-1,d));
+    if(dt.getUTCFullYear()!==y||dt.getUTCMonth()!==m-1||dt.getUTCDate()!==d)return '';
+    return y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+  },
+  parseDateToken(raw){
+    let s=this.normalizeText(raw).replace(/,/g,' ').replace(/[\u00a0]/g,' ');
+    const months={
+      jan:1,january:1,januari:1,feb:2,february:2,februari:2,mar:3,march:3,maret:3,
+      apr:4,april:4,may:5,mei:5,jun:6,june:6,juni:6,jul:7,july:7,juli:7,
+      aug:8,august:8,agustus:8,agu:8,sep:9,september:9,sept:9,oct:10,okt:10,oktober:10,october:10,
+      nov:11,november:11,dec:12,des:12,desember:12
+    };
+    let m=s.match(/\b(\d{4})[\s\.\/\-](\d{1,2})[\s\.\/\-](\d{1,2})\b/);
+    if(m)return this.datePartsToISO(m[1],m[2],m[3]);
+    m=s.match(/\b(\d{1,2})[\s\.\/\-](\d{1,2})[\s\.\/\-](\d{2,4})\b/);
+    if(m)return this.datePartsToISO(m[3],m[2],m[1]);
+    m=s.match(/\b(\d{1,2})\s+([A-Za-zÀ-ÿ]+)\s+(\d{2,4})\b/i);
+    if(m){const mo=months[m[2].toLowerCase()];if(mo)return this.datePartsToISO(m[3],mo,m[1]);}
+    m=s.match(/\b([A-Za-zÀ-ÿ]+)\s+(\d{1,2})\s+(\d{2,4})\b/i);
+    if(m){const mo=months[m[1].toLowerCase()];if(mo)return this.datePartsToISO(m[3],mo,m[2]);}
+    return '';
+  },
+  extractDate(text){
+    const raw=String(text||'');
+    const lines=raw.split(/\r?\n/).map(x=>this.normalizeText(x)).filter(Boolean);
+    const keys=/(tanggal|tgl|date|transaction date|transaction|transaksi|waktu|time|created|processed|settled|successful|berhasil|completed)/i;
+    for(let i=0;i<lines.length;i++){
+      if(keys.test(lines[i])){
+        const d=this.parseDateToken(lines[i]); if(d)return d;
+        if(i+1<lines.length){const d2=this.parseDateToken(lines[i+1]);if(d2)return d2;}
+      }
+    }
+    const patterns=[
+      /\b\d{4}[\s\.\/\-]\d{1,2}[\s\.\/\-]\d{1,2}\b/g,
+      /\b\d{1,2}[\s\.\/\-]\d{1,2}[\s\.\/\-]\d{2,4}\b/g,
+      /\b\d{1,2}\s+[A-Za-zÀ-ÿ]+\s+\d{2,4}\b/g,
+      /\b[A-Za-zÀ-ÿ]+\s+\d{1,2},?\s+\d{2,4}\b/g
+    ];
+    for(const re of patterns){const ms=raw.match(re)||[];for(const token of ms){const d=this.parseDateToken(token);if(d)return d;}}
+    return '';
+  },
+  // OCR parser v20260922-r13
+  // Separate transfer/MBanking proof from direct merchant/POS receipt.
+  receiptMetaRe(){
+    return /^(?:acquirer|acq(?:uirer)?|rrn|reference(?:\s*(?:no|number))?|ref(?:erence)?|transaction\s*type|type\s*transaction|trx\s*type|terminal(?:\s*id)?|tid|mid|merchant\s*id|issuer|approval(?:\s*code)?|auth(?:orization)?(?:\s*code)?|invoice(?:\s*(?:no|number))?|receipt(?:\s*(?:no|number))?|batch(?:\s*(?:no|number))?|trace(?:\s*(?:no|number))?|stan|card(?:\s*(?:no|number))?|debit|credit|cashier|kasir)$/i;
+  },
+  receiptMetaDistance(a,b){
+    const x=String(a||''), y=String(b||'');
+    if(!x||!y)return 99;
+    const prev=new Array(y.length+1);
+    for(let j=0;j<=y.length;j++)prev[j]=j;
+    for(let i=1;i<=x.length;i++){
+      const cur=[i];
+      for(let j=1;j<=y.length;j++){
+        cur[j]=Math.min(
+          cur[j-1]+1,
+          prev[j]+1,
+          prev[j-1]+(x[i-1]===y[j-1]?0:1)
+        );
+      }
+      for(let j=0;j<=y.length;j++)prev[j]=cur[j];
+    }
+    return prev[y.length];
+  },
+  isDateTimeLike(value){
+    const s=this.normalizeText(value).toLowerCase().replace(/[|]/g,' ');
+    const compact=s.replace(/\s+/g,'');
+    if(/^\d{1,2}(?:jan|feb|mar|apr|may|mei|jun|jul|aug|agu|sep|sept|oct|okt|nov|dec|des)\d{4}\d{1,2}:\d{2}(?::\d{2})?$/.test(compact))return true;
+    if(/^\d{1,2}(?:jan|feb|mar|apr|may|mei|jun|jul|aug|agu|sep|sept|oct|okt|nov|dec|des)\d{4}$/.test(compact))return true;
+    if(/^\d{4}[./-]\d{1,2}[./-]\d{1,2}(?:[t\s_-]?\d{1,2}:\d{2}(?::\d{2})?)?$/.test(s))return true;
+    if(/^\d{1,2}[./-]\d{1,2}[./-]\d{2,4}(?:[t\s_-]?\d{1,2}:\d{2}(?::\d{2})?)?$/.test(s))return true;
+    if(/^\d{1,2}\s+(?:jan|feb|mar|apr|may|mei|jun|jul|aug|agu|sep|sept|oct|okt|nov|dec|des)[a-z]*\s+\d{2,4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?$/.test(s))return true;
+    if(/^\d{1,2}:\d{2}(?::\d{2})?(?:\s*(?:am|pm))?$/.test(s))return true;
+    return false;
+  },
+  isLocationLike(value){
+    const s=this.normalizeText(value).replace(/\s{2,}/g,' ').trim();
+    if(!s)return false;
+    if(/\b\d{5}\b/.test(s))return true;
+    if(/\b(?:alamat|address|jalan|jl\.?|jln\.?|street|st\.?|road|rd\.?|blok|block|kode\s*pos|postal|postcode|telp|phone)\b/i.test(s))return true;
+    const hasCity=/\b(?:jakarta(?:\s+(?:selatan|barat|timur|utara|pusat))?|tangerang(?:\s+(?:selatan|utara))?|depok|bekasi|bogor|bandung|surabaya|semarang|yogyakarta|makassar|palembang|serang|cilegon|denpasar|malang|batam|solo|surakarta|medan)\b/i.test(s);
+    if(hasCity && (/,/.test(s)||/\d/.test(s)||/\b(?:id|indonesia)\b/i.test(s)))return true;
+    if(/\b(?:id|indonesia)\s*$/i.test(s) && (/,/.test(s)||/\d/.test(s)))return true;
+    return false;
+  },
+  isReceiptMeta(value){
+    const s=this.normalizeText(value).replace(/^[\s:|>._-]+|[\s:|>._-]+$/g,'').trim();
+    if(!s)return true;
+    if(this.isDateTimeLike(s))return true;
+    if(this.receiptMetaRe().test(s))return true;
+    if(/^(?:qris\s+)?(?:payment|transaction)\s+(?:successful|successfull|success|berhasil|completed|failed|gagal|pending)$/i.test(s))return true;
+
+    // OCR commonly turns "Acquirer" into variants such as "Acruirer".
+    // Fuzzy-match only against known receipt/terminal metadata, not arbitrary words.
+    const compact=s.toLowerCase().replace(/[^a-z0-9]/g,'');
+    const words=['acquirer','rrn','reference','transactiontype','trxtype','terminal','terminalid','tid','mid','merchantid','issuer','approval','approvalcode','authorization','authorizationcode','invoice','receipt','batch','trace','stan','card','debit','credit','cashier','kasir'];
+    return words.some(w=>{
+      const d=this.receiptMetaDistance(compact,w);
+      const limit=w.length<=4?0:(w.length<=7?1:2);
+      return d<=limit;
+    }) || /^(?:acq|acru|acqruirer|acruirer|transacton|transction|rrn)$/i.test(compact);
+  },
+  isBankHeader(value){
+    const s=this.normalizeText(value);
+    return /^(?:bank\s+)?(?:bca|m-bca|mbca|bca\s+mobile|bca\s+mobile\s+banking|bank\s+central\s+asia|bri|bni|mandiri|bank\s+mandiri|cimb|permata|btn|danamon|ocbc|uob|hsbc|seabank|bank\s+jago)(?:\s+(?:mobile|digital|internet|banking))?$/i.test(s);
+  },
+  classifyReceiptMode(text){
+    const raw=String(text||'');
+    const t=raw.toLowerCase();
+    const transferStrong=[
+      /payment\s*(?:to|from)\b/i,/paymentto\b/i,
+      /transfer(?:red)?\s*(?:to|from|ke|kepada|dari)\b/i,
+      /(?:ditransfer|dikirim)\s*(?:ke|kepada|dari)\b/i,
+      /\b(?:beneficiary|recipient|receiver|payee|penerima|pengirim|sender|remitter|nama penerima|nama tujuan)\b/i,
+      /\b(?:no\.?\s*(?:rekening|rek)|rekening|account(?:\s*(?:no|number))?|a\/c)\b/i,
+      /\b(?:m-bca|mbca|mybca|bca\s+mobile|brimo|bri\s+mobile|bni\s+mobile|wondr(?:\s+by\s+bni)?|livin(?:\s+by\s+mandiri)?|octo(?:\s+mobile)?|d-bank(?:\s+pro)?|digibank|jenius|seabank|bank\s+jago|blu|motionbank|neo\s+bank|line\s+bank|permata\s+mobile|permatamobile|ocbc\s+nyala|uob\s+tmrw|mobile\s+banking|internet\s+banking|mutasi)\b/i
+    ];
+    const merchantStrong=[
+      /\b(?:struk|receipt|nota)\b/i,
+      /\b(?:subtotal|grand\s*total|qty|quantity|item|items|produk|product|menu|barang)\b/i,
+      /\b(?:outlet|cabang|store|toko|kasir|cashier|order|table|meja|kembali|change)\b/i,
+      /\b(?:spbu|hokben|hok\s*ben|hoka\s*hoka\s*bento|kfc|mcdonald'?s|mcd|burger\s*king|starbucks|jco|chatime|solaria|breadtalk|pizza\s*h?ut|domino'?s|indomaret|alfamart)\b/i
+    ];
+    const terminalMeta=/\b(?:acquirer|rrn|transaction\s*type|terminal\s*id|merchant\s*id|approval\s*code|stan)\b/i.test(t);
+    const qrisFinancialProof=/\bqris\b/i.test(raw)&&/\b(?:successful|successfull|success|berhasil|completed)\b/i.test(raw)&&/\b(?:acquirer|rrn|reference|transaction\s*id|merchant|amount|nominal|total\s*paid|tujuan\s+pembayaran|payment\s*to)\b/i.test(raw);
+    const ts=transferStrong.reduce((n,re)=>n+(re.test(raw)?1:0),0);
+    const ms=merchantStrong.reduce((n,re)=>n+(re.test(raw)?1:0),0);
+    if(ts>0)return 'transfer';
+    if(qrisFinancialProof)return 'transfer';
+    if(ms>0)return 'merchant';
+    if(terminalMeta)return 'merchant';
+    return 'unknown';
+  },
+  isMoneyLike(value){
+    const s=this.normalizeText(value);
+    if(!s)return false;
+    return /(?:^|[\s:(])(?:rp\.?|idr|rupiah)\s*[0-9][0-9.,]*/i.test(s)
+      || /[0-9][0-9.,]*\s*(?:rp\.?|idr|rupiah)\b/i.test(s);
+  },
+  cleanRecipient(value){
+    let s=this.normalizeText(value).replace(/^[\-:|>"']+|[\-:|>"']+$/g,'').trim();
+    s=s.replace(/^(?:(?:payment|paid|pay|sent|send|transfer(?:red)?|dikirim|ditransfer)\s*)?(?:(?:to|recipient|penerima|beneficiary|receiver|payee|tujuan|kepada|ke)\b)\s*[:=\-]?\s*/i,'').trim();
+    s=s.replace(/^(?:payment|paid)\s+from\s*[:=\-]?\s*/i,'').trim();
+    s=s.replace(/\b(?:no\.?\s*rekening|no\.?\s*rek|rekening|account(?:\s*(?:no|number))?|a\/c)\s*[:#\-]?\s*[0-9xX* .\-]{6,}\b/ig,'').trim();
+    // Reject OCR values that are actually money + bank header, e.g. "IDR27,200.00 BCA".
+    if(this.isMoneyLike(s)){
+      s=s.replace(/^(?:rp\.?|idr|rupiah)\s*[0-9][0-9.,]*/i,'').trim();
+      s=s.replace(/[0-9][0-9.,]*\s*(?:rp\.?|idr|rupiah)\b$/i,'').trim();
+      if(this.isMoneyLike(s))return '';
+    }
+    s=s.replace(/\s+(?:rp|idr|usd|nominal|amount|jumlah|tanggal|tgl|date|status|saldo|balance)\b.*$/i,'').trim();
+    s=s.replace(/[\s\-:|]+$/g,'').trim();
+    if(!s||s.length<2||s.length>140)return '';
+    if(this.isDateTimeLike(s))return '';
+    if(this.isReceiptMeta(s)||this.isBankHeader(s))return '';
+    if(/^(?:qris\s+)?(?:payment|transaction)\s+(?:successful|successfull|success|berhasil|completed)$/i.test(s))return '';
+    if(/^(?:tujuan\s+pembayaran\s*\/\s*merchant|tujuan\s+pembayaran|payment\s+merchant|merchant\s+name|bill\s+details(?:\s+qr)?(?:\s*[-–]\s*commerce)?)$/i.test(s))return '';
+    if(/^\d[\d\s.,\-\/]*$/.test(s))return '';
+    if(/^(?:payment|payment\s*to|payment\s*from|to|from|recipient|penerima|beneficiary|receiver|payee|tujuan|nominal|amount|jumlah|saldo|balance|tanggal|tgl|date|status|success|berhasil|completed|transfer|acquirer|rrn|transaction\s*type)$/i.test(s))return '';
+    if(/^(?:pembayaran\s*\/\s*merchant|tujuan\s+pembayaran\s*\/\s*merchant|qr\s*[-–]\s*commerce|commerce)$/i.test(s))return '';
+    if(/\b(?:otp|pin|password|kode akses|reference|referensi)\b/i.test(s))return '';
+    return /[A-Za-zÀ-ÿ]/.test(s)?s:'';
+  },
+  extractRecipient(text){
+    const raw=String(text||'');
+    if(this.classifyReceiptMode(raw)!=='transfer')return '';
+    const lines=raw.split(/\r?\n/).map(x=>this.normalizeText(x)).filter(Boolean);
+    const labels=[
+      'payment to','paymentto','payment recipient','paid to','pay to','sent to','send to',
+      'transfer to','transferred to','transfer ke','transfer kepada','ditransfer ke','ditransfer kepada',
+      'dikirim ke','dikirim kepada','tujuan pembayaran / merchant','tujuan pembayaran',
+      'payment merchant name','payment merchant','merchant name','bill details qr - commerce','bill details qr','bill details',
+      'nama penerima','nama tujuan','penerima','beneficiary','recipient','receiver','payee',
+      'rekening tujuan','nama rekening tujuan','nomor rekening tujuan','tujuan','kepada'
+    ];
+    const normalizeLabel=(s)=>this.normalizeText(s).toLowerCase().replace(/["']/g,'').replace(/[\s:_=|>\-]+/g,' ').trim();
+    const metadataBoundary=/\b(?:acquirer|acq(?:uirer)?|rrn|reference|transaction\s*type|terminal(?:\s*id)?|merchant\s*id|issuer|approval(?:\s*code)?|auth(?:orization)?(?:\s*code)?|invoice|receipt|batch|trace|stan)\b/i;
+    const candidate=(value)=>{
+      let s=this.normalizeText(value);
+      if(!s)return '';
+      s=s.replace(/^(?:payment|paid|pay|sent|send|transfer(?:red)?|dikirim|ditransfer)\s*(?:to|from|ke|kepada)?\s*[:=\-]?\s*/i,'').trim();
+      if(this.isReceiptMeta(s))return '';
+      const fuzzyMeta=/\b(?:acruirer|acqruirer|acq(?:uirer)?|rrn|reference|transact(?:ion|on)\s*type|terminal(?:\s*id)?|merchant\s*id|issuer|approval(?:\s*code)?|auth(?:orization)?(?:\s*code)?|invoice|receipt|batch|trace|stan)\b/i;
+      if(fuzzyMeta.test(s)){
+        const parts=s.split(fuzzyMeta);
+        const before=parts[0].trim();
+        const after=parts.slice(1).join(' ').trim();
+        const b=this.cleanRecipient(before);
+        if(b)return b;
+        const a=this.cleanRecipient(after);
+        if(a)return a;
+        return '';
+      }
+      return this.cleanRecipient(s);
+    };
+    for(let i=0;i<lines.length;i++){
+      const line=lines[i], norm=normalizeLabel(line);
+      for(const label of labels){
+        const labelNorm=label.toLowerCase(), compact=labelNorm.replace(/\s+/g,'');
+        if(norm===labelNorm||norm===compact||norm.startsWith(labelNorm+' ')||norm.startsWith(compact+' ')){
+          const re=new RegExp('^'+label.replace(/\s+/g,'\\s*')+'\\s*[:=>\\-]?\\s*(.*)$','i');
+          const m=line.match(re);
+          const inline=m?candidate(m[1]||''):'';
+          if(inline)return inline;
+          for(let j=1;j<=8;j++){const next=candidate(lines[i+j]||'');if(next)return next;}
+        }
+      }
+      if(/^payment$/i.test(line)&&i+1<lines.length&&/^to$/i.test(lines[i+1])){
+        for(let j=2;j<=9;j++){const d=candidate(lines[i+j]||'');if(d)return d;}
+      }
+      if(/^payment\s*to$/i.test(line)){
+        for(let j=1;j<=8;j++){const d=candidate(lines[i+j]||'');if(d)return d;}
+      }
+    }
+    return '';
+  },
+  isBankOnlyRecipient(value){ return this.isBankHeader(value); },
+  knownMerchantRe(){
+    return [
+      [/spbu\s*pertamina|pertamina/i,'Pertamina'],[/hok\s*ben|hokben|hoka\s*hoka\s*bento/i,'HokBen'],
+      [/kfc/i,'KFC'],[/mcdonald'?s|mcd/i,'McDonald’s'],[/burger\s*king/i,'Burger King'],
+      [/starbucks/i,'Starbucks'],[/j\.?\s*co/i,'J.CO'],[/chatime/i,'Chatime'],[/solaria/i,'Solaria'],
+      [/breadtalk/i,'BreadTalk'],[/pizza\s*h?ut/i,'Pizza Hut'],[/domino'?s/i,'Domino’s'],
+      [/indomaret/i,'Indomaret'],[/alfamart/i,'Alfamart'],[/shell/i,'Shell'],[/vivo/i,'Vivo'],
+      [/bp\s*(?:ultimate|fuel|station)?/i,'BP']
+    ];
+  },
+  extractMerchant(text){
+    const raw=String(text||'');
+    const lines=raw.split(/\r?\n/).map(x=>this.normalizeText(x)).filter(Boolean);
+    const known=this.knownMerchantRe();
+
+    // Known merchant/brand text has higher confidence than a location such as "Outlet Bintaro".
+    for(const [re,name] of known)if(re.test(raw))return name;
+
+    // Unknown merchant is intentionally left blank rather than guessing from arbitrary OCR lines.
+    const labels=['merchant name','merchant','nama merchant','store name','nama toko','toko'];
+    for(let i=0;i<lines.length;i++){
+      const line=lines[i];
+      // "Merchant PAN/Merchant ID" is terminal metadata, never merchant name.
+      if(/^merchant\s+(?:pan|id)\b/i.test(line)) continue;
+      for(const label of labels){
+        const re=new RegExp('^'+label.replace(/\s+/g,'\\s*')+'\\s*[:=>\-]?\\s*(.*)$','i');
+        const m=line.match(re);
+        if(m&&!this.isReceiptMeta(m[1])){
+          const s=this.cleanMerchant(m[1]);
+          if(s)return s;
+          for(let j=1;j<=4;j++){
+            const s2=this.cleanMerchant(lines[i+j]||'');
+            if(s2)return s2;
+          }
+        }
+      }
+    }
+    return '';
+  },
+  cleanMerchant(value){
+    let s=this.normalizeText(value).replace(/^[\-:|>"']+|[\-:|>"']+$/g,'').trim();
+    s=s.replace(/\b(?:rrn|reference|transaction\s*type|terminal(?:\s*id)?|merchant\s*id|acquirer|approval|invoice|receipt|batch|trace|stan)\b.*$/i,'').trim();
+    if(this.isMoneyLike(s))return '';
+    if(!s||s.length<2||s.length>120)return '';
+    if(this.isDateTimeLike(s))return '';
+    if(this.isReceiptMeta(s)||this.isBankHeader(s))return '';
+    if(/^(?:merchant\s*(?:id|pan)|pan|mid|tid)\b/i.test(s))return '';
+    if(/^\d[\d\s.,\-\/]*$/.test(s))return '';
+    if(/^(?:payment|to|from|transfer|successful|success|berhasil|completed|transaction)$/i.test(s))return '';
+    return /[A-Za-zÀ-ÿ]/.test(s)?s:'';
+  },
+  extractPurchaseDetail(text){
+    const raw=String(text||'');
+    const lines=raw.split(/\r?\n/).map(x=>this.normalizeText(x)).filter(Boolean);
+    const items=[];
+    const add=(x)=>{
+      const s=this.cleanMerchant(x);
+      if(s&&!this.isReceiptMeta(s)&&!this.isMoneyOrTotalLine(s)&&!items.includes(s))items.push(s);
+    };
+    const label=/^(?:item|items|produk|product|menu|barang|description|desc|nama barang|nama produk|order)\s*[:=>\-]?\s*(.*)$/i;
+    for(let i=0;i<lines.length&&items.length<5;i++){
+      const m=lines[i].match(label);
+      if(!m)continue;
+      if(m[1])add(m[1]);
+      else for(let j=1;j<=5&&i+j<lines.length;j++){add(lines[i+j]);}
+    }
+    for(let i=0;i<lines.length&&items.length<5;i++){
+      const m=lines[i].match(/^(.+?)\s+(\d+(?:[.,]\d+)?)\s*[xX]\s*(?:rp\.?\s*)?([\d.,]+)(?:\s+(?:rp\.?\s*)?[\d.,]+)?\s*$/i);
+      if(m){
+        const name=this.cleanMerchant(m[1]);
+        if(name&&!this.isMoneyOrTotalLine(name)){
+          const qty=m[2],unit=m[3].replace(/[^0-9]/g,'');
+          items.push(name+' x'+qty+' (Rp'+Number(unit||0).toLocaleString('id-ID')+')');
+        }
+      }
+    }
+    for(let i=0;i<lines.length&&items.length<5;i++){
+      const m=lines[i].match(/^(?:rp\.?\s*)?(\d+)\s*[xX]\s*(?:rp\.?\s*)?([\d.,]+)(?:\s+(?:rp\.?\s*)?[\d.,]+)?\s*$/i);
+      if(!m||i===0)continue;
+      const name=this.cleanMerchant(lines[i-1]);
+      if(!name||this.isMoneyOrTotalLine(name))continue;
+      const unit=m[2].replace(/[^0-9]/g,'');
+      const item=name+' x'+m[1]+' (Rp'+Number(unit||0).toLocaleString('id-ID')+')';
+      if(!items.includes(item))items.push(item);
+    }
+    return items.join(', ');
+  },
+  isMoneyOrTotalLine(value){
+    const s=this.normalizeText(value);
+    return /^(?:rp|idr|total|grand\s*total|subtotal|jumlah|amount|nominal|harga|price|diskon|discount|pajak|tax|service|service\s*charge|kembali|change)\b/i.test(s) || /^\d[\d.,\s]*$/.test(s);
+  },
+  fuelMatch(text){
+    return /\b(pertamina|spbu|shell|vivo|bp(?:\s*(?:ultimate|92|95|diesel))?|revvo|pertamax|pertalite|dexlite|pertamina\s*dex|v-power|biosolar|solar|bbm|bensin)\b/i.test(String(text||''));
+  },
+  fuelGrade(text){
+    const t=String(text||'').toLowerCase();
+    const grades=[
+      [/pertamax\s*turbo/,'Pertamax Turbo'],[/pertamax\s*green/,'Pertamax Green 95'],[/pertamax/,'Pertamax'],
+      [/pertalite/,'Pertalite'],[/pertamina\s*dex/,'Pertamina Dex'],[/dexlite/,'Dexlite'],
+      [/v-power\s*nitro/,'Shell V-Power Nitro+'],[/v-power/,'Shell V-Power'],
+      [/shell\s*super/,'Shell Super'],[/shell\s*diesel/,'Shell Diesel'],
+      [/revvo\s*90/,'Vivo Revvo 90'],[/revvo\s*92/,'Vivo Revvo 92'],[/revvo\s*95/,'Vivo Revvo 95'],
+      [/bp\s*ultimate/,'BP Ultimate'],[/bp\s*92|bp92/,'BP 92'],[/bp\s*95|bp95/,'BP 95'],[/bp\s*diesel/,'BP Diesel']
+    ];
+    for(const [re,name] of grades)if(re.test(t))return name;
+    return '';
+  },
+  layoutPair(rawLine){
+    const raw=String(rawLine||'').replace(/\r/g,'').trim();
+    if(!raw)return null;
+    let m=raw.match(/^(.{1,60}?)\t+(.*)$/);
+    if(!m)m=raw.match(/^(.{1,60}?)\s{3,}(.*)$/);
+    if(m)return {label:this.normalizeText(m[1]),value:this.normalizeText(m[2])};
+    m=raw.match(/^(.{1,70}?)\s*[:=]\s*(.*)$/);
+    if(m)return {label:this.normalizeText(m[1]),value:this.normalizeText(m[2])};
+    return null;
+  },
+  labelKey(value){
+    return this.normalizeText(value).toLowerCase().replace(/[^a-z0-9à-ÿ]+/g,'');
+  },
+  isBankHeaderValue(value){
+    return /^(?:bank\s+)?(?:bca|m-bca|mbca|mybca|bca\s+mobile|brimo|bri\s+mobile|bni\s+mobile|wondr(?:\s+by\s+bni)?|livin(?:\s+by\s+mandiri)?|mandiri|bank\s+mandiri|cimb|octo(?:\s+mobile)?|permata|btn|danamon|ocbc|uob|hsbc|dbs|digibank|jenius|seabank|bank\s+jago|blu)(?:\s+(?:mobile|digital|internet|banking))?$/i.test(String(value||'').trim());
+  },
+  isFieldLabel(value){
+    const k=this.labelKey(value);
+    const keys=[
+      'paymentto','paymentrecipient','transferto','transferredto','recipient','penerima','beneficiary','receiver','payee',
+      'namapenerima','namatujuan','rekeningtujuan','tujuanpembayaran','merchant','merchantname','namamerchant','storename','namatoko',
+      'amount','nominal','jumlah','total','grandtotal','totalpayment','totalpaid','totalpesanan','tanggal','tgl','date','transactiondate',
+      'location','lokasi','merchantlocation','lokasimerchant','address','alamat','outlet','cabang','cashier','kasir','balance','saldo','availablebalance','currentbalance','rrn','reference',
+      'transactionid','terminalid','merchantid','merchantpan','acquirer','approval','invoice','receipt','status','description','detail'
+    ];
+    return keys.includes(k);
+  },
+  isAddressOrGeoLike(value){
+    const s=this.normalizeText(value).replace(/\s+/g,' ').trim();
+    if(!s)return true;
+    const compact=s.toLowerCase();
+    if(/\b(?:jakarta(?:\s+(?:selatan|selat|barat|timur|utara|pusat))?|tangerang(?:\s+(?:selatan|kota))?|bekasi|depok|bogor|bandung|surabaya|semarang|yogyakarta|jogja|medan|palembang|makassar|denpasar|batam|pekanbaru|padang|malang|solo|surakarta|cirebon|serang|banten|jawa\s+(?:barat|tengah|timur)|dki|indonesia)\b/i.test(compact))return true;
+    if(/(?:^|[\s,.-])\d{5}(?:[\s,.-]|$)/.test(s))return true;
+    if(/(?:,|\b)\s*(?:id|ind|indonesia)\s*$/i.test(s))return true;
+    if(/\b(?:jl\.?|jln\.?|jalan|street|st\.?|no\.?\s*\d+|rt\.?\s*\d+|rw\.?\s*\d+|kelurahan|kecamatan|kabupaten|kota|provinsi|province|postal|kode\s*pos|zip)\b/i.test(s))return true;
+    if(/(?:\b(?:location|lokasi|alamat|address|outlet|cabang|store\s+location|merchant\s+location|city|kota)\b).*(?:,|\d{5}|\bindonesia\b)/i.test(s))return true;
+    return false;
+  },
+  isBadTargetValue(value){
+    const s=this.normalizeText(value).trim();
+    if(!s)return true;
+    if(this.isDateTimeLike(s)||this.isReceiptMeta(s)||this.isBankHeaderValue(s)||this.isAddressOrGeoLike(s))return true;
+    if(/^(?:location|lokasi|merchant\s+location|lokasi\s+merchant|address|alamat|outlet|cabang|store\s+location|city|kota|bank|merchant\s+pan|merchant\s+id|terminal\s+id|tid|mid|acquirer|rrn|reference|approval|invoice|receipt|cashier|kasir|payment|transaction|transaksi|successful|successfull|success|berhasil|completed|from|to|penerima|recipient|beneficiary|receiver|payee|tujuan|balance|saldo|available\s+balance|current\s+balance|shopee|seabank|mybca|m-bca|mbca|bca\s+mobile|brimo|bni\s+mobile|livin|qris)$/i.test(s))return true;
+    if(/^\d[\d\s.,\/-]*$/.test(s))return true;
+    return false;
+  },
+  cleanTarget(value){
+    let s=this.normalizeText(value).replace(/^[\-:|>"']+|[\-:|>"']+$/g,'').trim();
+    // Money is never a recipient/merchant. This catches SeaBank lines such as "-Rp 27.200".
+    if(/^(?:-?\s*)(?:rp\.?|idr|rupiah)\s*[0-9][0-9.,]*/i.test(s)||/^[-+]?\s*[0-9][0-9.,]*\s*(?:rp\.?|idr|rupiah)\b/i.test(s))return '';
+    s=s.replace(/^(?:payment|paid|pay|sent|send|transfer(?:red)?|dikirim|ditransfer)\s*(?:to|from|ke|kepada|dari)?\s*[:=\-]?\s*/i,'').trim();
+    // Do not strip ordinary words beginning with "to"/"ke"/"from" such as
+    // "Toko ABC". Explicit label parsing already removes the field label.
+    s=s.replace(/^(?:penerima|recipient|beneficiary|receiver|payee|tujuan|nama\s+penerima|nama\s+tujuan)\s*[:=\-]\s*/i,'').trim();
+    s=s.replace(/\b(?:merchant\s+pan|merchant\s+id|terminal\s+id|approval\s+code|reference(?:\s+(?:no|number))?|rrn)\b.*$/i,'').trim();
+    s=s.replace(/^\b(?:bank\s+)?(?:bca|bri|bni|mandiri|cimb|permata|btn|danamon|ocbc|uob|hsbc|dbs)\b\s+/i,'').trim();
+    s=s.replace(/\s+(?:rp|idr|usd|nominal|amount|jumlah|tanggal|tgl|date|status|saldo|balance)\b.*$/i,'').trim();
+    if(this.isBadTargetValue(s)||s.length<2||s.length>120)return '';
+    return /[A-Za-zÀ-ÿ]{2,}/.test(s)?s:'';
+  },
+  findLabeledValue(rawLines, normalizedLines, labels, maxLookAhead=8){
+    const wanted=labels.map(x=>this.labelKey(x));
+    for(let i=0;i<rawLines.length;i++){
+      const pair=this.layoutPair(rawLines[i]);
+      if(pair&&wanted.includes(this.labelKey(pair.label))){
+        const v=this.cleanTarget(pair.value);
+        if(v)return {value:v,index:i};
+      }
+      const line=normalizedLines[i]||'';
+      for(const label of labels){
+        const labelEsc=String(label).replace(/[.*+?^()|[\\]\\\\]/g,'\\$&').replace(/\\s+/g,'\\s*');
+        const singleWord=!/\\s/.test(String(label).trim());
+        const re=new RegExp('^'+labelEsc+(singleWord?'(?:\\s{2,}|\\s*[:=>\\-]\\s*)':'\\s*[:=>\\-]?\\s*')+'(.*)$','i');
+        const m=line.match(re);
+        if(m){
+          const inline=this.cleanTarget(m[1]||'');
+          if(inline)return {value:inline,index:i};
+          for(let j=1;j<=maxLookAhead;j++){
+            const nextLine=normalizedLines[i+j]||'';
+            if(this.isFieldLabel(nextLine))break;
+            const next=this.cleanTarget(nextLine);
+            if(next)return {value:next,index:i+j};
+          }
+        }
+        if(this.labelKey(line)===this.labelKey(label)){
+          for(let j=1;j<=maxLookAhead;j++){
+            const nextLine=normalizedLines[i+j]||'';
+            if(this.isFieldLabel(nextLine))break;
+            const next=this.cleanTarget(nextLine);
+            if(next)return {value:next,index:i+j};
+          }
+        }
+      }
+    }
+    return null;
+  },
+  sourceApp(text){
+    const t=String(text||'').toLowerCase();
+    if(/seabank/.test(t))return 'SeaBank';
+    if(/mybca/.test(t))return 'myBCA';
+    if(/(?:m-bca|mbca|bca\s+mobile|bank\s+central\s+asia|pt\.\s*bank\s+central\s+asia)/.test(t))return 'BCA';
+    if(/shopee|spaylater|virtual\s+account\s+shopee/.test(t))return 'Shopee';
+    return '';
+  },
+  knownMerchantFromText(text){
+    const t=String(text||'');
+    const list=[
+      [/pertamina|spbu/i,'Pertamina'],[/shell\b/i,'Shell'],[/vivo\b/i,'Vivo'],[/\bbp\b/i,'BP'],
+      [/indomaret/i,'Indomaret'],[/alfamart/i,'Alfamart'],[/hok\s*ben|hokben|hoka\s+hoka\s+bento/i,'HokBen'],
+      [/kfc/i,'KFC'],[/mcdonald'?s|\bmcd\b/i,'McDonald’s'],[/burger\s*king/i,'Burger King'],
+      [/starbucks/i,'Starbucks'],[/j\.?\s*co/i,'J.CO'],[/chatime/i,'Chatime'],[/solaria/i,'Solaria'],
+      [/breadtalk/i,'BreadTalk'],[/pizza\s*h?ut/i,'Pizza Hut'],[/domino'?s/i,'Domino’s'],
+      [/yoshinoya/i,'Yoshinoya'],[/sushi\s+tei/i,'Sushi Tei'],[/marugame\s+udon/i,'Marugame Udon'],
+      [/richeese|richese/i,'Richeese Factory'],[/mixue/i,'Mixue'],[/fore\s+coffee/i,'Fore Coffee'],
+      [/kopi\s+kenangan/i,'Kopi Kenangan'],[/janji\s*jiwa/i,'Janji Jiwa'],
+    ];
+    for(const [re,name] of list)if(re.test(t))return name;
+    return '';
+  },
+  structuredTarget(rawLines, normalizedLines, rawText, source){
+    const labels=[
+      'payment to','paymentto','transfer to','transferred to','transfer ke','transfer kepada',
+      'ditransfer ke','ditransfer kepada','dikirim ke','dikirim kepada','payment recipient',
+      'paid to','pay to','sent to','send to','recipient','penerima','beneficiary','receiver',
+      'payee','nama penerima','nama tujuan','rekening tujuan','nama rekening tujuan',
+      'nomor rekening tujuan','tujuan pembayaran','payment merchant','merchant name','nama merchant','to','kepada','qris payment'
+    ];
+    const found=this.findLabeledValue(rawLines,normalizedLines,labels,8);
+    if(found)return found.value;
+    const patterns=[
+      /^(?:transfer|payment)\s+(?:to|ke|kepada)\s*[:\-]?\s*(.+)$/i,
+      /^(?:qris\s+payment|qris\s+payment\s+to)\s*[:\-]?\s*(.+)$/i,
+      /^(?:transfer\s+to|payment\s+to)\s+(.+)$/i
+    ];
+    for(const line of normalizedLines){
+      for(const re of patterns){const m=line.match(re);if(m){const v=this.cleanTarget(m[1]);if(v)return v;}}
+    }
+    const explicitMerchant=this.findLabeledValue(rawLines,normalizedLines,['merchant name','nama merchant','payment merchant'],6);
+    if(explicitMerchant)return explicitMerchant.value;
+    if(source==='SeaBank'){
+      // SeaBank commonly shows the transaction party above the signed amount.
+      // Anchor to the first explicit +Rp/-Rp/IDR amount, not to a later balance.
+      const ai=normalizedLines.findIndex(x=>/^[\s]*[-+−＋]?\s*(?:rp\.?|idr|rupiah)\s*[0-9]/i.test(x));
+      if(ai>=0){
+        for(let i=Math.max(0,ai-5);i<ai;i++){
+          const candidate=normalizedLines[i]||'';
+          if(this.isFieldLabel(candidate)||this.isBadTargetValue(candidate))continue;
+          const v=this.cleanTarget(candidate);
+          if(v)return v;
+        }
+      }
+    }
+    return '';
+  },
+  structuredMerchant(rawLines, normalizedLines, rawText, source){
+    // Shopee: prefer the seller/shop field, never the platform name.
+    if(source==='Shopee'){
+      const seller=this.findLabeledValue(rawLines,normalizedLines,['nama toko','toko','seller','shop'],6);
+      if(seller)return seller.value;
+      for(let i=0;i<Math.min(8,normalizedLines.length);i++){
+        const m=normalizedLines[i].match(/^toko(?:\s+|\s*[:=-]\s+)(.+)$/i);
+        if(m){
+          const v=this.cleanTarget(m[1]);
+          if(v)return v;
+        }
+      }
+    }
+
+    const explicit=this.findLabeledValue(
+      rawLines,
+      normalizedLines,
+      ['merchant name','nama merchant','store name','nama toko','seller','shop'],
+      5
+    );
+    if(explicit)return explicit.value;
+
+    const known=this.knownMerchantFromText(rawText);
+    if(known)return known;
+
+    // Conservative fallback: only inspect the very top of a physical receipt.
+    // Never accept addresses, locations, postal codes, bank metadata or long OCR blocks.
+    for(let i=0;i<Math.min(5,normalizedLines.length);i++){
+      const line=normalizedLines[i];
+      if(/^(?:struk|nota|receipt|bill|guest\s*check|qris|payment|transaction|transaksi|tanggal|tgl|date|waktu|time|kasir|cashier|outlet|cabang|lokasi|alamat|address|telp|phone|npwp|pos|powered|total|subtotal|grand\s+total)/i.test(line))continue;
+      if(this.isBadTargetValue(line))continue;
+      if(/^\d[\d\s.,:\/-]*$/.test(line))continue;
+      if(/(?:jl\.?|jalan|street|telp|phone|www\.|https?:\/\/)/i.test(line))continue;
+      if(line.split(/\s+/).filter(Boolean).length>8)continue;
+      const v=this.cleanTarget(line);
+      if(v)return v;
+    }
+    return '';
+  },
+  enrichParsed(parsed, rawText){
+    const raw=String(rawText||'');
+    const rawLines=raw.split(/\r?\n/).map(x=>String(x||'').replace(/\r/g,'')).filter(x=>x.trim());
+    const lines=rawLines.map(x=>this.normalizeText(x)).filter(Boolean);
+    const source=this.sourceApp(raw);
+    const lower=raw.toLowerCase();
+    const p={
+      mode:'unknown',
+      sourceApp:source,
+      amount:this.extractAmount(raw),
+      date:this.extractDate(raw)||TodayLocal(),
+      category:'Lainnya',
+      brand:'',
+      detail:'',
+      note:''
+    };
+
+    const financial=/(?:sea\s*bank|seabank|mybca|m-bca|mbca|bca\s+mobile|cashflow\s*[-–]\s*(?:spending|earning)|m-transfer|transfer\s+(?:successful|berhasil)|payment\s+to|transfer\s+to|qris\s+payment|penerima|beneficiary|recipient|account\s+transactions)/i.test(raw);
+    const knownMerchant=this.knownMerchantFromText(raw);
+    const merchant=/shopee|struk|nota|receipt|subtotal|grand\s+total|total\s+pesanan|qty|quantity|item|items|produk|product|menu|barang|kasir|cashier|order\s*no|table|meja|total\s+belanja/i.test(raw) || !!knownMerchant;
+    const mode=financial?'financial':(merchant?'merchant':'unknown');
+    p.mode=mode;
+
+    if(mode==='financial'){
+      let target=this.structuredTarget(rawLines,lines,raw,source);
+      if(/^location$|^lokasi$/i.test(target||''))target='';
+      if(!target){
+        const known=this.knownMerchantFromText(raw);
+        if(known&&/(?:qris|payment|merchant|spbu|pertamina|shell|vivo|\bbp\b)/i.test(raw))target=known;
+      }
+      if(target){
+        p.recipient=target;
+        p.brand=target;
+        const qris=/\bqris\b|\bqr\b/i.test(lower);
+        p.detail=qris?'Pembayaran QRIS ke '+target:'Transfer ke '+target;
+        p.note='Ke: '+target+(qris?' • QRIS':' • Transfer');
+      }else if(/qris/i.test(raw)){
+        p.note='QRIS';
+      }
+      const fuel=this.fuelMatch(raw+' '+target);
+      const service=/(bengkel|tambal\s+ban|ganti\s+oli|service|servis|ahass|planet\s+ban|shop&drive|sparepart|onderdil|carwash|tune\s+up|auto2000)/i.test(raw+' '+target);
+      const toll=/(?:\btol\b|e-?toll|gerbang\s+tol|jasa\s+marga)/i.test(raw);
+      const parkir=/(parkir|parking|valet)/i.test(raw);
+      const makan=/(coffee|latte|cappuccino|espresso|kopi|teh|tea|bakery|croissant|roti|resto|restaurant|cafe|kafe|warung|makan|minum|boba|ice\s+cream|seafood|soto|bakso|nasi|ayam|mie|beverage|food|kitchen|eatery|diner|catering|hokben|hoka\s+hoka\s+bento|kfc|mcdonald'?s|mcd|burger\s+king|starbucks|j\.?\s*co|chatime|solaria|breadtalk|pizza\s+h?ut|domino'?s|yoshinoya|sushi\s+tei|richeese|mixue|fore\s+coffee|kopi\s+kenangan|janji\s+jiwa)/i.test(raw+' '+target);
+      if(fuel)p.category='Bensin'; else if(service)p.category='Servis'; else if(toll)p.category='Tol'; else if(parkir)p.category='Parkir'; else if(makan)p.category='Makan';
+    }else if(mode==='merchant'){
+      const merchantName=this.structuredMerchant(rawLines,lines,raw,source);
+      p.brand=merchantName||'';
+      const combined=(raw+' '+merchantName).toLowerCase();
+      const fuel=this.fuelMatch(combined);
+      const service=/(bengkel|tambal\s+ban|ganti\s+oli|service|servis|ahass|planet\s+ban|shop&drive|sparepart|onderdil|carwash|cuci|tune\s+up|auto2000)/i.test(combined);
+      const toll=/(?:\btol\b|e-?toll|gerbang\s+tol|jasa\s+marga)/i.test(combined);
+      const parkir=/(parkir|parking|valet)/i.test(combined);
+       const makan=/(coffee|latte|cappuccino|espresso|kopi|teh|tea|bakery|croissant|roti|resto|restaurant|cafe|kafe|warung|makan|minum|boba|ice\s+cream|seafood|soto|bakso|nasi|ayam|mie|beverage|food|kitchen|eatery|diner|catering|hokben|hoka\s+hoka\s+bento|kfc|mcdonald'?s|mcd|burger\s+king|starbucks|j\.?\s*co|chatime|solaria|breadtalk|pizza\s+h?ut|domino'?s|yoshinoya|sushi\s+tei|richeese|mixue|fore\s+coffee|kopi\s+kenangan|janji\s+jiwa)/i.test(combined);
+      if(fuel)p.category='Bensin'; else if(service)p.category='Servis'; else if(toll)p.category='Tol'; else if(parkir)p.category='Parkir'; else if(makan)p.category='Makan'; else p.category='Lainnya';
+      const item=this.extractPurchaseDetail(raw)
+        .replace(/(?:^|[,;]\s*)(?:virtual\s+account|shopeepay|spaylater|cash|tunai|debit|credit|bca|mandiri)\b/ig,'')
+        .replace(/[,;]\s*$/,'').trim();
+      if(fuel)p.detail=this.fuelGrade(combined)||item||''; else if(item)p.detail=item;
+    }else{
+      p.brand='';p.detail='';p.note='';p.category='Lainnya';
+    }
+    return p;
   },
   downscale(file, maxSide, quality) {
     return new Promise((resolve, reject) => {
-      const img = new Image();
       const reader = new FileReader();
       reader.onerror = () => reject(new Error('Gagal membaca file'));
       reader.onload = () => {
-        img.onerror = () => reject(new Error('Gagal memuat gambar'));
-        img.onload = () => {
-          let w = img.width, h = img.height;
-          if (w > maxSide || h > maxSide) {
-            if (w >= h) { h = Math.round(h * (maxSide / w)); w = maxSide; }
-            else { w = Math.round(w * (maxSide / h)); h = maxSide; }
-          }
-          const canvas = document.createElement('canvas');
-          canvas.width = w; canvas.height = h;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, w, h);
-          const dataUrl = canvas.toDataURL('image/jpeg', quality);
-          resolve(dataUrl.split(',')[1]);
-        };
-        img.src = reader.result;
+        this.downscaleBase64(String(reader.result||'').split(',')[1]||'', file.type||'image/jpeg', maxSide||1400, quality||0.78, 450000)
+          .then(resolve).catch(reject);
       };
       reader.readAsDataURL(file);
     });
+  },
+  downscaleBase64(base64, mimeType, maxSide, quality, maxBytes) {
+    return new Promise((resolve,reject)=>{
+      if(!base64)return reject(new Error('Data foto kosong.'));
+      const img=new Image();
+      img.onerror=()=>reject(new Error('Gagal memuat foto untuk OCR. Coba screenshot atau foto JPG/PNG.'));
+      img.onload=()=>{
+        let w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
+        const scale=Math.min(1,Number(maxSide||1400)/Math.max(w,h));
+        w=Math.max(1,Math.round(w*scale)); h=Math.max(1,Math.round(h*scale));
+        let q=Math.max(0.55,Math.min(0.84,Number(quality||0.78)));
+        let data='';
+        for(let i=0;i<9;i++){
+          const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
+          const ctx=canvas.getContext('2d',{alpha:false});
+          ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);ctx.drawImage(img,0,0,w,h);
+          data=canvas.toDataURL('image/jpeg',q).split(',')[1]||'';
+          const approxBytes=Math.floor(data.length*0.75);
+          if(approxBytes<=Number(maxBytes||450000))break;
+          if(i%2===1){w=Math.max(720,Math.round(w*0.86));h=Math.max(720,Math.round(h*0.86));}
+          else q=Math.max(0.55,q-0.05);
+        }
+        resolve(data);
+      };
+      img.src='data:'+(mimeType||'image/jpeg')+';base64,'+base64;
+    });
   }
-};
+}
 
 const Expense = {
   save(e) {
@@ -2180,7 +3170,12 @@ const Trip = {
       el.innerHTML=`<div class="empty" style="padding:30px;text-align:center"><b>Peta belum tersedia offline.</b><div style="margin-top:8px">Koordinat GPS tetap tersimpan. Gunakan tombol Google Maps untuk membuka jalur berdasarkan titik awal/akhir.</div><div style="margin-top:14px"><button class="btn small" type="button" onclick="Trip.openGoogleMaps('${EscAttr(t.id)}')">${Icon('route',15)} Buka Google Maps</button></div></div>`;
       return;
     }
-    const latlngs=points.map(p=>[Number(p.lat!==undefined?p.lat:p.latitude),Number(p.lng!==undefined?p.lng:p.longitude)]);
+    let drawPoints=points;
+    try{
+      const filtered=RHFilterGpsTrack(points);
+      if(Array.isArray(filtered)&&filtered.length>=2)drawPoints=filtered;
+    }catch(e){console.warn('[RH Trip Map] filter skipped:',e);}
+    const latlngs=drawPoints.map(p=>[Number(p.lat!==undefined?p.lat:p.latitude),Number(p.lng!==undefined?p.lng:p.longitude)]);
     this._map=L.map(el,{zoomControl:true,attributionControl:true,preferCanvas:true});
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,crossOrigin:true,attribution:'© OpenStreetMap contributors'}).addTo(this._map);
     const line=L.polyline(latlngs,{weight:5,opacity:.9,smoothFactor:.12}).addTo(this._map);
@@ -2252,7 +3247,7 @@ window.addEventListener('load', function () {
         box.parentNode.insertBefore(more, box.nextSibling);
       }
       more.style.display = allTrips.length > 5 ? 'block' : 'none';
-      more.textContent = expanded ? 'Tampilkan lebih sedikit' : 'Lihat lebih banyak';
+      more.textContent = expanded ? 'Tampilkan lebih sedikit' : 'Lihat riwayat lainnya';
       more.setAttribute('aria-expanded', expanded ? 'true' : 'false');
       more.onclick = App.toggleTripHistory;
     };
