@@ -46,6 +46,7 @@ public class RHTrackingService extends Service {
     private volatile boolean stopping = false;
     private boolean updatesRequested = false;
     private Location lastSavedLocation = null;
+    private long sessionStartTimeMs = 0;
 
     @Override public void onCreate() {
         super.onCreate();
@@ -75,6 +76,8 @@ public class RHTrackingService extends Service {
             String ep = intent.getStringExtra("endpoint");
             if (id != null && !id.trim().isEmpty()) tripId = id.trim();
             if (ep != null && !ep.trim().isEmpty()) endpoint = ep.trim();
+            sessionStartTimeMs = System.currentTimeMillis();
+            lastSavedLocation = null;
             prefs.edit().putBoolean("running", true).putString("tripId", tripId)
                     .putString("endpoint", endpoint).putLong("startTime", System.currentTimeMillis()).apply();
         } else if (prefs.getBoolean("running", false)) {
@@ -127,6 +130,8 @@ public class RHTrackingService extends Service {
         if (Build.VERSION.SDK_INT >= 18 && l.isMock()) return;
 
         long t = l.getTime() > 0 ? l.getTime() : System.currentTimeMillis();
+        if (sessionStartTimeMs > 0 && t + 2000L < sessionStartTimeMs) return;
+        if (t > System.currentTimeMillis() + 5000L) return;
         double accuracy = l.hasAccuracy() ? l.getAccuracy() : 0;
         if (accuracy > 75) return;
 
