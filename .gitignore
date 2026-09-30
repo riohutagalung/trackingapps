@@ -5,3 +5,5 @@ public/
 *.log
 .env
 .env.*
+.vercel
+.env*

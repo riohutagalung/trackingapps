@@ -8,7 +8,7 @@ APPS SCRIPT
 5) No TripPoints sheet needs to be created manually; Code.gs creates it on the first native GPS point.
 
 LOCKED APPS SCRIPT WEB APP — DO NOT CHANGE
-https://script.google.com/macros/s/AKfycbyi6yqLiKwjpoy9TclZycH6KOPi0GXlPHc7iHGAA5srKCV6TVWOlSyTr-1V-JOiwlr2MQ/exec
+https://script.google.com/macros/s/AKfycbyHREf-8F0Dd8G7hXtw_cyQskLkCzmkATDmOeBBovQWe9SeRw49ZIGxIzdSNTvScfn5qg/exec
 
 VERCEL / GITHUB
 - /api/rpc and /api/native-location use the locked deployment URL above.
@@ -28,10 +28,15 @@ CURRENT KNOWN FIXES
 - Native assets are rebuilt from the root source so Android/iOS do not use stale HTML/JS copies.
 - OCR uses native Camera/Photos on native builds and the same analyzeReceipt() backend path.
 - TripPoints are server-side buffered for native background GPS and merged into the saved Trip.
+- TripPoints are the authoritative route store at save time; client-side upload is used only for points not yet present on the server, preventing duplicate route writes.
+- GPS speed prefers the native/provider GNSS speed when physically consistent and falls back to Haversine segment speed.
+- The pinned @capgo/background-geolocation version is 8.4.5. Native preparation applies a reproducible iOS 17+ CLBackgroundActivitySession patch for locked-screen background delivery.
 
 IMPORTANT
 - Do not change the locked Apps Script deployment URL in any frontend, Vercel, native, or notes file.
 - The current Apps Script Code.gs source contains getTripMapsUrl(), getGoogleMapsUrlForTrip(), and getGoogleMapsUrl(). If F12 still reports getTripMapsUrl is not defined after this Code.gs is deployed as a NEW Web App version, the deployment is still serving an older Apps Script version or another duplicate helper file is shadowing the expected source.
 - Remove any duplicate getTripMapsUrl/getGoogleMapsUrlForTrip/getGoogleMapsUrl/getRouteSuggestion definitions from maps-helper.gs if Code.gs already contains them.
 - Do not configure outputDirectory=public for this repo; Vercel is configured to deploy the repository root.
-- iOS background GPS still depends on Location permission, Background Modes > Location updates, signing, and the OS continuing the location session. Force-quitting the app can stop background delivery.
+- iOS background GPS still depends on Location permission, Background Modes > Location updates, signing, and the OS continuing the location session. The native patch does not bypass Apple's force-quit/OS termination limits; force-quitting the app can stop background delivery.
+- Android uses a native foreground service with location service type and watchdog; the app must start tracking while the activity is visible and keep required permissions enabled.
+- The GitHub repository cannot live-inspect the Vercel DOM/DevTools. Use the live-browser audit commands in the project notes when validating exact rendered overflow on a device/browser.

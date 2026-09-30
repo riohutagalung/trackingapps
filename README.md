@@ -24,12 +24,13 @@ Capacitor → native GPS → `/api/native-location` → Google Apps Script → `
 - `capacitor.config.ts` — konfigurasi Capacitor
 - `scripts/setup-native.mjs` — persiapan build native
 - `package.json` — dependency/build script
+- `scripts/patch-capgo-ios.mjs` — reproducible iOS background-location patch for pinned Capgo 8.4.5
 
 ## Apps Script
 
 Vercel memakai deployment Web App:
 
-`https://script.google.com/macros/s/AKfycbyi6yqLiKwjpoy9TclZycH6KOPi0GXlPHc7iHGAA5srKCV6TVWOlSyTr-1V-JOiwlr2MQ/exec`
+`https://script.google.com/macros/s/AKfycbyHREf-8F0Dd8G7hXtw_cyQskLkCzmkATDmOeBBovQWe9SeRw49ZIGxIzdSNTvScfn5qg/exec`
 
 Jangan membuat deployment URL baru untuk konfigurasi yang sudah berjalan. Update source `code.gs`, save, lalu deploy **new version** pada deployment Web App yang sama.
 
@@ -45,14 +46,31 @@ Respons normal:
 
 ## Build native
 
+### Android
+
 ```bash
-npm install
+npm ci
 npm run native:prepare
-npx cap sync
-npx cap open android
+npx cap sync android
 ```
 
-Untuk iOS, buka project dengan Xcode dan aktifkan **Background Modes → Location updates**.
+### iOS (Mac + Xcode)
+
+```bash
+npm ci
+npm run ios:prepare
+npm run ios:doctor
+npm run ios:open
+```
+
+Untuk device iPhone, pilih target iPhone di Xcode lalu aktifkan **Signing & Capabilities → Background Modes → Location updates**.  
+Untuk smoke-test simulator tanpa signing:
+
+```bash
+npm run ios:build:sim
+```
+
+Build/sign/install ke iPhone nyata tetap membutuhkan macOS + Xcode + Apple signing. Linux/Codespace hanya dapat melakukan preparation/inspection.
 
 ## Catatan
 
@@ -61,3 +79,9 @@ Browser tetap memiliki fallback GPS.
 Native GPS menyimpan titik sementara di `TripPoints`, lalu mengambilnya saat trip selesai.
 
 Perhitungan BBM mingguan adalah estimasi dari jarak trip dan data pengisian/efisiensi; GPS tidak mengukur liter bensin secara langsung.
+
+## GPS tracking production rule
+
+Production Apps Script yang dipakai RH Habits adalah deployment HRE yang terkunci. Jangan membuat URL deployment baru hanya untuk perubahan versi; update `Code.gs`, lalu deploy **new version** pada Web App deployment yang sama.
+
+Native tracking menggunakan provider GNSS speed bila tersedia dan Haversine sebagai fallback untuk validasi/missing speed. Pada iOS, native preparation memasang `CLBackgroundActivitySession` untuk meningkatkan reliability saat layar dikunci; iOS tetap dapat menangguhkan atau menghentikan app sesuai kebijakan sistem operasi.
