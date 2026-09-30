@@ -769,13 +769,61 @@ body.device-android .mobile-header { padding-top:12px; }
   transition: opacity .28s ease, visibility .28s ease;
 }
 #rh-splash.hide { opacity: 0; visibility: hidden; pointer-events: none; }
-.rh-splash-inner { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; transform:translateY(4px); }
-.rh-splash-title { width:112px; max-width:100%; text-align:center; line-height:1; white-space:nowrap; overflow:hidden; text-overflow:clip; }
-.rh-splash-logo-wrap { width:120px; height:120px; display:grid; place-items:center; background:transparent; border:0; border-radius:0; box-shadow:none; overflow:visible; }
-.rh-splash-logo { width:112px; height:112px; border-radius:0; object-fit:contain; display:block; }
-.rh-splash-title { margin-top:2px; font-family:'Space Grotesk',sans-serif; font-size:24px; font-weight:600; letter-spacing:.2px; color:#f5f8fc; text-transform:none; }
+.rh-splash-inner {
+  width:112px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:0;
+  transform:translateY(2px);
+}
+.rh-splash-logo-wrap {
+  width:112px;
+  height:108px;
+  flex:0 0 108px;
+  display:flex;
+  align-items:flex-start;
+  justify-content:center;
+  background:transparent;
+  border:0;
+  border-radius:0;
+  box-shadow:none;
+  overflow:visible;
+}
+.rh-splash-logo {
+  width:112px;
+  height:112px;
+  border-radius:0;
+  object-fit:contain;
+  display:block;
+}
+.rh-splash-title {
+  width:112px;
+  max-width:112px;
+  margin:-1px 0 0;
+  padding:0;
+  display:block;
+  text-align:center;
+  line-height:1;
+  white-space:nowrap;
+  overflow:visible;
+  text-overflow:clip;
+  font-family:'Space Grotesk',sans-serif;
+  font-size:24px;
+  font-weight:600;
+  letter-spacing:.2px;
+  color:#f5f8fc;
+  text-transform:none;
+}
 .rh-splash-sub { display:none; }
-@media (max-width:600px){ .rh-splash-logo-wrap{width:116px;height:116px}.rh-splash-logo{width:108px;height:108px}.rh-splash-title{font-size:24px}.rh-splash-sub{font-size:9px} }
+@media (max-width:600px){
+  .rh-splash-inner{width:108px}
+  .rh-splash-logo-wrap{width:108px;height:104px;flex-basis:104px}
+  .rh-splash-logo{width:108px;height:108px}
+  .rh-splash-title{width:108px;max-width:108px;font-size:24px}
+  .rh-splash-sub{font-size:9px}
+}
 
 
 /* ===== RH HABITS MOBILE CONNECTION + GPS HISTORY ===== */
