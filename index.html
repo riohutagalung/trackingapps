@@ -2406,8 +2406,19 @@ const OCR = {
       const catEl=document.getElementById('exp-category');
       if(catEl)catEl.value='Lainnya';
 
-      const safeBrand=(this.isDateTimeLike(p.brand)||this.isLocationLike(p.brand))?'':String(p.brand||'').trim();
-      const safeRecipient=(this.isDateTimeLike(p.recipient)||this.isLocationLike(p.recipient))?'':String(p.recipient||'').trim();
+      const isGenericOCRTitle=value=>{
+        const raw=String(value||'').trim();
+        const v=raw.toLowerCase().replace(/[^a-z0-9\\s]/g,' ').replace(/\\s+/g,' ').trim();
+        return /^(?:judul|title|judul transaksi|judul pembayaran|judul bukti|nama transaksi|transaction title|payment title|expense title|receipt|e receipt|digital receipt|struk|nota|bill|invoice|proof of payment|payment proof|transaction proof|bukti|bukti transaksi|bukti pembayaran|bukti transfer|struk pembayaran|nota pembayaran|rincian transaksi|detail transaksi|rincian pembayaran|detail pembayaran|informasi transaksi|transaction details|transaction summary|payment details|bill details|payment confirmation|transfer confirmation|konfirmasi pembayaran|konfirmasi transfer|transaction history|riwayat transaksi|scan receipt|scan transaction|scan expense|expense receipt|rh habits|transaksi|pembayaran|transfer|payment|transaction|qris|berhasil|successful|success|completed|pending)$/i.test(v)
+          || /^(?:judul|title|judul transaksi|judul pembayaran|judul bukti|nama transaksi|transaction title|payment title|expense title)\\s*[:=-]/i.test(raw);
+      };
+      const isOCRProviderHeader=value=>{
+        const v=String(value||'').trim().replace(/[|:;,().\\-_/]+/g,' ').replace(/\\s{2,}/g,' ').trim();
+        return /^(?:bank )?(?:bca(?: mobile)?|m bca|mybca|bri|brimo|bni|wondr|mandiri|livin(?: by mandiri)?|cimb|octo|permata|btn|danamon|ocbc|uob|hsbc|dbs|jenius|seabank|bank jago|blu|qris|gpn|visa|mastercard|edc|atm|mobile banking|internet banking|virtual account|gopay|go pay|ovo|dana|shopeepay|spay|linkaja|flip|doku|xendit|midtrans|paypal|wise|stripe|google pay|apple pay|paynow|duitnow)$/i.test(v);
+      };
+      const invalidOCRName=value=>this.isDateTimeLike(value)||this.isLocationLike(value)||isGenericOCRTitle(value)||isOCRProviderHeader(value);
+      const safeBrand=invalidOCRName(p.brand)?'':String(p.brand||'').trim();
+      const safeRecipient=invalidOCRName(p.recipient)?'':String(p.recipient||'').trim();
       const brandOrRecipient=safeRecipient||safeBrand;
       const safeNote=this.isLocationLike(p.note)?'':String(p.note||'').trim();
 
