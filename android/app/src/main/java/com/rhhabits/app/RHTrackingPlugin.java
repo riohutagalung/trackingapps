@@ -28,7 +28,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 @CapacitorPlugin(name = "RHTracking", permissions = {
-        @Permission(alias = "location", strings = {Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION}),
+        @Permission(alias = "location", strings = {Manifest.permission.ACCESS_FINE_LOCATION}),
+        @Permission(alias = "coarseLocation", strings = {Manifest.permission.ACCESS_COARSE_LOCATION}),
         @Permission(alias = "backgroundLocation", strings = {Manifest.permission.ACCESS_BACKGROUND_LOCATION}),
         @Permission(alias = "notification", strings = {Manifest.permission.POST_NOTIFICATIONS})
 })
