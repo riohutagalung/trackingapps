@@ -74,15 +74,34 @@ public class RHTrackingService extends Service {
         if (ACTION_START.equals(action)) {
             String id = intent.getStringExtra("tripId");
             String ep = intent.getStringExtra("endpoint");
+            boolean wasRunning = prefs.getBoolean("running", false);
+            String previousTripId = prefs.getString("tripId", "");
+            boolean sameRunningTrip = wasRunning && id != null && !id.trim().isEmpty() && id.trim().equals(previousTripId);
             if (id != null && !id.trim().isEmpty()) tripId = id.trim();
             if (ep != null && !ep.trim().isEmpty()) endpoint = ep.trim();
-            sessionStartTimeMs = System.currentTimeMillis();
-            lastSavedLocation = null;
+
+            long now = System.currentTimeMillis();
+            long savedStart = prefs.getLong("startTime", 0L);
+            if (!sameRunningTrip) {
+                // A new trip resets its start time and coordinate baseline once.
+                sessionStartTimeMs = now;
+                lastSavedLocation = null;
+                savedStart = now;
+            } else {
+                // Reopening/resuming the same active trip must not reset elapsed time.
+                sessionStartTimeMs = savedStart > 0 ? savedStart : (sessionStartTimeMs > 0 ? sessionStartTimeMs : now);
+                savedStart = sessionStartTimeMs;
+            }
             prefs.edit().putBoolean("running", true).putString("tripId", tripId)
-                    .putString("endpoint", endpoint).putLong("startTime", System.currentTimeMillis()).apply();
+                    .putString("endpoint", endpoint).putLong("startTime", savedStart).apply();
         } else if (prefs.getBoolean("running", false)) {
             tripId = prefs.getString("tripId", "");
             endpoint = prefs.getString("endpoint", endpoint);
+            sessionStartTimeMs = prefs.getLong("startTime", 0L);
+            if (sessionStartTimeMs <= 0) {
+                sessionStartTimeMs = System.currentTimeMillis();
+                prefs.edit().putLong("startTime", sessionStartTimeMs).apply();
+            }
         } else {
             stopSelf();
             return START_NOT_STICKY;
