@@ -6,7 +6,10 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.location.LocationManager;
+import android.net.Uri;
 import android.os.Build;
+import android.provider.Settings;
 
 import androidx.core.content.ContextCompat;
 
@@ -15,6 +18,7 @@ import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.PluginMethod;
 
 import org.json.JSONObject;
@@ -23,7 +27,11 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-@CapacitorPlugin(name = "RHTracking")
+@CapacitorPlugin(name = "RHTracking", permissions = {
+        @Permission(alias = "location", strings = {Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION}),
+        @Permission(alias = "backgroundLocation", strings = {Manifest.permission.ACCESS_BACKGROUND_LOCATION}),
+        @Permission(alias = "notification", strings = {Manifest.permission.POST_NOTIFICATIONS})
+})
 public class RHTrackingPlugin extends Plugin {
     public static final String ACTION_LOCATION = "com.rhhabits.app.RH_LOCATION";
     private static final String PREFS = "rh_tracking";
@@ -60,6 +68,67 @@ public class RHTrackingPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void getPermissionStatus(PluginCall call) {
+        Context context = getContext();
+        boolean fine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+        boolean coarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+        boolean background = Build.VERSION.SDK_INT < 29 || ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED;
+        boolean notifications = Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
+
+        JSObject out = new JSObject();
+        out.put("location", fine ? "granted" : "denied");
+        out.put("preciseLocation", fine);
+        out.put("coarseLocation", coarse);
+        out.put("backgroundLocation", background ? "granted" : "denied");
+        out.put("notification", notifications ? "granted" : "denied");
+        out.put("locationEnabled", isLocationEnabled(context));
+        call.resolve(out);
+    }
+
+    private boolean isLocationEnabled(Context context) {
+        try {
+            LocationManager manager = (LocationManager) context.getSystemService(Context.LOCATION_SERVICE);
+            if (manager == null) return false;
+            if (Build.VERSION.SDK_INT >= 28) return manager.isLocationEnabled();
+            return manager.isProviderEnabled(LocationManager.GPS_PROVIDER) || manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private void launchAppSettings(PluginCall call, boolean locationSource) {
+        try {
+            Intent intent;
+            if (locationSource) {
+                intent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
+            } else {
+                intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getContext().getPackageName()));
+            }
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Pengaturan Android tidak bisa dibuka.", e);
+        }
+    }
+
+    @PluginMethod
+    public void openSettings(PluginCall call) {
+        launchAppSettings(call, false);
+    }
+
+    @PluginMethod
+    public void openBackgroundLocationSettings(PluginCall call) {
+        // Android 11+ requires the user to enable "Allow all the time" from App info > Permissions > Location.
+        launchAppSettings(call, false);
+    }
+
+    @PluginMethod
+    public void openLocationSettings(PluginCall call) {
+        launchAppSettings(call, true);
+    }
+
+    @PluginMethod
     public void start(PluginCall call) {
         final String tripId = call.getString("tripId", "").trim();
         final String endpoint = call.getString("endpoint", "https://rhhabits.vercel.app/api/native-location").trim();
@@ -68,7 +137,19 @@ public class RHTrackingPlugin extends Plugin {
             return;
         }
         if (ContextCompat.checkSelfPermission(getContext(), Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            call.reject("Izin lokasi presisi belum diberikan.");
+            call.reject("Izin lokasi presisi belum diberikan. Pilih lokasi Akurat di Pengaturan Android.");
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= 29 && ContextCompat.checkSelfPermission(getContext(), Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            call.reject("Izin lokasi sepanjang waktu belum aktif. Pilih Lokasi > Izinkan sepanjang waktu di Pengaturan Android.");
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(getContext(), Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            call.reject("Izin notifikasi belum aktif. Izinkan notifikasi RH Habits agar status GPS tetap terlihat.");
+            return;
+        }
+        if (!isLocationEnabled(getContext())) {
+            call.reject("Layanan lokasi HP belum aktif. Aktifkan GPS/Lokasi dari Quick Settings Android.");
             return;
         }
 
