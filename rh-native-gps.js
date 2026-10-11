@@ -62,7 +62,7 @@
       try{
         let status=await native.getPermissionStatus();
         if(!status?.preciseLocation){
-          try{await native.requestPermissions({permissions:['location']});}catch(e){}
+          try{await native.requestPermissions({permissions:['location','coarseLocation']});}catch(e){}
         }
         status=await native.getPermissionStatus();
         if(status?.preciseLocation && status?.notification!=='granted'){
