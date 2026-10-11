@@ -44,8 +44,10 @@
 
   async function getPermissionState(){
     if(isAndroid()){
-      const bg=getCapgo();
-      if(bg?.checkPermissions) try{return await bg.checkPermissions();}catch(e){}
+      const native=getAndroidTracking();
+      if(!native?.getPermissionStatus) return null;
+      try{return await native.getPermissionStatus();}
+      catch(e){console.warn('[RHNativeGPS] Android permission status failed:',e);return null;}
     }
     const bg=getCapgo();
     if(!bg) return null;
@@ -54,19 +56,28 @@
   }
 
   async function requestPermissions(){
+    if(isAndroid()){
+      const native=getAndroidTracking();
+      if(!native?.requestPermissions || !native?.getPermissionStatus) return null;
+      try{
+        let status=await native.getPermissionStatus();
+        if(!status?.preciseLocation){
+          try{await native.requestPermissions({permissions:['location']});}catch(e){}
+        }
+        status=await native.getPermissionStatus();
+        if(status?.preciseLocation && status?.notification!=='granted'){
+          try{await native.requestPermissions({permissions:['notification']});}catch(e){}
+        }
+        return await native.getPermissionStatus();
+      }catch(e){
+        console.warn('[RHNativeGPS] Android permission request failed:',e);
+        return await getPermissionState();
+      }
+    }
     const bg=getCapgo();
     if(!bg?.requestPermissions) return null;
-    try{
-      // Background service tracking on Android is started while the activity is
-      // visible and runs as a location foreground service. ACCESS_BACKGROUND_LOCATION
-      // is not requested here because Android 11+ requires background permission to
-      // be requested separately and the foreground service itself is the tracking path.
-      const permissions=isAndroid()?['location','notification']:['location','backgroundLocation','notification'];
-      return await bg.requestPermissions({permissions});
-    }catch(e){
-      console.warn('[RHNativeGPS] permission request failed:',e);
-      return null;
-    }
+    try{return await bg.requestPermissions({permissions:['location','backgroundLocation','notification']});}
+    catch(e){console.warn('[RHNativeGPS] permission request failed:',e);return null;}
   }
 
   async function checkPermissions(){ return getPermissionState(); }
@@ -154,14 +165,36 @@
   }
 
   async function openSettings(){
+    if(isAndroid()){
+      const native=getAndroidTracking();
+      if(native?.openSettings)return native.openSettings();
+    }
     const bg=getCapgo();
     if(bg?.openSettings)return bg.openSettings();
+  }
+
+  async function openBackgroundLocationSettings(){
+    if(isAndroid()){
+      const native=getAndroidTracking();
+      if(native?.openBackgroundLocationSettings)return native.openBackgroundLocationSettings();
+      return openSettings();
+    }
+    return openSettings();
+  }
+
+  async function openLocationSettings(){
+    if(isAndroid()){
+      const native=getAndroidTracking();
+      if(native?.openLocationSettings)return native.openLocationSettings();
+      return openSettings();
+    }
+    return openSettings();
   }
 
   function isNative(){return isNativePlatform();}
 
   window.RHNativeGPS={
     start,stop,isNative,hasDisclosure,markDisclosure,checkPermissions,requestPermissions,
-    openSettings,getSession:()=>sessionId,getPoints,sync,clearTrip,getActiveSession,getStatus
+    openSettings,openBackgroundLocationSettings,openLocationSettings,getSession:()=>sessionId,getPoints,sync,clearTrip,getActiveSession,getStatus
   };
 })();
