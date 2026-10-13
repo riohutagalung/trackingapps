@@ -14,6 +14,7 @@ import android.content.pm.ServiceInfo;
 import android.location.Location;
 import android.os.Build;
 import android.os.IBinder;
+import android.os.PowerManager;
 import android.os.Looper;
 
 import androidx.annotation.Nullable;
@@ -41,6 +42,7 @@ public class RHTrackingService extends Service {
     private FusedLocationProviderClient fused;
     private LocationCallback callback;
     private ScheduledExecutorService scheduler;
+    private PowerManager.WakeLock trackingWakeLock;
     private String tripId = "";
     private String endpoint = "https://rhhabits.vercel.app/api/native-location";
     private volatile boolean stopping = false;
@@ -114,9 +116,11 @@ public class RHTrackingService extends Service {
 
         try {
             startForegroundCompat();
+            acquireTrackingWakeLock();
             if (!updatesRequested) requestLocationUpdates();
         } catch (Exception e) {
             prefs.edit().putBoolean("running", false).apply();
+            releaseTrackingWakeLock();
             stopSelf();
         }
         return START_STICKY;
@@ -193,6 +197,26 @@ public class RHTrackingService extends Service {
         lastSavedLocation = new Location(l);
     }
 
+    private void acquireTrackingWakeLock() {
+        try {
+            if (trackingWakeLock != null && trackingWakeLock.isHeld()) return;
+            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+            if (pm == null) return;
+            trackingWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, getPackageName() + ":RHTrackingService");
+            trackingWakeLock.setReferenceCounted(false);
+            trackingWakeLock.acquire();
+        } catch (Exception ignored) {
+            // Location foreground service remains active if the device disallows a wake lock.
+        }
+    }
+
+    private void releaseTrackingWakeLock() {
+        try {
+            if (trackingWakeLock != null && trackingWakeLock.isHeld()) trackingWakeLock.release();
+        } catch (Exception ignored) {}
+        trackingWakeLock = null;
+    }
+
     private void requestStopAndFlush() {
         new Thread(() -> {
             long deadline = System.currentTimeMillis() + 8000;
@@ -241,6 +265,7 @@ public class RHTrackingService extends Service {
     }
 
     @Override public void onDestroy() {
+        releaseTrackingWakeLock();
         try { fused.removeLocationUpdates(callback); } catch (Exception ignored) {}
         try { scheduler.shutdownNow(); } catch (Exception ignored) {}
         super.onDestroy();
