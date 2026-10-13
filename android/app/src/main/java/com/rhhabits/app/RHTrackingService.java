@@ -38,6 +38,9 @@ public class RHTrackingService extends Service {
     private static final String CHANNEL_ID = "rh_tracking";
     private static final int NOTIFICATION_ID = 4721;
     private static final String PREFS = "rh_tracking";
+    // General native guard. The JS/backend layer applies the tighter vehicle
+    // profile (motorcycle 160 km/h, car 220 km/h).
+    private static final double MAX_PLAUSIBLE_SEGMENT_SPEED_KMH = 220.0;
 
     private FusedLocationProviderClient fused;
     private LocationCallback callback;
@@ -160,18 +163,23 @@ public class RHTrackingService extends Service {
 
         double providerSpeedKmh = l.hasSpeed() ? Math.max(0, l.getSpeed() * 3.6) : 0;
 
-        // Do not trust a cached/provider speed on the first fix. Store and publish
-        // speed only when it is supported by actual coordinate movement.
+        // Derive speed from coordinates rather than blindly trusting cached GNSS
+        // speed. Reject impossible, short-interval jumps before writing to SQLite.
+        // Crucially, do not advance lastSavedLocation for a rejected outlier:
+        // the next good fix is still compared with the last accepted position.
         double storedSpeedKmh = 0;
         if (lastSavedLocation != null) {
-            float meters = lastSavedLocation.distanceTo(l);
             long previousTime = lastSavedLocation.getTime() > 0 ? lastSavedLocation.getTime() : t;
             long dtMs = t - previousTime;
-            if (dtMs > 0 && meters >= 6) {
+            if (dtMs <= 0) return;
+
+            float meters = lastSavedLocation.distanceTo(l);
+            if (dtMs <= 90000L && meters >= 10f) {
                 double coordinateSpeed = meters * 3.6 / (dtMs / 1000.0);
-                if (coordinateSpeed >= 3 && coordinateSpeed <= 320) {
-                    storedSpeedKmh = coordinateSpeed;
+                if (coordinateSpeed > MAX_PLAUSIBLE_SEGMENT_SPEED_KMH) {
+                    return;
                 }
+                if (coordinateSpeed >= 3.0) storedSpeedKmh = coordinateSpeed;
             }
         }
 
