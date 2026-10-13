@@ -2469,6 +2469,11 @@ const OCR = {
         mode:serverParsed.mode||'unknown',
         sourceApp:serverParsed.sourceApp||'',
         amount:Number(serverParsed.amount||0),
+        amountNeedsVisualCheck:serverParsed.amountNeedsVisualCheck===true,
+        amountText:String(serverParsed.amountText||'').trim(),
+        amountLine:String(serverParsed.amountLine||'').trim(),
+        title:String(serverParsed.title||'').trim(),
+        brandSource:String(serverParsed.brandSource||'').trim(),
         date:serverParsed.date||TodayLocal(),
         category:serverParsed.category||'Lainnya',
         brand:String(serverParsed.brand||serverParsed.recipient||'').trim(),
@@ -2497,12 +2502,17 @@ const OCR = {
         return /^(?:bank )?(?:bca(?: mobile)?|bank central asia|m bca|mybca|bri|brimo|bri mobile|bank rakyat indonesia|bni|bni mobile|bank negara indonesia|wondr|mandiri|bank mandiri|livin(?: by mandiri)?|cimb|octo|permata|btn|danamon|ocbc|uob|hsbc|dbs|jenius|seabank|bank jago|blu|bank neo|neo bank|qris|gpn|visa|mastercard|edc|atm|mobile banking|internet banking|virtual account|gopay|go pay|ovo|dana|shopeepay|spay|linkaja|flip|doku|xendit|midtrans|paypal|wise|stripe|google pay|apple pay|paynow|duitnow)$/i.test(v);
       };
       const invalidOCRName=value=>this.isDateTimeLike(value)||this.isLocationLike(value)||isGenericOCRTitle(value)||isOCRProviderHeader(value);
-      const safeBrand=invalidOCRName(p.brand)?'':String(p.brand||'').trim();
+      // Provider headers are normally rejected, but an explicit receipt-title
+      // label is a distinct signal: "Judul BCA" may populate Brand/Tempat = BCA.
+      const safeBrand=p.brandSource==='receipt-title'
+        ? ((this.isDateTimeLike(p.brand)||this.isLocationLike(p.brand)||isGenericOCRTitle(p.brand))?'':String(p.brand||'').trim())
+        : (invalidOCRName(p.brand)?'':String(p.brand||'').trim());
       const safeRecipient=invalidOCRName(p.recipient)?'':String(p.recipient||'').trim();
       const brandOrRecipient=safeRecipient||safeBrand;
       const safeNote=this.isLocationLike(p.note)?'':String(p.note||'').trim();
 
-      if(p.amount)document.getElementById('exp-amount').value=p.amount;
+      if(p.amount&&!p.amountNeedsVisualCheck)document.getElementById('exp-amount').value=p.amount;
+      else if(p.amountNeedsVisualCheck)document.getElementById('exp-amount').value='';
       if(p.date&&/^\d{4}-\d{2}-\d{2}$/.test(p.date))document.getElementById('exp-date').value=p.date;
       if(p.category)document.getElementById('exp-category').value=p.category;
       document.getElementById('exp-brand').value=brandOrRecipient;
@@ -2516,7 +2526,11 @@ const OCR = {
         const bits=[];
         if(brandOrRecipient)bits.push((p.recipient?'Payment To: ':'Brand/Tempat: ')+Esc(brandOrRecipient));
         if(p.date)bits.push('Tanggal: '+Esc(p.date));
-        if(p.amount)bits.push('Nominal: '+Money(p.amount));
+        if(p.amountNeedsVisualCheck){
+          bits.push('Nominal perlu dicek manual: teks OCR "'+Esc(p.amountText||String(p.amount||''))+'"');
+          if(p.amountLine)bits.push('Baris nominal: '+Esc(p.amountLine));
+        }else if(p.amount)bits.push('Nominal: '+Money(p.amount));
+        if(p.title)bits.push('Judul struk (metadata): '+Esc(p.title));
         if(p.category)bits.push('Kategori: '+Esc(p.category));
         if(p.detail)bits.push('Detail: '+Esc(p.detail));
         det.innerHTML=bits.join('<br>');
@@ -2527,8 +2541,9 @@ const OCR = {
         const el=document.getElementById(id);
         if(el){el.classList.remove('field-highlight');void el.offsetWidth;el.classList.add('field-highlight');}
       });
-      document.getElementById('ocr-label').textContent='✓ Bukti transaksi berhasil dianalisis!';
-      App.toast(brandOrRecipient ? (p.recipient ? 'Nominal, tanggal, dan penerima berhasil diekstrak.' : 'Nominal, tanggal, dan tempat berhasil diekstrak.') : 'Nominal dan tanggal berhasil diekstrak.');
+      document.getElementById('ocr-label').textContent=p.amountNeedsVisualCheck?'⚠️ Periksa nominal hasil OCR':'✓ Bukti transaksi berhasil dianalisis!';
+      if(p.amountNeedsVisualCheck)App.toast('Nominal otomatis dikosongkan karena pemisah angka tidak terbaca. Periksa struk lalu isi manual.');
+      else App.toast(brandOrRecipient ? (p.recipient ? 'Nominal, tanggal, dan penerima berhasil diekstrak.' : 'Nominal, tanggal, dan tempat berhasil diekstrak.') : 'Nominal dan tanggal berhasil diekstrak.');
       setTimeout(()=>document.getElementById('ocr-progress').style.display='none',1200);
       return r;
     }catch(e){
