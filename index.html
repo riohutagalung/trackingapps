@@ -1977,32 +1977,47 @@ const GPS = {
     if(this.nativeMode&&window.RHNativeGPS){
       try{
         let perm=await window.RHNativeGPS.checkPermissions?.();
-        const needsLocation=!perm||perm.location!=='granted'||perm.preciseLocation!==true;
+        const androidPermissionFlow=window.Capacitor?.getPlatform?.()==='android';
+        const needsLocation=!perm||perm.location!=='granted'||(androidPermissionFlow&&perm.preciseLocation!==true);
         const needsNotification=!!(perm&&perm.notification&&perm.notification!=='granted');
-        const needsAndroid10Background=!!(perm&&Number(perm.sdkInt)===29&&perm.backgroundLocation!=='granted');
+        const needsAndroid10Background=!!(androidPermissionFlow&&perm&&Number(perm.sdkInt)===29&&perm.backgroundLocation!=='granted');
         if(needsLocation||needsNotification||needsAndroid10Background) perm=await window.RHNativeGPS.requestPermissions?.()||perm;
         const locationState=perm&&perm.location;
         const notificationState=perm&&perm.notification;
-        if(!perm||perm.preciseLocation!==true||locationState!=='granted'){
-          App.toast('Izin lokasi AKURAT wajib aktif. Pilih lokasi Precise/Akurat di Pengaturan Android.');
-          try{await window.RHNativeGPS.openSettings?.();}catch(_){}
-          return;
-        }
-        if(notificationState!=='granted'){
-          App.toast('Izinkan notifikasi RH Habits agar status GPS tetap terlihat saat layar dikunci.');
-          try{await window.RHNativeGPS.openSettings?.();}catch(_){}
-          return;
-        }
-        if(perm.locationEnabled===false){
-          App.toast('Aktifkan layanan Lokasi/GPS HP lalu tekan Mulai Trip lagi.');
-          try{await window.RHNativeGPS.openLocationSettings?.();}catch(_){}
-          return;
-        }
-        if(perm.backgroundLocation!=='granted'){
-          const openAlways=window.confirm('Agar RH Habits bisa merekam rute saat layar terkunci dan setelah aplikasi berpindah ke latar belakang, buka Pengaturan aplikasi lalu pilih Izin > Lokasi > Izinkan sepanjang waktu (Allow all the time). Setelah kembali, tekan Mulai Trip lagi.');
-          if(openAlways){try{await window.RHNativeGPS.openBackgroundLocationSettings?.();}catch(_){}}
-          App.toast('Pilih Lokasi > Izinkan sepanjang waktu, lalu tekan Mulai Trip lagi.');
-          return;
+        if(androidPermissionFlow){
+          if(!perm||perm.preciseLocation!==true||locationState!=='granted'){
+            App.toast('Izin lokasi AKURAT wajib aktif. Pilih lokasi Precise/Akurat di Pengaturan Android.');
+            try{await window.RHNativeGPS.openSettings?.();}catch(_){}
+            return;
+          }
+          if(notificationState!=='granted'){
+            App.toast('Izinkan notifikasi RH Habits agar status GPS tetap terlihat saat layar dikunci.');
+            try{await window.RHNativeGPS.openSettings?.();}catch(_){}
+            return;
+          }
+          if(perm.locationEnabled===false){
+            App.toast('Aktifkan layanan Lokasi/GPS HP lalu tekan Mulai Trip lagi.');
+            try{await window.RHNativeGPS.openLocationSettings?.();}catch(_){}
+            return;
+          }
+          if(perm.backgroundLocation!=='granted'){
+            const openAlways=window.confirm('Agar RH Habits bisa merekam rute saat layar terkunci dan setelah aplikasi berpindah ke latar belakang, buka Pengaturan aplikasi lalu pilih Izin > Lokasi > Izinkan sepanjang waktu (Allow all the time). Setelah kembali, tekan Mulai Trip lagi.');
+            if(openAlways){try{await window.RHNativeGPS.openBackgroundLocationSettings?.();}catch(_){}}
+            App.toast('Pilih Lokasi > Izinkan sepanjang waktu, lalu tekan Mulai Trip lagi.');
+            return;
+          }
+        }else{
+          // Preserve existing iOS/background-geolocation permission semantics.
+          if(locationState&&locationState!=='granted'){
+            App.toast('Izin lokasi wajib diizinkan untuk merekam perjalanan.');
+            try{await window.RHNativeGPS.openSettings?.();}catch(_){}
+            return;
+          }
+          if(notificationState&&notificationState!=='granted'){
+            App.toast('Izin notifikasi diperlukan agar GPS foreground service tetap terlihat.');
+            try{await window.RHNativeGPS.openSettings?.();}catch(_){}
+            return;
+          }
         }
       }catch(e){
         console.warn('[RHGPS] permission check:',e);
