@@ -68,6 +68,12 @@
         if(status?.preciseLocation && status?.notification!=='granted'){
           try{await native.requestPermissions({permissions:['notification']});}catch(e){}
         }
+        status=await native.getPermissionStatus();
+        // Android 10 still offers the system-level Allow all the time choice.
+        // Android 11+ must be sent to App info > Permissions > Location instead.
+        if(Number(status?.sdkInt)===29 && status?.preciseLocation && status?.backgroundLocation!=='granted'){
+          try{await native.requestPermissions({permissions:['backgroundLocation']});}catch(e){}
+        }
         return await native.getPermissionStatus();
       }catch(e){
         console.warn('[RHNativeGPS] Android permission request failed:',e);
