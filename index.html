@@ -1977,9 +1977,10 @@ const GPS = {
     if(this.nativeMode&&window.RHNativeGPS){
       try{
         let perm=await window.RHNativeGPS.checkPermissions?.();
-        const needsLocation=!perm||perm.location!=='granted';
+        const needsLocation=!perm||perm.location!=='granted'||perm.preciseLocation!==true;
         const needsNotification=!!(perm&&perm.notification&&perm.notification!=='granted');
-        if(needsLocation||needsNotification) perm=await window.RHNativeGPS.requestPermissions?.()||perm;
+        const needsAndroid10Background=!!(perm&&Number(perm.sdkInt)===29&&perm.backgroundLocation!=='granted');
+        if(needsLocation||needsNotification||needsAndroid10Background) perm=await window.RHNativeGPS.requestPermissions?.()||perm;
         const locationState=perm&&perm.location;
         const notificationState=perm&&perm.notification;
         if(!perm||perm.preciseLocation!==true||locationState!=='granted'){
