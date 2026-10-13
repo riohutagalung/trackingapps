@@ -1801,7 +1801,8 @@ function RHNormalizeGpsPoints(points) {
       providerSpeedKmh:Number(p.providerSpeedKmh),
       bearing:Number(p.bearing),
       altitude:Number(p.altitude),
-      source:p.source||''
+      source:p.source||'',
+      gapAfterPrevious:p.gapAfterPrevious===true
     });
   });
   out.sort((a,b)=>a.time-b.time);
@@ -1843,7 +1844,7 @@ function RHFilterGpsTrack(points, vehicle) {
     const dt = (p.time - last.time) / 1000;
     if (!(dt > 0)) continue;
 
-    if (dt > RH_GPS_CFG.maxGapForDistanceS) {
+    if (p.gapAfterPrevious || dt > RH_GPS_CFG.maxGapForDistanceS) {
       moving = false;
       stationarySince = p.time;
       accepted.push({...p, filteredSpeedKmh:0, moving:false, gapAfterPrevious:true});
@@ -1929,7 +1930,7 @@ function RHComputeGpsMetrics(points, startMs, endMs, vehicle) {
         const acc = Number(p.accuracy);
         const jitter = Math.max(RH_GPS_CFG.stationaryRadiusM, Math.min(18, isFinite(acc) && acc > 0 ? acc * 0.20 : 5));
 
-        if (p.moving) {
+        if (p.moving && !p.gapAfterPrevious) {
           if (dMeters > jitter) distance += dKm;
           movingMs += Math.min(dt, RH_GPS_CFG.maxGapForMovingS) * 1000;
           wasMoving = true;
@@ -3319,15 +3320,19 @@ const Trip = {
 
   normalizeMapPoints(arr) {
     return (Array.isArray(arr) ? arr : []).map(p => {
-      if (Array.isArray(p)) return {lat:Number(p[0]), lng:Number(p[1]), speedKmh:Number(p[2] || 0), time:Number(p[3] || 0)};
+      const rawTime=Array.isArray(p)?p[3]:(p?.time ?? p?.timestamp ?? p?.ts);
+      let time=typeof rawTime==='number'?rawTime:Number(rawTime);
+      if(!(time>0)&&rawTime){const parsed=Date.parse(String(rawTime));if(Number.isFinite(parsed))time=parsed;}
+      if (Array.isArray(p)) return {lat:Number(p[0]), lng:Number(p[1]), speedKmh:Number(p[2] || 0), time, gapAfterPrevious:false};
       return {
         lat:Number(p?.lat ?? p?.latitude),
         lng:Number(p?.lng ?? p?.longitude),
         speedKmh:Number(p?.speedKmh ?? p?.speed ?? 0),
-        time:Number(p?.time ?? p?.timestamp ?? 0),
+        time,
         accuracy:Number(p?.accuracy ?? 0),
         bearing:Number(p?.bearing),
-        source:p?.source || ''
+        source:p?.source || '',
+        gapAfterPrevious:p?.gapAfterPrevious===true
       };
     }).filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lng) &&
       p.lat >= -90 && p.lat <= 90 && p.lng >= -180 && p.lng <= 180);
@@ -3367,12 +3372,14 @@ const Trip = {
     const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
     const x = lng => pad + (maxLng === minLng ? 0.5 : (lng - minLng) / (maxLng - minLng)) * (elWidth - 2 * pad);
     const y = lat => elHeight - pad - (maxLat === minLat ? 0.5 : (lat - minLat) / (maxLat - minLat)) * (elHeight - 2 * pad);
-    const coords = points.map(p => x(Number(p.lng)).toFixed(1) + ',' + y(Number(p.lat)).toFixed(1)).join(' ');
     const first = points[0], last = points[points.length - 1];
+    const pathSegments=[];let currentSegment=[points[0]];
+    for(let i=1;i<points.length;i++){if(points[i].gapAfterPrevious){if(currentSegment.length>1)pathSegments.push(currentSegment);currentSegment=[];}currentSegment.push(points[i]);}
+    if(currentSegment.length>1)pathSegments.push(currentSegment);
+    const pathsSvg=pathSegments.map(seg=>'<polyline points="'+seg.map(p=>x(Number(p.lng)).toFixed(1)+','+y(Number(p.lat)).toFixed(1)).join(' ')+'" fill="none" stroke="#34d399" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>').join('');
     return '<svg class="trip-svg-fallback" viewBox="0 0 320 180" preserveAspectRatio="none" role="img" aria-label="Trek GPS tanpa tile peta">' +
       '<defs><pattern id="rh-grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M 24 0 L 0 0 0 24" fill="none" stroke="#54708a" stroke-opacity=".2" stroke-width=".7"/></pattern></defs>' +
-      '<rect width="320" height="180" fill="url(#rh-grid)"/>' +
-      '<polyline points="' + coords + '" fill="none" stroke="#34d399" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '<rect width="320" height="180" fill="url(#rh-grid)"/>' + pathsSvg +
       '<circle cx="' + x(first.lng).toFixed(1) + '" cy="' + y(first.lat).toFixed(1) + '" r="5" fill="#22c55e" stroke="#fff" stroke-width="1.5"/>' +
       '<circle cx="' + x(last.lng).toFixed(1) + '" cy="' + y(last.lat).toFixed(1) + '" r="5" fill="#fb7185" stroke="#fff" stroke-width="1.5"/>' +
       '<text x="8" y="12">START • ' + Number(first.lat).toFixed(5) + ', ' + Number(first.lng).toFixed(5) + '</text>' +
@@ -3434,6 +3441,12 @@ const Trip = {
       let segmentColor = this.speedColor(track[0].filteredSpeedKmh);
       let segmentPoints = [latlngs[0]];
       for (let i = 1; i < track.length; i++) {
+        if (track[i].gapAfterPrevious) {
+          if (segmentPoints.length >= 2) L.polyline(segmentPoints, {color:segmentColor, weight:5, opacity:.96, lineCap:'round', lineJoin:'round'}).addTo(map);
+          segmentPoints = [latlngs[i]];
+          segmentColor = this.speedColor(track[i].filteredSpeedKmh);
+          continue;
+        }
         const color = this.speedColor((Number(track[i - 1].filteredSpeedKmh || 0) + Number(track[i].filteredSpeedKmh || 0)) / 2);
         if (color !== segmentColor) {
           if (segmentPoints.length >= 2) L.polyline(segmentPoints, {color:segmentColor, weight:5, opacity:.96, lineCap:'round', lineJoin:'round'}).addTo(map);
