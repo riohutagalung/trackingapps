@@ -83,6 +83,7 @@ public class RHTrackingPlugin extends Plugin {
         out.put("backgroundLocation", background ? "granted" : "denied");
         out.put("notification", notifications ? "granted" : "denied");
         out.put("locationEnabled", isLocationEnabled(context));
+        out.put("sdkInt", Build.VERSION.SDK_INT);
         call.resolve(out);
     }
 
