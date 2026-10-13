@@ -2569,20 +2569,38 @@ const OCR = {
     const isIDR=/\b(?:IDR|RP|RUPIAH)\b|\bRP\.?\s*[0-9]/.test(ctx);
     const lc=s.lastIndexOf(','),ld=s.lastIndexOf('.');
     if(isIDR){
-      const lastSep=Math.max(lc,ld);
-      const tail=lastSep>=0?s.slice(lastSep+1):'';
-      const sepCount=(s.match(/[,.]/g)||[]).length;
-      // Mirror the server parser's OCR repair: "27.200,00" may lose the
-      // comma and arrive as "27.20000". Keep the grouping dot, remove the
-      // two zero decimal digits instead of turning it into 2,720,000.
-      if(sepCount===1&&/^\d{3}00$/.test(tail)){
-        return Number(s.slice(0,lastSep).replace(/[^0-9]/g,'')+tail.slice(0,3));
+      const negative=s.charAt(0)==='-';
+      s=s.replace(/-/g,'');
+      const commas=(s.match(/,/g)||[]).length,dots=(s.match(/\./g)||[]).length;
+      const lastComma=s.lastIndexOf(','),lastDot=s.lastIndexOf('.');
+      const sign=negative?'-':'';
+      // "27.200,00" can lose its comma and become "27.20000".
+      if(commas+dots===1){
+        const sep=commas?lastComma:lastDot;
+        const left=s.slice(0,sep).replace(/[.,]/g,'');
+        const right=s.slice(sep+1);
+        if(/^\d{5}$/.test(right)&&/00$/.test(right))return Number(sign+(left||'0')+right.slice(0,3));
       }
-      if(lastSep>=0&&tail.length<=2&&/^\d{1,2}$/.test(tail)){
-        if(Number(tail)===0)s=s.slice(0,lastSep);
-        else if(tail.length===2)s=s.slice(0,lastSep);
+      if(commas>0&&dots>0){
+        const pos=Math.max(lastComma,lastDot),fraction=s.slice(pos+1);
+        const integer=s.slice(0,pos).replace(/[.,]/g,'');
+        if(/^\d{1,2}$/.test(fraction)&&Number(fraction)===0)return Number(sign+(integer||'0'));
+        return Number(sign+s.replace(/[.,]/g,''));
       }
-      return Number(s.replace(/[^0-9]/g,'')||0);
+      if(commas>1||dots>1){
+        const chunks=s.split(/[.,]/);
+        if(chunks.length>1&&chunks.slice(1).every(part=>/^\d{3}$/.test(part)))return Number(sign+chunks.join(''));
+        return Number(sign+s.replace(/[.,]/g,''));
+      }
+      if(commas===1||dots===1){
+        const pos=commas?lastComma:lastDot,left=s.slice(0,pos).replace(/[.,]/g,''),right=s.slice(pos+1);
+        if(/^\d{3}$/.test(right))return Number(sign+(left||'0')+right);
+        if(/^\d{1,2}$/.test(right)){
+          if(Number(right)===0)return Number(sign+(left||'0'));
+          return Number(sign+(left||'0')+'.'+right);
+        }
+      }
+      return Number(sign+s.replace(/[.,]/g,'')||0);
     }
     if(lc>=0&&ld>=0){
       if(ld>lc)s=s.replace(/,/g,'');
