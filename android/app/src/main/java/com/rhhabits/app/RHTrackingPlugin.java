@@ -176,11 +176,10 @@ public class RHTrackingPlugin extends Plugin {
     public void stop(PluginCall call) {
         Intent intent = new Intent(getContext(), RHTrackingService.class);
         intent.setAction(RHTrackingService.ACTION_STOP);
-        if (Build.VERSION.SDK_INT >= 26) {
-            ContextCompat.startForegroundService(getContext(), intent);
-        } else {
-            getContext().startService(intent);
-        }
+        // STOP is not a foreground-service start: starting it with
+        // startForegroundService() would require this STOP path to promote itself
+        // within the system timeout. The action is issued from the visible app UI.
+        getContext().startService(intent);
         call.resolve();
     }
 
