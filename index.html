@@ -2606,12 +2606,12 @@ const OCR = {
       // Recover a known merchant from raw OCR when Apps Script returned only
       // the bank/app name (for example detail="BCA", brand="").
       let rawMerchant='';
-      const merchantLines=ocrLines.filter(line=>/pertamina|\\bspbu\\b|\\bshell\\b|\\bvivo\\b|\\bbp\\b|indomaret|alfamart|hok\\s*ben|hokben|starbucks|kopi\\s+kenangan|fore\\s+coffee/i.test(line));
-      const stationLine=merchantLines.find(line=>/pertamina|\\bspbu\\b/i.test(line)&&/[A-Za-z]/.test(line));
+      const merchantLines=ocrLines.filter(line=>/pertamina|\bspbu\b|\bshell\b|\bvivo\b|\bbp\b|indomaret|alfamart|hok\s*ben|hokben|starbucks|kopi\s+kenangan|fore\s+coffee/i.test(line));
+      const stationLine=merchantLines.find(line=>/pertamina|\bspbu\b/i.test(line)&&/[A-Za-z]/.test(line));
       if(stationLine){
         rawMerchant=stationLine
-          .replace(/\\b(?:payment|transaction|successful|success|berhasil|completed|qris|bca|mybca|transfer)\\b/ig,' ')
-          .replace(/\\s{2,}/g,' ').replace(/^[\\s:|>\\-]+|[\\s:|>\\-]+$/g,'').trim();
+          .replace(/\b(?:payment|transaction|successful|success|berhasil|completed|qris|bca|mybca|transfer)\b/ig,' ')
+          .replace(/\s{2,}/g,' ').replace(/^[\s:|>\-]+|[\s:|>\-]+$/g,'').trim();
         if(!/pertamina|spbu/i.test(rawMerchant))rawMerchant='';
       }
       if(!rawMerchant && typeof this.knownMerchantFromText==='function'){
@@ -2621,7 +2621,7 @@ const OCR = {
       if(!p.recipient && rawMerchant && !safeRecipient){
         p.brand=rawMerchant;
         p.recipient=rawMerchant;
-        if(/pertamina|spbu|shell|vivo|\\bbp\\b/i.test(rawMerchant))p.category='Bensin';
+        if(/pertamina|spbu|shell|vivo|\bbp\b/i.test(rawMerchant))p.category='Bensin';
         if(!p.detail || /^(?:bca|bri|bni|mandiri|cimb|qris|payment|transfer)$/i.test(p.detail)){
           p.detail=/qris/i.test(rawText)?'Pembayaran QRIS ke '+rawMerchant:'Pembayaran ke '+rawMerchant;
         }
