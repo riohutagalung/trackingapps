@@ -32,6 +32,12 @@ async function readJsonResponse(res){
     throw new Error('Apps Script HTTP '+res.status+': '+detail);
   }
   if(!parsed||typeof parsed!=='object') throw new Error('Apps Script mengembalikan respons bukan JSON.');
+  // Apps Script RPC itself returns {ok:true,result:<function return>}.
+  // Unwrap this envelope here, before the Vercel route adds its own one.
+  // Otherwise the Capacitor bridge unwraps only one level and the UI receives
+  // {ok:true,result:{ok:true,text,parsed}} instead of {ok:true,text,parsed}.
+  if(parsed.ok===false) throw new Error(parsed.error||'Apps Script RPC gagal.');
+  if(parsed.ok===true && Object.prototype.hasOwnProperty.call(parsed,'result')) return parsed.result;
   return parsed;
 }
 async function invokePost(fn,args){
