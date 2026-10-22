@@ -53,6 +53,8 @@ public class RHTrackingPlugin extends Plugin {
                 out.put("longitude", intent.getDoubleExtra("longitude", Double.NaN));
                 out.put("accuracy", intent.getDoubleExtra("accuracy", 0));
                 out.put("speedKmh", intent.getDoubleExtra("speedKmh", 0));
+                out.put("providerSpeedKmh", intent.getDoubleExtra("providerSpeedKmh", -1));
+                out.put("speedAccuracyMps", intent.getDoubleExtra("speedAccuracyMps", -1));
                 out.put("bearing", intent.hasExtra("bearing") ? intent.getDoubleExtra("bearing", 0) : null);
                 out.put("altitude", intent.hasExtra("altitude") ? intent.getDoubleExtra("altitude", 0) : null);
                 out.put("time", intent.getLongExtra("time", System.currentTimeMillis()));
