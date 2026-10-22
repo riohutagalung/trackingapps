@@ -2628,6 +2628,10 @@ const OCR = {
         if(p.title)bits.push('Judul struk (metadata): '+Esc(p.title));
         bits.push('Frontend: RH OCR-IDR 2026-10-22-r3 • Bridge: '+String(window.RHBridge?.version||'bridge version tidak diketahui'));
         bits.push('Backend: '+(p.backendBuild||'BUILD ID TIDAK TERKONFIRMASI — cek Apps Script deployment'));
+        bits.push('Teks OCR server: '+(rawText.length?'diterima ('+rawText.length+' karakter)':'KOSONG — response masih belum terbuka dengan benar'));
+        bits.push('Token nominal: '+Esc(p.amountText||'tidak diterima'));
+        if(p.amountLine)bits.push('Baris nominal: '+Esc(p.amountLine));
+        bits.push('Penerima terdeteksi: '+Esc(p.recipient||'tidak terbaca'));
         if(p.category)bits.push('Kategori: '+Esc(p.category));
         if(p.detail)bits.push('Detail: '+Esc(p.detail));
         det.innerHTML=bits.join('<br>');
