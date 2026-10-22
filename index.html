@@ -1758,19 +1758,20 @@ const Traffic = {
 
 const RH_GPS_CFG = Object.freeze({
   maxAccuracyM: 75,
-  // Conservative plausibility caps: two-wheeler 160 km/h, car 220 km/h.
-  // A segment beyond the cap is a GPS jump and excluded from speed/distance.
   maxProviderSpeedKmh: 220,
   maxMotorSpeedKmh: 160,
   maxCarSpeedKmh: 220,
-  stationaryRadiusM: 5,
-  stationarySpeedKmh: 3,
+  // GPS coordinates can drift while a phone is stationary. Never treat a
+  // single noisy fix as movement; require trustworthy provider speed or a
+  // coherent multi-point displacement before opening the moving state.
+  stationaryRadiusM: 8,
+  stationarySpeedKmh: 2.5,
   movingSpeedKmh: 3,
   maxGapForDistanceS: 90,
-  maxGapForMovingS: 90,
-  movementWindowS: 4,
+  maxGapForMovingS: 8,
+  movementWindowS: 5,
   movementDistanceM: 10,
-  speedWindowS: 3,
+  speedWindowS: 5,
   serverSyncIntervalMs: 10000
 });
 
@@ -1792,13 +1793,18 @@ function RHNormalizeGpsPoints(points) {
     const time=RHGpsTimeMs(p);
     const acc=Number(p.accuracy);
     if(!isFinite(lat)||!isFinite(lng)||!time) return;
+    if(lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
     if(isFinite(acc)&&acc>RH_GPS_CFG.maxAccuracyM) return;
     const key=[time,lat.toFixed(6),lng.toFixed(6)].join('|');
     if(seen.has(key)) return;
     seen.add(key);
+    const providerRaw=Number(p.providerSpeedKmh);
+    const speedRaw=Number(p.speedKmh!==undefined?p.speedKmh:p.speed);
+    const speedAccuracy=Number(p.speedAccuracyMps);
     out.push({
-      lat,lng,time,accuracy:isFinite(acc)?acc:0,
-      providerSpeedKmh:Number(p.providerSpeedKmh),
+      lat,lng,time,accuracy:isFinite(acc)&&acc>0?acc:0,
+      providerSpeedKmh:isFinite(providerRaw)&&providerRaw>=0?providerRaw:(isFinite(speedRaw)&&speedRaw>=0&&/native/i.test(String(p.source||''))?speedRaw:NaN),
+      speedAccuracyMps:isFinite(speedAccuracy)&&speedAccuracy>=0?speedAccuracy:NaN,
       bearing:Number(p.bearing),
       altitude:Number(p.altitude),
       source:p.source||'',
@@ -1809,106 +1815,105 @@ function RHNormalizeGpsPoints(points) {
   return out;
 }
 
-// For live speed and trip metrics RH derives speed from real coordinate movement
-// over a short window. Android's provider speed is retained for diagnostics only.
 function RHSpeedCapKmh(vehicle) {
   let value = String(vehicle || '');
   if (!value && typeof document !== 'undefined') value = document.getElementById('trip-vehicle')?.value || '';
   return /mobil|car|auto/i.test(value) ? RH_GPS_CFG.maxCarSpeedKmh : RH_GPS_CFG.maxMotorSpeedKmh;
 }
 
-function RHGpsWindowSpeedKmh(accepted, point, speedCap) {
-  if (!accepted.length) return 0;
-  let j = accepted.length - 1;
-  while (j > 0 && (point.time - accepted[j - 1].time) / 1000 <= RH_GPS_CFG.speedWindowS) j--;
-  const a = accepted[j];
-  const dt = (point.time - a.time) / 1000;
-  if (!(dt > 0) || dt > RH_GPS_CFG.maxGapForMovingS) return 0;
-  const dMeters = Haversine(a.lat, a.lng, point.lat, point.lng) * 1000;
-  if (dMeters < RH_GPS_CFG.movementDistanceM) return 0;
-  const speed = dMeters * 3.6 / dt;
-  return speed <= speedCap ? Math.max(0, speed) : 0;
+function RHTrustedProviderSpeed(p, speedCap) {
+  if(!p || !isFinite(Number(p.providerSpeedKmh))) return 0;
+  const speed=Number(p.providerSpeedKmh);
+  const accuracy=Number(p.accuracy);
+  const speedAccuracy=Number(p.speedAccuracyMps);
+  // Android's Location speed includes GNSS-derived velocity when supported.
+  // Only trust it when the OS also reports a reasonably tight speed-accuracy
+  // estimate; values below 3 km/h are treated as stationary for a motor trip.
+  if(speed < RH_GPS_CFG.movingSpeedKmh || speed > Math.min(speedCap,RH_GPS_CFG.maxProviderSpeedKmh)) return 0;
+  if(!isFinite(accuracy)||accuracy>35) return 0;
+  if(!isFinite(speedAccuracy)||speedAccuracy>1.5) return 0;
+  return speed;
+}
+
+function RHGpsWindowEvidence(points, index, noiseRadiusM) {
+  const first=Math.max(0,index-4);
+  if(index-first<2) return {moving:false,speedKmh:0,netMeters:0,pathMeters:0,segments:0};
+  const a=points[first], b=points[index];
+  const dt=(b.time-a.time)/1000;
+  if(!(dt>0)||dt>RH_GPS_CFG.movementWindowS+2) return {moving:false,speedKmh:0,netMeters:0,pathMeters:0,segments:0};
+  const netMeters=Haversine(a.lat,a.lng,b.lat,b.lng)*1000;
+  let pathMeters=0,segments=0;
+  for(let j=first+1;j<=index;j++){
+    const d=Haversine(points[j-1].lat,points[j-1].lng,points[j].lat,points[j].lng)*1000;
+    pathMeters+=d;
+    if(d>=Math.max(1.5,noiseRadiusM*0.22)) segments++;
+  }
+  const required=Math.max(RH_GPS_CFG.movementDistanceM,Math.min(18,noiseRadiusM*1.2));
+  const coherent=pathMeters>0 && netMeters/pathMeters>=0.68;
+  const moving=netMeters>=required && segments>=2 && coherent;
+  const speedKmh=moving&&dt>0?netMeters*3.6/dt:0;
+  return {moving,speedKmh,netMeters,pathMeters,segments};
 }
 
 function RHFilterGpsTrack(points, vehicle) {
   const src = RHNormalizeGpsPoints(points);
   const speedCap = RHSpeedCapKmh(vehicle);
   if (!src.length) return [];
-  if (src.length === 1) return [{...src[0], filteredSpeedKmh:0, moving:false}];
+  const accepted = [];
+  let moving=false, stationarySince=null;
 
-  const accepted = [{...src[0], filteredSpeedKmh:0, moving:false}];
-  let moving = false, stationarySince = null, last = src[0];
-
-  for (let i = 1; i < src.length; i++) {
-    const p = src[i];
-    const dt = (p.time - last.time) / 1000;
-    if (!(dt > 0)) continue;
-
-    if (p.gapAfterPrevious || dt > RH_GPS_CFG.maxGapForDistanceS) {
-      moving = false;
-      stationarySince = p.time;
-      accepted.push({...p, filteredSpeedKmh:0, moving:false, gapAfterPrevious:true});
-      last = p;
+  for(let i=0;i<src.length;i++){
+    const p=src[i];
+    const previous=accepted.length?accepted[accepted.length-1]:null;
+    if(!previous){
+      accepted.push({...p,filteredSpeedKmh:0,moving:false,movementConfirmed:false,providerSpeedTrusted:false});
+      continue;
+    }
+    const dt=(p.time-previous.time)/1000;
+    if(!(dt>0)) continue;
+    if(p.gapAfterPrevious || dt>RH_GPS_CFG.maxGapForDistanceS){
+      moving=false;stationarySince=p.time;
+      accepted.push({...p,filteredSpeedKmh:0,moving:false,movementConfirmed:false,providerSpeedTrusted:false,gapAfterPrevious:true});
       continue;
     }
 
-    const dMeters = Haversine(last.lat, last.lng, p.lat, p.lng) * 1000;
-    const prevAcc = Number(last.accuracy);
-    const acc = Number(p.accuracy);
-    const jitterRadius = Math.max(
-      RH_GPS_CFG.stationaryRadiusM,
-      Math.min(18, Math.max(isFinite(prevAcc) ? prevAcc : 0, isFinite(acc) ? acc : 0) * 0.20)
-    );
-    const segmentSpeed = dMeters * 3.6 / dt;
+    const dMeters=Haversine(previous.lat,previous.lng,p.lat,p.lng)*1000;
+    const prevAcc=Number(previous.accuracy)||0, acc=Number(p.accuracy)||0;
+    // Use accuracy as uncertainty, rather than a fixed 5 m cutoff. A 6 m
+    // shift can be plain GPS noise when the reported fix accuracy is ~8-10 m.
+    const noiseRadius=Math.max(RH_GPS_CFG.stationaryRadiusM,Math.min(22,Math.max(prevAcc,acc)*1.05));
+    const segmentSpeed=dt>0?dMeters*3.6/dt:0;
+    const evidence=RHGpsWindowEvidence(src,i,noiseRadius);
+    const providerSpeed=RHTrustedProviderSpeed(p,speedCap);
+    const coordinateMotion=evidence.moving && evidence.speedKmh>=RH_GPS_CFG.movingSpeedKmh &&
+      evidence.speedKmh<=speedCap && dt<=RH_GPS_CFG.maxGapForMovingS;
+    const confirmed=providerSpeed>0 || coordinateMotion;
 
-    // Reject isolated "teleport" fixes; do not advance last to the outlier.
-    const next = src[i + 1];
-    if (next) {
-      const dtNext = (next.time - p.time) / 1000;
-      if (dt <= 8 && dtNext > 0 && dtNext <= 8) {
-        const nextMeters = Haversine(p.lat, p.lng, next.lat, next.lng) * 1000;
-        const nextSpeed = nextMeters * 3.6 / dtNext;
-        const directMeters = Haversine(last.lat, last.lng, next.lat, next.lng) * 1000;
-        const detour = (dMeters + nextMeters) / Math.max(directMeters, 1);
-        if (detour > 2.2 && segmentSpeed > 70 && nextSpeed > 70) continue;
-      }
+    if(confirmed){
+      moving=true;stationarySince=null;
+    }else if(moving){
+      if(stationarySince===null) stationarySince=p.time;
+      if(p.time-stationarySince>=3500) moving=false;
     }
 
-    // Never clamp an impossible coordinate jump into a plausible speed.
-    if (dMeters >= 10 && segmentSpeed > speedCap) continue;
-
-    const windowStart = Math.max(0, accepted.length - 4);
-    const w = accepted[windowStart];
-    const windowMove = Haversine(w.lat, w.lng, p.lat, p.lng) * 1000;
-    const physicalMovement = dMeters >= Math.max(6, jitterRadius * 1.25) ||
-      windowMove >= RH_GPS_CFG.movementDistanceM;
-
-    if (!moving && physicalMovement) {
-      moving = true;
-      stationarySince = null;
+    let speed=0;
+    if(moving){
+      if(providerSpeed>0) speed=providerSpeed;
+      else if(coordinateMotion) speed=evidence.speedKmh;
+      else if(dt<=3 && dMeters>noiseRadius && segmentSpeed>=RH_GPS_CFG.movingSpeedKmh && segmentSpeed<=speedCap) speed=segmentSpeed;
+      if(speed<RH_GPS_CFG.movingSpeedKmh) speed=0;
     }
 
-    const stationary = dMeters <= jitterRadius &&
-      windowMove < RH_GPS_CFG.movementDistanceM &&
-      segmentSpeed < RH_GPS_CFG.stationarySpeedKmh;
-
-    if (stationary) {
-      if (stationarySince === null) stationarySince = p.time;
-      if (moving && (p.time - stationarySince) >= 3000) moving = false;
-    } else {
-      stationarySince = null;
-    }
-
-    const windowSpeed = RHGpsWindowSpeedKmh(accepted, p, speedCap);
-    let speed = moving
-      ? (windowSpeed > 0 ? windowSpeed : (physicalMovement && segmentSpeed <= speedCap ? segmentSpeed : 0))
-      : 0;
-    speed = Math.max(0, Math.min(speedCap, speed));
-
-    accepted.push({...p, filteredSpeedKmh:speed, moving});
-    last = p;
+    accepted.push({
+      ...p,
+      filteredSpeedKmh:Math.max(0,Math.min(speedCap,speed)),
+      moving,
+      movementConfirmed:confirmed,
+      providerSpeedTrusted:providerSpeed>0,
+      segmentMeters:dMeters,
+      noiseRadiusM:noiseRadius
+    });
   }
-
   return accepted;
 }
 
@@ -1924,24 +1929,21 @@ function RHComputeGpsMetrics(points, startMs, endMs, vehicle) {
 
     if (prev) {
       const dt = (p.time - prev.time) / 1000;
-      if (dt > 0 && dt <= RH_GPS_CFG.maxGapForDistanceS) {
-        const dKm = Haversine(prev.lat, prev.lng, p.lat, p.lng);
-        const dMeters = dKm * 1000;
-        const acc = Number(p.accuracy);
-        const jitter = Math.max(RH_GPS_CFG.stationaryRadiusM, Math.min(18, isFinite(acc) && acc > 0 ? acc * 0.20 : 5));
-
-        if (p.moving && !p.gapAfterPrevious) {
-          if (dMeters > jitter) distance += dKm;
-          movingMs += Math.min(dt, RH_GPS_CFG.maxGapForMovingS) * 1000;
-          wasMoving = true;
+      if (dt > 0 && dt <= RH_GPS_CFG.maxGapForDistanceS && p.moving && !p.gapAfterPrevious && dt<=RH_GPS_CFG.maxGapForMovingS) {
+        const dMeters = Haversine(prev.lat, prev.lng, p.lat, p.lng) * 1000;
+        const acc = Number(p.accuracy)||0;
+        const jitter = Math.max(RH_GPS_CFG.stationaryRadiusM, Math.min(22, acc*1.05));
+        const minSegment=p.providerSpeedTrusted?2.5:jitter;
+        if(dMeters>minSegment) distance += dMeters/1000;
+        movingMs += dt*1000;
+        wasMoving = true;
+        stoppedAt = null;
+      } else if (wasMoving) {
+        if (stoppedAt === null) stoppedAt = p.time;
+        if (p.time - stoppedAt >= 30000) {
+          stopCount++;
           stoppedAt = null;
-        } else if (wasMoving) {
-          if (stoppedAt === null) stoppedAt = p.time;
-          if (p.time - stoppedAt >= 30000) {
-            stopCount++;
-            stoppedAt = null;
-            wasMoving = false;
-          }
+          wasMoving = false;
         }
       }
     }
@@ -1953,7 +1955,7 @@ function RHComputeGpsMetrics(points, startMs, endMs, vehicle) {
   const a = Number(startMs) || fallbackStart, b = Number(endMs) || fallbackEnd;
   const durationMin = a && b && b >= a ? (b - a) / 60000 : 0;
   const movingTimeMin = Math.min(durationMin, movingMs / 60000);
-  const avgSpeed = movingTimeMin > 0 ? distance / (movingTimeMin / 60) : 0;
+  const avgSpeed = movingTimeMin > 0 && distance>0 ? distance / (movingTimeMin / 60) : 0;
 
   return {
     points:track, pointCount:track.length, distanceKm:distance, durationMin,
@@ -2109,8 +2111,12 @@ const GPS = {
     const accuracy=Number(isNative?(pos.accuracy??pos.coords?.accuracy):(pos.coords?.accuracy||0));
     if(isFinite(accuracy)&&accuracy>120)return;
 
+    const providerRaw=Number(isNative?pos.providerSpeedKmh:NaN);
+    const providerKmh=(isFinite(providerRaw)&&providerRaw>=0)?providerRaw:NaN;
     let rawSpeed=Number(isNative?(pos.speed??pos.coords?.speed):(pos.coords?.speed));
-    const speedKmh=(isFinite(rawSpeed)&&rawSpeed>=0)?rawSpeed*3.6:NaN;
+    const speedKmh=isFinite(providerKmh)?providerKmh:((isFinite(rawSpeed)&&rawSpeed>=0)?rawSpeed*3.6:NaN);
+    const speedAccuracyRaw=Number(pos.speedAccuracyMps);
+    const speedAccuracyMps=isFinite(speedAccuracyRaw)&&speedAccuracyRaw>=0?speedAccuracyRaw:NaN;
 
     const bearingRaw=isNative?(pos.bearing??pos.coords?.heading):pos.coords?.heading;
     const bearing=Number(bearingRaw);
@@ -2122,8 +2128,9 @@ const GPS = {
     const point={
       lat,lng,
       speedKmh:0,
-       providerSpeedKmh:isFinite(speedKmh)?speedKmh:NaN,
-       displaySpeedKmh:0,
+       providerSpeedKmh:isFinite(providerKmh)?providerKmh:(isNative&&isFinite(speedKmh)?speedKmh:NaN),
+      speedAccuracyMps,
+      displaySpeedKmh:0,
       accuracy:isFinite(accuracy)?accuracy:0,
       time:ts,
       bearing:isFinite(bearing)?bearing:null,
@@ -2222,8 +2229,8 @@ const GPS = {
       }
       this.stopping=false;this.reset();App.toast('Perjalanan terlalu singkat untuk disimpan.');return;
     }
-    const metricStart=stats.points.length?stats.points[0].time:this.start;
-    const metricEnd=stats.points.length?stats.points[stats.points.length-1].time:this.end;
+    const metricStart=Number(this.start)||(stats.points.length?stats.points[0].time:Date.now());
+    const metricEnd=Number(this.end)||(stats.points.length?stats.points[stats.points.length-1].time:Date.now());
     this.pending={distance:stats.distanceKm,durationMin:stats.durationMin,avgSpeed:stats.avgSpeedKmh,maxSpeed:stats.maxSpeedKmh,movingTimeMin:stats.movingTimeMin,stopTimeMin:stats.stopTimeMin,stopCount:stats.stopCount,...route,gpsPoints:stats.points.slice(),startTime:new Date(metricStart).toISOString(),endTime:new Date(metricEnd).toISOString(),date:new Date(metricStart).toISOString().slice(0,10),id:sid,vehicle:this.currentVehicle()};
     document.getElementById('modal-distance').textContent=Num(stats.distanceKm,2)+' km';
     document.getElementById('modal-duration').textContent=Num(stats.durationMin,1)+' mnt';
@@ -2307,9 +2314,13 @@ const GPS = {
   },
   stats(endMs){
     const usable=RHNormalizeGpsPoints(this.points);
-    const firstTime=usable.length?usable[0].time:(this.start||0);
-    const lastTime=usable.length?usable[usable.length-1].time:(endMs||Date.now());
-    return RHComputeGpsMetrics(this.points,firstTime,lastTime,this.currentVehicle());
+    const firstPointTime=usable.length?usable[0].time:0;
+    const lastPointTime=usable.length?usable[usable.length-1].time:0;
+    // Elapsed trip duration is wall-clock time from tapping Start to Stop,
+    // not time between GPS fixes (a stationary phone may not get a new fix).
+    const startMs=Number(this.start)||firstPointTime;
+    const wallEnd=Number(endMs)||(this.active?Date.now():Number(this.end)||lastPointTime);
+    return RHComputeGpsMetrics(this.points,startMs,wallEnd,this.currentVehicle());
   },
   detectRoute(trackPoints){
     const pts=Array.isArray(trackPoints)?trackPoints:this.points;
@@ -2323,7 +2334,8 @@ const GPS = {
     const liveSpeed=Number(s.currentSpeedKmh||0);
     document.getElementById('gps-speed').textContent=Num(liveSpeed,1);
     document.getElementById('gps-distance').textContent=Num(s.distanceKm,2);
-    document.getElementById('gps-time').textContent=TimeFmt(s.durationMin*60);
+    const elapsedSeconds=this.start?Math.max(0,Math.floor(((this.active?Date.now():(this.end||Date.now()))-this.start)/1000)):Math.max(0,Math.floor(s.durationMin*60));
+    document.getElementById('gps-time').textContent=TimeFmt(elapsedSeconds);
     document.getElementById('gps-avg').textContent=Num(s.avgSpeedKmh,1);
     document.getElementById('gps-max').textContent=Num(s.maxSpeedKmh,1);
     const qEl=document.getElementById('gps-quality');
@@ -2342,7 +2354,7 @@ const GPS = {
     document.getElementById('float-route').textContent=route.routeName;
     document.getElementById('float-speed').textContent=Num(liveSpeed,1);
     document.getElementById('float-distance').textContent=Num(s.distanceKm,2)+' km';
-    document.getElementById('float-time').textContent=TimeFmt(s.durationMin*60);
+    document.getElementById('float-time').textContent=TimeFmt(elapsedSeconds);
     document.getElementById('float-avg').textContent=Num(s.avgSpeedKmh,1)+' km/h';
   },
   async reconcileNativeQueue(){
