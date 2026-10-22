@@ -2603,7 +2603,29 @@ const OCR = {
         ? ((this.isDateTimeLike(p.brand)||this.isLocationLike(p.brand)||isGenericOCRTitle(p.brand))?'':String(p.brand||'').trim())
         : (invalidOCRName(p.brand)?'':String(p.brand||'').trim());
       const safeRecipient=invalidOCRName(p.recipient)?'':String(p.recipient||'').trim();
-      const brandOrRecipient=safeRecipient||safeBrand;
+      // Recover a known merchant from raw OCR when Apps Script returned only
+      // the bank/app name (for example detail="BCA", brand="").
+      let rawMerchant='';
+      const merchantLines=ocrLines.filter(line=>/pertamina|\\bspbu\\b|\\bshell\\b|\\bvivo\\b|\\bbp\\b|indomaret|alfamart|hok\\s*ben|hokben|starbucks|kopi\\s+kenangan|fore\\s+coffee/i.test(line));
+      const stationLine=merchantLines.find(line=>/pertamina|\\bspbu\\b/i.test(line)&&/[A-Za-z]/.test(line));
+      if(stationLine){
+        rawMerchant=stationLine
+          .replace(/\\b(?:payment|transaction|successful|success|berhasil|completed|qris|bca|mybca|transfer)\\b/ig,' ')
+          .replace(/\\s{2,}/g,' ').replace(/^[\\s:|>\\-]+|[\\s:|>\\-]+$/g,'').trim();
+        if(!/pertamina|spbu/i.test(rawMerchant))rawMerchant='';
+      }
+      if(!rawMerchant && typeof this.knownMerchantFromText==='function'){
+        rawMerchant=this.knownMerchantFromText(rawText)||'';
+      }
+      const brandOrRecipient=safeRecipient||safeBrand||rawMerchant;
+      if(!p.recipient && rawMerchant && !safeRecipient){
+        p.brand=rawMerchant;
+        p.recipient=rawMerchant;
+        if(/pertamina|spbu|shell|vivo|\\bbp\\b/i.test(rawMerchant))p.category='Bensin';
+        if(!p.detail || /^(?:bca|bri|bni|mandiri|cimb|qris|payment|transfer)$/i.test(p.detail)){
+          p.detail=/qris/i.test(rawText)?'Pembayaran QRIS ke '+rawMerchant:'Pembayaran ke '+rawMerchant;
+        }
+      }
       const safeNote=this.isLocationLike(p.note)?'':String(p.note||'').trim();
 
       if(p.amount&&!p.amountNeedsVisualCheck)document.getElementById('exp-amount').value=p.amount;
@@ -2618,22 +2640,24 @@ const OCR = {
 
       const det=document.getElementById('ocr-detection');
       if(det){
+        // Normal mode shows only useful receipt fields. Technical diagnostics
+        // remain available on demand via ?ocrdebug=1.
+        const debug=new URLSearchParams(location.search).get('ocrdebug')==='1';
         const bits=[];
-        if(brandOrRecipient)bits.push((p.recipient?'Payment To: ':'Brand/Tempat: ')+Esc(brandOrRecipient));
+        if(brandOrRecipient)bits.push('Brand/Tempat: '+Esc(brandOrRecipient));
         if(p.date)bits.push('Tanggal: '+Esc(p.date));
-        if(p.amountNeedsVisualCheck){
-          bits.push('Nominal perlu dicek manual: teks OCR "'+Esc(p.amountText||String(p.amount||''))+'"');
-          if(p.amountLine)bits.push('Baris nominal: '+Esc(p.amountLine));
-        }else if(p.amount)bits.push('Nominal: '+Money(p.amount));
-        if(p.title)bits.push('Judul struk (metadata): '+Esc(p.title));
-        bits.push('Frontend: RH OCR-IDR 2026-10-22-r3 • Bridge: '+String(window.RHBridge?.version||'bridge version tidak diketahui'));
-        bits.push('Backend: '+(p.backendBuild||'BUILD ID TIDAK TERKONFIRMASI — cek Apps Script deployment'));
-        bits.push('Teks OCR server: '+(rawText.length?'diterima ('+rawText.length+' karakter)':'KOSONG — response masih belum terbuka dengan benar'));
-        bits.push('Token nominal: '+Esc(p.amountText||'tidak diterima'));
-        if(p.amountLine)bits.push('Baris nominal: '+Esc(p.amountLine));
-        bits.push('Penerima terdeteksi: '+Esc(p.recipient||'tidak terbaca'));
-        if(p.category)bits.push('Kategori: '+Esc(p.category));
+        if(p.amountNeedsVisualCheck)bits.push('Nominal perlu dicek manual');
+        else if(p.amount)bits.push('Nominal: '+Money(p.amount));
+        if(p.category && p.category!=='Lainnya')bits.push('Kategori: '+Esc(p.category));
         if(p.detail)bits.push('Detail: '+Esc(p.detail));
+        if(debug){
+          bits.push('Frontend: RH OCR-IDR 2026-10-22-r4 • Bridge: '+String(window.RHBridge?.version||'unknown'));
+          bits.push('Backend: '+(p.backendBuild||'unconfirmed'));
+          bits.push('OCR text: '+rawText.length+' chars');
+          bits.push('Amount token: '+Esc(p.amountText||'none'));
+          bits.push('Recipient: '+Esc(p.recipient||'none'));
+          console.debug('[RH OCR diagnostics]',{frontend:'2026-10-22-r4',bridge:window.RHBridge?.version,backend:p.backendBuild||null,rawText,parsed:p});
+        }
         det.innerHTML=bits.join('<br>');
         det.classList.toggle('show',!!bits.length);
       }
