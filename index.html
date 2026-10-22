@@ -2117,8 +2117,9 @@ const GPS = {
 
     const providerRaw=Number(isNative?pos.providerSpeedKmh:NaN);
     const providerKmh=(isFinite(providerRaw)&&providerRaw>=0)?providerRaw:NaN;
+    const nativeStoredKmh=Number(isNative?pos.speedKmh:NaN);
     let rawSpeed=Number(isNative?(pos.speed??pos.coords?.speed):(pos.coords?.speed));
-    const speedKmh=isFinite(providerKmh)?providerKmh:((isFinite(rawSpeed)&&rawSpeed>=0)?rawSpeed*3.6:NaN);
+    const speedKmh=isFinite(providerKmh)?providerKmh:((isNative&&isFinite(nativeStoredKmh)&&nativeStoredKmh>=0)?nativeStoredKmh:((isFinite(rawSpeed)&&rawSpeed>=0)?rawSpeed*3.6:NaN));
     const speedAccuracyRaw=Number(pos.speedAccuracyMps);
     const speedAccuracyMps=isFinite(speedAccuracyRaw)&&speedAccuracyRaw>=0?speedAccuracyRaw:NaN;
 
@@ -2132,7 +2133,7 @@ const GPS = {
     const point={
       lat,lng,
       speedKmh:0,
-       providerSpeedKmh:isFinite(providerKmh)?providerKmh:(isNative&&isFinite(speedKmh)?speedKmh:NaN),
+       providerSpeedKmh:isFinite(providerKmh)?providerKmh:NaN,
       speedAccuracyMps,
       displaySpeedKmh:0,
       accuracy:isFinite(accuracy)?accuracy:0,
