@@ -29,7 +29,11 @@ CURRENT KNOWN FIXES
 - OCR uses native Camera/Photos on native builds and the same analyzeReceipt() backend path.
 - TripPoints are server-side buffered for native background GPS and merged into the saved Trip.
 - TripPoints are the authoritative route store at save time; client-side upload is used only for points not yet present on the server, preventing duplicate route writes.
-- GPS speed prefers the native/provider GNSS speed when physically consistent and falls back to Haversine segment speed.
+- Android native GPS passes provider speed plus speed-accuracy metadata through RHTrackingService -> RHTrackingPlugin -> JavaScript. A provider speed is accepted only when the OS accuracy estimate is reliable and two consecutive fixes support movement.
+- Coordinate-only fallback requires coherent movement over multiple GPS points beyond an accuracy-scaled noise radius; isolated GPS jitter / one-off position jumps must not create speed, distance, or moving time.
+- Trip elapsed duration now comes from the Start/Stop wall clock, not the timestamp of the last GPS fix, so stationary periods and GPS pauses do not freeze the timer.
+- Android SQLite tracking DB migrates from schema v1 to v2 and persists provider-speed confidence locally; existing installs are upgraded automatically.
+- Run `npm run gps:verify` before building to check stationary jitter, isolated GPS drift, sub-threshold speed, native speed, coordinate-only motion, timer, and native-to-sync wiring. It complements—not replaces—a real-device road test.
 - The pinned @capgo/background-geolocation version is 8.4.5. Native preparation applies a reproducible iOS 17+ CLBackgroundActivitySession patch for locked-screen background delivery.
 
 IMPORTANT
