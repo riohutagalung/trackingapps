@@ -138,8 +138,9 @@ public class RHTrackingService extends Service {
                 Priority.PRIORITY_HIGH_ACCURACY, 1000L)
                 .setMinUpdateIntervalMillis(500L)
                 .setMaxUpdateDelayMillis(2000L)
-                .setMinUpdateDistanceMeters(2f)
-                .setWaitForAccurateLocation(false)
+                .setMaxUpdateAgeMillis(0L)
+                .setMinUpdateDistanceMeters(1f)
+                .setWaitForAccurateLocation(true)
                 .build();
 
         fused.requestLocationUpdates(request, callback, Looper.getMainLooper());
@@ -161,33 +162,41 @@ public class RHTrackingService extends Service {
         double accuracy = l.hasAccuracy() ? l.getAccuracy() : 0;
         if (accuracy > 75) return;
 
-        double providerSpeedKmh = l.hasSpeed() ? Math.max(0, l.getSpeed() * 3.6) : 0;
+        double providerSpeedKmh = l.hasSpeed() ? Math.max(0, l.getSpeed() * 3.6) : -1;
+        double speedAccuracyMps = -1;
+        if (Build.VERSION.SDK_INT >= 26 && l.hasSpeedAccuracy()) {
+            speedAccuracyMps = Math.max(0, l.getSpeedAccuracyMetersPerSecond());
+        }
+        boolean trustedProviderSpeed = providerSpeedKmh >= 3.0
+                && providerSpeedKmh <= MAX_PLAUSIBLE_SEGMENT_SPEED_KMH
+                && accuracy > 0 && accuracy <= 35
+                && speedAccuracyMps >= 0 && speedAccuracyMps <= 1.5;
 
-        // Derive speed from coordinates rather than blindly trusting cached GNSS
-        // speed. Reject impossible, short-interval jumps before writing to SQLite.
-        // Crucially, do not advance lastSavedLocation for a rejected outlier:
-        // the next good fix is still compared with the last accepted position.
-        double storedSpeedKmh = 0;
+        // Keep two separate signals: the OS velocity (which may use GNSS Doppler)
+        // and coordinate displacement. A one-off location wobble is not speed.
+        // Crucially, don't advance the reference location for an impossible jump.
+        double coordinateSpeedKmh = 0;
         if (lastSavedLocation != null) {
             long previousTime = lastSavedLocation.getTime() > 0 ? lastSavedLocation.getTime() : t;
             long dtMs = t - previousTime;
             if (dtMs <= 0) return;
 
             float meters = lastSavedLocation.distanceTo(l);
-            if (dtMs <= 90000L && meters >= 10f) {
-                double coordinateSpeed = meters * 3.6 / (dtMs / 1000.0);
-                if (coordinateSpeed > MAX_PLAUSIBLE_SEGMENT_SPEED_KMH) {
-                    return;
-                }
-                if (coordinateSpeed >= 3.0) storedSpeedKmh = coordinateSpeed;
+            double previousAccuracy = lastSavedLocation.hasAccuracy() ? lastSavedLocation.getAccuracy() : 0;
+            double movementThreshold = Math.max(8.0, Math.min(18.0, Math.max(previousAccuracy, accuracy) * 1.05));
+            if (dtMs <= 90000L && meters >= movementThreshold) {
+                double candidate = meters * 3.6 / (dtMs / 1000.0);
+                if (candidate > MAX_PLAUSIBLE_SEGMENT_SPEED_KMH) return;
+                if (dtMs <= 8000L && candidate >= 3.0) coordinateSpeedKmh = candidate;
             }
         }
+        double storedSpeedKmh = trustedProviderSpeed ? providerSpeedKmh : coordinateSpeedKmh;
 
         Double bearing = l.hasBearing() ? (double) l.getBearing() : null;
         Double altitude = l.hasAltitude() ? l.getAltitude() : null;
 
         TrackingDb.get(this).insert(tripId, t, l.getLatitude(), l.getLongitude(),
-                accuracy, storedSpeedKmh, bearing, altitude);
+                accuracy, storedSpeedKmh, providerSpeedKmh, speedAccuracyMps, bearing, altitude);
 
         Intent i = new Intent(RHTrackingPlugin.ACTION_LOCATION);
         i.setPackage(getPackageName());
@@ -197,6 +206,7 @@ public class RHTrackingService extends Service {
         i.putExtra("accuracy", accuracy);
         i.putExtra("speedKmh", storedSpeedKmh);
         i.putExtra("providerSpeedKmh", providerSpeedKmh);
+        i.putExtra("speedAccuracyMps", speedAccuracyMps);
         i.putExtra("time", t);
         if (bearing != null) i.putExtra("bearing", bearing);
         if (altitude != null) i.putExtra("altitude", altitude);
