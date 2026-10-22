@@ -79,6 +79,10 @@ assert(html.includes('const wallEnd=Number(endMs)||(this.active?Date.now():Numbe
 assert(html.includes('const elapsedSeconds=this.start?Math.max(0,Math.floor(((this.active?Date.now():(this.end||Date.now()))-this.start)/1000))'),
   'live trip timer must use wall clock');
 assert(html.includes('RHTrustedProviderSpeed'), 'provider speed accuracy filter must exist');
+assert(html.includes('if(!isFinite(accuracy)||accuracy<=0||accuracy>35) return 0;'),
+  'provider speed must require a real, non-zero horizontal accuracy');
+assert(html.includes('providerSpeedKmh:isFinite(providerRaw)&&providerRaw>=0?providerRaw:NaN,'),
+  'coordinate-derived stored speed must never masquerade as provider GNSS speed');
 console.log('PASS wall-clock timer and speed-quality gates');
 
 const service = read('android/app/src/main/java/com/rhhabits/app/RHTrackingService.java');
