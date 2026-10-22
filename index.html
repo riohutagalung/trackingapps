@@ -2482,6 +2482,82 @@ const OCR = {
         note:String(serverParsed.note||'').trim()
       };
 
+      // Recovery layer: the raw OCR text is the source of truth when an older
+      // Apps Script deployment returns a corrupted amount or a blank recipient.
+      // Parse explicit currency tokens locally before trusting serverParsed.amount.
+      const ocrLines=rawText.split(/\r?\n/).map(x=>String(x||'').replace(/[\u00a0\t]+/g,' ').replace(/\s{2,}/g,' ').trim()).filter(Boolean);
+      const amountMetadataLine=/\b(?:rrn|reference(?:\s*(?:no|number))?|transaction\s*id|terminal\s*id|merchant\s*(?:id|pan)|customer\s*pan|acquirer|source\s+of\s+fund|account|rekening|phone|telepon|merchant\s+location)\b/i;
+      let rawAmountChoice=null;
+      for(let li=0;li<ocrLines.length;li++){
+        const line=ocrLines[li];
+        if(amountMetadataLine.test(line))continue;
+        const moneyMatches=[...line.matchAll(/(?:\bIDR\b|\bRUPIAH\b|\bRP\.?)\s*([0-9][0-9.,]*)/gi)];
+        for(const mm of moneyMatches){
+          const token=String(mm[1]||'').trim();
+          const value=this.parseMoneyToken(token,line);
+          if(!(Number.isFinite(value)&&value>0&&value<=500000000))continue;
+          let score=50;
+          if(/\b(?:grand\s+total|total\s+payment|total\s+paid|total|amount|nominal|jumlah|paid|dibayar)\b/i.test(line))score+=100;
+          if(/\b(?:qr.?is\s+payment\s+successful|payment\s+successful|transaction\s+successful)\b/i.test(line))score-=20;
+          if(mm[0])score+=10;
+          if(!rawAmountChoice||score>rawAmountChoice.score)rawAmountChoice={value,score,token: mm[0],line};
+        }
+      }
+      if(rawAmountChoice){
+        const numericToken=String(rawAmountChoice.token).replace(/^(?:IDR|RUPIAH|RP\.?)\s*/i,'').replace(/[^0-9.,-]/g,'');
+        const separatorless=/^\d{7,}$/.test(numericToken);
+        p.amountText=rawAmountChoice.token;
+        p.amountLine=rawAmountChoice.line;
+        p.amount=separatorless?0:Math.round(rawAmountChoice.value);
+        // A separatorless 7+ digit IDR value is unknowable from digits alone:
+        // never silently treat e.g. 2720000 as Rp2.720.000 or Rp27.200.
+        p.amountNeedsVisualCheck=separatorless;
+      }else if(p.amountText){
+        const tokenValue=this.parseMoneyToken(p.amountText,p.amountLine||p.amountText);
+        const numericToken=String(p.amountText).replace(/^(?:IDR|RUPIAH|RP\.?)\s*/i,'').replace(/[^0-9.,-]/g,'');
+        p.amountNeedsVisualCheck=/^\d{7,}$/.test(numericToken);
+        p.amount=p.amountNeedsVisualCheck?0:(tokenValue>0?Math.round(tokenValue):Number(p.amount||0));
+      }else if(p.amountNeedsVisualCheck){
+        p.amount=0;
+      }
+
+      // Prefer an explicitly labelled Payment to / Paid to target over any
+      // stale bank/app value returned by an older Apps Script deployment.
+      const isTargetMetadata=line=>/^(?:acquirer|rrn|reference|reference\s*no\.?|transaction\s*type|transaction\s*id|terminal\s*id|merchant\s*(?:pan|id)|customer\s*pan|source\s+of\s+fund|total\s+payment|merchant\s+location|payment\s+method|date|tanggal|status|idr\s*\d|rp\.?\s*\d)/i.test(String(line||'').trim());
+      const tidyTarget=value=>String(value||'').replace(/^[\s:|>]+|[\s:|>]+$/g,'').replace(/\s{2,}/g,' ').trim();
+      const extractExplicitTarget=()=>{
+        const label=/^(?:payment\s*to|paid\s*to|pay\s*to|payee|recipient|payment\s+recipient|transfer\s+to|sent\s+to|nama\s+merchant)\s*[:=>\-]?\s*(.*)$/i;
+        for(let i=0;i<ocrLines.length;i++){
+          const match=ocrLines[i].match(label);
+          if(!match)continue;
+          let pieces=[];
+          const inline=tidyTarget(match[1]);
+          if(inline&&!isTargetMetadata(inline))pieces.push(inline);
+          for(let j=i+1;j<Math.min(ocrLines.length,i+4)&&pieces.length<2;j++){
+            const next=tidyTarget(ocrLines[j]);
+            if(!next)continue;
+            if(isTargetMetadata(next))break;
+            if(/^(?:BANK\s+)?(?:BCA|BANK CENTRAL ASIA|BRI|BRIMO|BNI|MANDIRI|BANK MANDIRI|CIMB|ACQUIRER|ACQUIRER BANK)$/i.test(next))break;
+            if(pieces.length===0&&/[A-Za-zÀ-ÿ]{3,}/.test(next))pieces.push(next);
+            else if(pieces.length&&/^(?:\d{2}\.\d{4,6}|\d{2,8}-\d{1,4})$/.test(next)&&/\b(?:SPBU|PERTAMINA|SHELL|VIVO)\b/i.test(pieces.join(' ')))pieces.push(next);
+            else break;
+          }
+          const candidate=pieces.join(' ').replace(/\s{2,}/g,' ').trim();
+          if(candidate&&/[A-Za-zÀ-ÿ]{3,}/.test(candidate)&&!isTargetMetadata(candidate))return candidate;
+        }
+        return '';
+      };
+      const explicitTarget=extractExplicitTarget();
+      if(explicitTarget){
+        p.recipient=explicitTarget;
+        p.brand=explicitTarget;
+        p.brandSource='recipient';
+        if(/\b(?:spbu|pertamina|shell|vivo)\b/i.test(explicitTarget))p.category='Bensin';
+        if(/\bqris\b/i.test(rawText))p.detail='Pembayaran QRIS ke '+explicitTarget;
+        else if(!p.detail||/^(?:bca|bri|bni|mandiri|cimb|qris|payment|transfer)$/i.test(p.detail))p.detail='Pembayaran ke '+explicitTarget;
+        p.note='Ke: '+explicitTarget+(/\bqris\b/i.test(rawText)?' • QRIS':'');
+      }
+
       // OCR result is authoritative for the scanned transaction. Never keep
       // an old Brand/Detail/Note from a previous scan when the new parser says blank.
       ['exp-amount','exp-date','exp-brand','exp-detail','exp-note','exp-receipt-url'].forEach(id=>{
