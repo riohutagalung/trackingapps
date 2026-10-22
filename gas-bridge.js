@@ -1,7 +1,8 @@
 /** RH Habits RPC bridge — browser + Capacitor use the same Vercel endpoint. */
 (function(){
   'use strict';
-  var RPC_URL='/api/rpc';\n  var BRIDGE_VERSION='20261022-r11';
+  var RPC_URL='/api/rpc';
+  var BRIDGE_VERSION='20261022-r11';
   var NATIVE_RPC_URL='https://rhhabits.vercel.app/api/rpc';
   function endpoint(){try{return window.Capacitor?.isNativePlatform?.()?NATIVE_RPC_URL:RPC_URL;}catch(e){return RPC_URL;}}
   function callRpc(fn,args,handlers){
