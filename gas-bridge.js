@@ -1,7 +1,7 @@
 /** RH Habits RPC bridge — browser + Capacitor use the same Vercel endpoint. */
 (function(){
   'use strict';
-  var RPC_URL='/api/rpc';
+  var RPC_URL='/api/rpc';\n  var BRIDGE_VERSION='20261022-r11';
   var NATIVE_RPC_URL='https://rhhabits.vercel.app/api/rpc';
   function endpoint(){try{return window.Capacitor?.isNativePlatform?.()?NATIVE_RPC_URL:RPC_URL;}catch(e){return RPC_URL;}}
   function callRpc(fn,args,handlers){
@@ -9,7 +9,21 @@
     var timeout=setTimeout(function(){if(controller)controller.abort();},30000);
     fetch(endpoint(),{method:'POST',credentials:'omit',cache:'no-store',signal:controller?controller.signal:undefined,headers:{'Accept':'application/json','Content-Type':'application/json'},body:JSON.stringify({fn:fn,args:Array.isArray(args)?args:[]})})
       .then(function(res){return res.text().then(function(text){var payload=null;try{payload=text?JSON.parse(text):null;}catch(e){} if(!res.ok)throw new Error(payload?.error||('HTTP '+res.status+' dari /api/rpc')); if(!payload)throw new Error('Respons RPC bukan JSON yang valid.'); return payload;});})
-      .then(function(payload){if(payload?.ok){if(handlers.success)handlers.success(payload.result,handlers.userObject);}else{var e=new Error(payload?.error||'RPC gagal.');if(handlers.failure)handlers.failure(e,handlers.userObject);}})
+      .then(function(payload){
+        if(!payload || payload.ok!==true){
+          var e=new Error(payload?.error||'RPC gagal.');
+          if(handlers.failure)handlers.failure(e,handlers.userObject);
+          return;
+        }
+        // Backward compatibility for the old Vercel -> Apps Script double
+        // envelope: {ok:true,result:{ok:true,result:<actual data>}}.
+        // The current endpoint returns {ok:true,result:<actual data>}.
+        var result=payload.result;
+        if(result && result.ok===true && Object.prototype.hasOwnProperty.call(result,'result')){
+          result=result.result;
+        }
+        if(handlers.success)handlers.success(result,handlers.userObject);
+      })
       .catch(function(err){var msg=err?.name==='AbortError'?'Request timeout (30 detik).':(err?.message||String(err));if(handlers.failure)handlers.failure(new Error(msg),handlers.userObject);else console.error('[RH RPC] '+fn+': '+msg);})
       .finally(function(){clearTimeout(timeout);});
   }
@@ -17,5 +31,5 @@
   window.google=window.google||{};window.google.script=window.google.script||{};window.google.script.run=makeRunner({});
 
 
-  window.RHBridge={rpc:callRpc,endpoint:endpoint};
+  window.RHBridge={rpc:callRpc,endpoint:endpoint,version:BRIDGE_VERSION};\n  console.info('[RH Bridge] '+BRIDGE_VERSION);
 })();
