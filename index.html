@@ -1846,11 +1846,11 @@ function RHGpsWindowEvidence(points, index, noiseRadiusM) {
   for(let j=first+1;j<=index;j++){
     const d=Haversine(points[j-1].lat,points[j-1].lng,points[j].lat,points[j].lng)*1000;
     pathMeters+=d;
-    if(d>=Math.max(1.5,noiseRadiusM*0.22)) segments++;
+    if(d>=Math.max(2.5,noiseRadiusM*0.30)) segments++;
   }
   const required=Math.max(RH_GPS_CFG.movementDistanceM,Math.min(18,noiseRadiusM*1.2));
   const coherent=pathMeters>0 && netMeters/pathMeters>=0.68;
-  const moving=netMeters>=required && segments>=2 && coherent;
+  const moving=netMeters>=required && segments>=3 && coherent;
   const speedKmh=moving&&dt>0?netMeters*3.6/dt:0;
   return {moving,speedKmh,netMeters,pathMeters,segments};
 }
@@ -1884,7 +1884,11 @@ function RHFilterGpsTrack(points, vehicle) {
     const noiseRadius=Math.max(RH_GPS_CFG.stationaryRadiusM,Math.min(22,Math.max(prevAcc,acc)*1.05));
     const segmentSpeed=dt>0?dMeters*3.6/dt:0;
     const evidence=RHGpsWindowEvidence(src,i,noiseRadius);
-    const providerSpeed=RHTrustedProviderSpeed(p,speedCap);
+    const providerCandidate=RHTrustedProviderSpeed(p,speedCap);
+    const previousProviderCandidate=RHTrustedProviderSpeed(previous,speedCap);
+    // Require two consecutive reliable OS speed fixes to avoid one noisy
+    // velocity sample starting a trip while the phone sits still.
+    const providerSpeed=providerCandidate>0&&previousProviderCandidate>0?providerCandidate:0;
     const coordinateMotion=evidence.moving && evidence.speedKmh>=RH_GPS_CFG.movingSpeedKmh &&
       evidence.speedKmh<=speedCap && dt<=RH_GPS_CFG.maxGapForMovingS;
     const confirmed=providerSpeed>0 || coordinateMotion;
@@ -2341,7 +2345,7 @@ const GPS = {
     const qEl=document.getElementById('gps-quality');
     if(qEl){
       const acc=last&&Number(last.accuracy);
-      if(isFinite(acc)){
+      if(isFinite(acc)&&acc>0){
         qEl.textContent=acc<=15?'GPS kuat • ±'+Math.round(acc)+' m':acc<=40?'GPS baik • ±'+Math.round(acc)+' m':'GPS lemah • ±'+Math.round(acc)+' m';
         qEl.className='gps-quality '+(acc<=40?'good':'warn');
       }else{
