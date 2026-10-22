@@ -1933,7 +1933,7 @@ function RHComputeGpsMetrics(points, startMs, endMs, vehicle) {
         const dMeters = Haversine(prev.lat, prev.lng, p.lat, p.lng) * 1000;
         const acc = Number(p.accuracy)||0;
         const jitter = Math.max(RH_GPS_CFG.stationaryRadiusM, Math.min(22, acc*1.05));
-        const minSegment=p.providerSpeedTrusted?2.5:jitter;
+        const minSegment=(p.providerSpeedTrusted||p.movementConfirmed)?2.5:jitter;
         if(dMeters>minSegment) distance += dMeters/1000;
         movingMs += dt*1000;
         wasMoving = true;
