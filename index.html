@@ -3588,8 +3588,21 @@ const Trip = {
 
     const vehicle = trip.vehicle || GPS.currentVehicle();
     let track = [];
-    try { track = RHFilterGpsTrack(points, vehicle); }
-    catch (e) { console.warn('[RH map] point filtering failed:', e); track = this.normalizeMapPoints(points); }
+    try {
+      const filtered = RHFilterGpsTrack(points, vehicle);
+      const movingPoints = filtered.filter(p => p.moving === true || p.movementConfirmed === true || p.providerSpeedTrusted === true);
+      if (movingPoints.length) {
+        // Keep the route anchor and only fixes belonging to confirmed movement.
+        // Stationary GPS drift must not turn into a false line or endpoint tail.
+        track = filtered.length ? [filtered[0]] : [];
+        for (let i = 1; i < filtered.length; i++) {
+          const p = filtered[i];
+          if (p.moving === true || p.movementConfirmed === true || p.providerSpeedTrusted === true || p.gapAfterPrevious === true) track.push(p);
+        }
+      } else {
+        track = filtered.length ? [filtered[0]] : [];
+      }
+    } catch (e) { console.warn('[RH map] point filtering failed:', e); track = this.normalizeMapPoints(points); }
 
     if (track.length < 2) {
       el.textContent = 'Titik GPS berkualitas belum cukup untuk menggambar rute.';
