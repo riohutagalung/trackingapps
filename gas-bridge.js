@@ -32,5 +32,6 @@
   window.google=window.google||{};window.google.script=window.google.script||{};window.google.script.run=makeRunner({});
 
 
-  window.RHBridge={rpc:callRpc,endpoint:endpoint,version:BRIDGE_VERSION};\n  console.info('[RH Bridge] '+BRIDGE_VERSION);
+  window.RHBridge={rpc:callRpc,endpoint:endpoint,version:BRIDGE_VERSION};
+  console.info('[RH Bridge] '+BRIDGE_VERSION);
 })();
