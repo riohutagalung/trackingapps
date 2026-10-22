@@ -1,0 +1,101 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
+const root = process.cwd();
+function read(relative) {
+  return fs.readFileSync(path.join(root, relative), 'utf8');
+}
+function assert(condition, message) {
+  if (!condition) throw new Error('[GPS VERIFY] FAIL: ' + message);
+}
+function approx(actual, expected, tolerance) {
+  return Math.abs(actual - expected) <= tolerance;
+}
+function Haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const toRad = x => x * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+  const z = Math.sin(dLat / 2) ** 2
+    + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(z), Math.sqrt(1 - z));
+}
+const html = read('index.html');
+const start = html.indexOf('const RH_GPS_CFG = Object.freeze({');
+const end = html.indexOf('const GPS = {', start);
+assert(start >= 0 && end > start, 'GPS filtering block exists in index.html');
+const logic = html.slice(start, end);
+const gps = new Function('Haversine', logic + '; return {RHFilterGpsTrack, RHComputeGpsMetrics};')(Haversine);
+
+function points(offsets, options = {}) {
+  const lat0 = -6.25, lng0 = 106.75;
+  const longitudeScale = 111320 * Math.cos(lat0 * Math.PI / 180);
+  return offsets.map((offset, index) => ({
+    lat: lat0,
+    lng: lng0 + offset / longitudeScale,
+    time: 1700000000000 + index * (options.intervalMs || 1000),
+    accuracy: options.accuracy ?? 5,
+    source: options.source || 'browser',
+    ...(Number.isFinite(options.providerSpeedKmh) ? {providerSpeedKmh: options.providerSpeedKmh} : {}),
+    ...(Number.isFinite(options.speedAccuracyMps) ? {speedAccuracyMps: options.speedAccuracyMps} : {})
+  }));
+}
+function metrics(input, startOffsetMs = 0) {
+  return gps.RHComputeGpsMetrics(input, input[0].time - startOffsetMs, input.at(-1).time, 'Motor');
+}
+function checkStationary(name, input) {
+  const m = metrics(input, 60000);
+  assert(m.distanceKm === 0, name + ': stationary distance must stay at zero');
+  assert(m.currentSpeedKmh === 0, name + ': stationary current speed must stay at zero');
+  assert(m.avgSpeedKmh === 0, name + ': stationary average speed must stay at zero');
+  assert(m.maxSpeedKmh === 0, name + ': stationary max speed must stay at zero');
+  assert(m.movingTimeMin === 0, name + ': stationary moving time must stay at zero');
+  assert(m.durationMin > 1, name + ': elapsed wall-clock duration must still advance');
+  console.log('PASS', name);
+}
+checkStationary('stationary GPS jitter', points([0,2,-2,3,-1,4,2,1,5,3,6,4,2,0,3,2]));
+checkStationary('single 20 m GPS drift then stationary', points([0,0,0,0,20,20,20.4,19.8,20.2,20.1,20.4,20,20.2,20.1,20.3,20.1]));
+checkStationary('weak 0.7 km/h provider speed while stationary',
+  points(Array(20).fill(0), {source:'native-android',accuracy:4,providerSpeedKmh:0.7,speedAccuracyMps:0.2}));
+
+const providerMove = points(Array.from({length:30}, (_,i) => i * 6), {
+  source:'native-android', accuracy:4, providerSpeedKmh:21.6, speedAccuracyMps:0.4
+});
+const pm = metrics(providerMove, 60000);
+assert(pm.distanceKm > 0.15, 'provider-speed route distance must accrue');
+assert(approx(pm.avgSpeedKmh,21.6,1.5), 'provider speed average must stay plausible');
+assert(approx(pm.maxSpeedKmh,21.6,1.5), 'provider speed max must stay plausible');
+assert(pm.movingTimeMin > 0, 'real movement must accumulate moving time');
+console.log('PASS reliable Android/provider speed');
+
+const coordinateMove = points(Array.from({length:30}, (_,i) => i * 4), {accuracy:5});
+const cm = metrics(coordinateMove, 60000);
+assert(cm.distanceKm > 0.08, 'coordinate-only route must accrue distance after confirmed movement');
+assert(cm.maxSpeedKmh > 10 && cm.maxSpeedKmh < 20, 'coordinate-only speed must be in a plausible range');
+assert(cm.movingTimeMin > 0, 'coordinate-only movement must accumulate moving time');
+console.log('PASS coordinate-only movement fallback');
+
+assert(html.includes('const wallEnd=Number(endMs)||(this.active?Date.now():Number(this.end)||lastPointTime)'),
+  'metrics duration must use trip start/stop wall clock');
+assert(html.includes('const elapsedSeconds=this.start?Math.max(0,Math.floor(((this.active?Date.now():(this.end||Date.now()))-this.start)/1000))'),
+  'live trip timer must use wall clock');
+assert(html.includes('RHTrustedProviderSpeed'), 'provider speed accuracy filter must exist');
+console.log('PASS wall-clock timer and speed-quality gates');
+
+const service = read('android/app/src/main/java/com/rhhabits/app/RHTrackingService.java');
+const plugin = read('android/app/src/main/java/com/rhhabits/app/RHTrackingPlugin.java');
+const db = read('android/app/src/main/java/com/rhhabits/app/TrackingDb.java');
+const api = read('api/native-location.js');
+assert(service.includes('hasSpeedAccuracy()') && service.includes('getSpeedAccuracyMetersPerSecond()'),
+  'Android OS speed accuracy must be read');
+assert(service.includes('setMaxUpdateAgeMillis(0L)'), 'Android must not start from a stale cached fix');
+assert(plugin.includes('out.put("providerSpeedKmh"') && plugin.includes('out.put("speedAccuracyMps"'),
+  'native speed metadata must reach JavaScript');
+assert(db.includes('DB_VERSION = 2') && db.includes('ALTER TABLE points ADD COLUMN speed_accuracy_mps'),
+  'SQLite v1 to v2 migration must exist');
+assert(db.includes('o.put("providerSpeedKmh"') && db.includes('o.put("speedAccuracyMps"'),
+  'native speed metadata must persist locally and sync');
+assert(api.includes('providerSpeedKmh:Number.isFinite') && api.includes('speedAccuracyMps:Number.isFinite'),
+  'native GPS proxy must preserve speed confidence');
+console.log('PASS Android → plugin → SQLite → sync pipeline');
+
+console.log('[GPS VERIFY] All deterministic checks passed. Physical-device road test is still required.');
