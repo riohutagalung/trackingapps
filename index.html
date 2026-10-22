@@ -1803,7 +1803,7 @@ function RHNormalizeGpsPoints(points) {
     const speedAccuracy=Number(p.speedAccuracyMps);
     out.push({
       lat,lng,time,accuracy:isFinite(acc)&&acc>0?acc:0,
-      providerSpeedKmh:isFinite(providerRaw)&&providerRaw>=0?providerRaw:(isFinite(speedRaw)&&speedRaw>=0&&/native/i.test(String(p.source||''))?speedRaw:NaN),
+      providerSpeedKmh:isFinite(providerRaw)&&providerRaw>=0?providerRaw:NaN,
       speedAccuracyMps:isFinite(speedAccuracy)&&speedAccuracy>=0?speedAccuracy:NaN,
       bearing:Number(p.bearing),
       altitude:Number(p.altitude),
