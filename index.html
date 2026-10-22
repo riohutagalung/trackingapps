@@ -1830,7 +1830,7 @@ function RHTrustedProviderSpeed(p, speedCap) {
   // Only trust it when the OS also reports a reasonably tight speed-accuracy
   // estimate; values below 3 km/h are treated as stationary for a motor trip.
   if(speed < RH_GPS_CFG.movingSpeedKmh || speed > Math.min(speedCap,RH_GPS_CFG.maxProviderSpeedKmh)) return 0;
-  if(!isFinite(accuracy)||accuracy>35) return 0;
+  if(!isFinite(accuracy)||accuracy<=0||accuracy>35) return 0;
   if(!isFinite(speedAccuracy)||speedAccuracy>1.5) return 0;
   return speed;
 }
