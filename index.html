@@ -2416,12 +2416,23 @@ const OCR = {
     document.getElementById('ocr-bar').style.width = '12%';
 
     const callAnalyze=(optimized)=>new Promise((resolve,reject)=>{
-      const success=(r)=>{
-        if(!r || !r.ok){
+      const success=(response)=>{
+        // Vercel /api/rpc historically returned its own {ok,result} envelope
+        // around the Apps Script {ok,result} envelope. The bridge removed only
+        // the outer envelope, leaving the actual OCR payload one level deeper.
+        // Unwrap only this known RPC envelope, then use one normalized contract.
+        let r=response, unwrapDepth=0;
+        while(r && r.ok===true && !r.text && !r.parsed &&
+              r.result && typeof r.result==='object' && unwrapDepth<3){
+          r=r.result;
+          unwrapDepth++;
+        }
+        if(!r || r.ok===false){
           const msg=(r&&r.error)||'OCR tidak menemukan teks atau gagal membaca.';
           reject(new Error(msg));
           return;
         }
+        if(unwrapDepth>0 && r && typeof r==='object')r={...r,__rhResponseUnwrapDepth:unwrapDepth};
         resolve(r);
       };
       const failure=(e)=>reject(e instanceof Error?e:new Error(String(e?.message||e||'OCR gagal.')));
@@ -2614,6 +2625,7 @@ const OCR = {
           if(p.amountLine)bits.push('Baris nominal: '+Esc(p.amountLine));
         }else if(p.amount)bits.push('Nominal: '+Money(p.amount));
         if(p.title)bits.push('Judul struk (metadata): '+Esc(p.title));
+        bits.push('Engine: RH OCR-IDR 2026-10-22-r2'+(r.__rhResponseUnwrapDepth?' • backend wrapper diperbaiki':''));
         if(p.category)bits.push('Kategori: '+Esc(p.category));
         if(p.detail)bits.push('Detail: '+Esc(p.detail));
         det.innerHTML=bits.join('<br>');
