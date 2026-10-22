@@ -2469,6 +2469,7 @@ const OCR = {
         mode:serverParsed.mode||'unknown',
         sourceApp:serverParsed.sourceApp||'',
         amount:Number(serverParsed.amount||0),
+        currency:String(serverParsed.currency||'IDR').toUpperCase(),
         amountNeedsVisualCheck:serverParsed.amountNeedsVisualCheck===true,
         amountText:String(serverParsed.amountText||'').trim(),
         amountLine:String(serverParsed.amountLine||'').trim(),
@@ -2517,7 +2518,13 @@ const OCR = {
         const numericToken=String(p.amountText).replace(/^(?:IDR|RUPIAH|RP\.?)\s*/i,'').replace(/[^0-9.,-]/g,'');
         p.amountNeedsVisualCheck=/^\d{7,}$/.test(numericToken);
         p.amount=p.amountNeedsVisualCheck?0:(tokenValue>0?Math.round(tokenValue):Number(p.amount||0));
-      }else if(p.amountNeedsVisualCheck){
+      }else if(p.amountNeedsVisualCheck || (String(p.currency||'IDR').toUpperCase()==='IDR' && p.amount>=1000000 && !p.amountText)){
+        // Fail closed if an older backend supplies a large amount without the
+        // original OCR token: there is no evidence to distinguish Rp27.200 from
+        // Rp2.720.000 after separators have vanished.
+        p.amountNeedsVisualCheck=true;
+        if(!p.amountText&&p.amount>0)p.amountText=String(Math.round(p.amount));
+        if(!p.amountLine)p.amountLine='Token nominal asli tidak dikembalikan oleh server';
         p.amount=0;
       }
 
