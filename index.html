@@ -2480,6 +2480,7 @@ const OCR = {
         mode:serverParsed.mode||'unknown',
         sourceApp:serverParsed.sourceApp||'',
         amount:Number(serverParsed.amount||0),
+        backendBuild:String(r.buildId||serverParsed.buildId||'').trim(),
         currency:String(serverParsed.currency||'IDR').toUpperCase(),
         amountNeedsVisualCheck:serverParsed.amountNeedsVisualCheck===true,
         amountText:String(serverParsed.amountText||'').trim(),
@@ -2625,7 +2626,8 @@ const OCR = {
           if(p.amountLine)bits.push('Baris nominal: '+Esc(p.amountLine));
         }else if(p.amount)bits.push('Nominal: '+Money(p.amount));
         if(p.title)bits.push('Judul struk (metadata): '+Esc(p.title));
-        bits.push('Engine: RH OCR-IDR 2026-10-22-r2'+(r.__rhResponseUnwrapDepth?' • backend wrapper diperbaiki':''));
+        bits.push('Frontend: RH OCR-IDR 2026-10-22-r3 • Bridge: '+String(window.RHBridge?.version||'bridge version tidak diketahui'));
+        bits.push('Backend: '+(p.backendBuild||'BUILD ID TIDAK TERKONFIRMASI — cek Apps Script deployment'));
         if(p.category)bits.push('Kategori: '+Esc(p.category));
         if(p.detail)bits.push('Detail: '+Esc(p.detail));
         det.innerHTML=bits.join('<br>');
