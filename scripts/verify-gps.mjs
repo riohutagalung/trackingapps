@@ -83,7 +83,9 @@ assert(html.includes('if(!isFinite(accuracy)||accuracy<=0||accuracy>35) return 0
   'provider speed must require a real, non-zero horizontal accuracy');
 assert(html.includes('providerSpeedKmh:isFinite(providerRaw)&&providerRaw>=0?providerRaw:NaN,'),
   'coordinate-derived stored speed must never masquerade as provider GNSS speed');
-console.log('PASS wall-clock timer and speed-quality gates');
+assert(html.includes('const movingPoints = filtered.filter(p => p.moving === true'),
+  'route map must exclude stationary GPS jitter points');
+console.log('PASS wall-clock timer, speed-quality gates, and movement-only map');
 
 const service = read('android/app/src/main/java/com/rhhabits/app/RHTrackingService.java');
 const plugin = read('android/app/src/main/java/com/rhhabits/app/RHTrackingPlugin.java');
