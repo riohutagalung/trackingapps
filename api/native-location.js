@@ -76,6 +76,8 @@ function normalizePoint(body,p){
     speedKmh:Number.isFinite(Number(source.speedKmh))
       ?Number(source.speedKmh)
       :(Number.isFinite(Number(source.speed))?Math.max(0,Number(source.speed)*3.6):0),
+    providerSpeedKmh:Number.isFinite(Number(source.providerSpeedKmh))?Number(source.providerSpeedKmh):-1,
+    speedAccuracyMps:Number.isFinite(Number(source.speedAccuracyMps))?Number(source.speedAccuracyMps):-1,
     bearing:Number.isFinite(Number(source.bearing))?Number(source.bearing):'',
     altitude:Number.isFinite(Number(source.altitude))?Number(source.altitude):'',
     time:Number.isFinite(Number(source.time))&&Number(source.time)>0?Number(source.time):Date.now(),

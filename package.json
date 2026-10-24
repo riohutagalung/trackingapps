@@ -6,6 +6,7 @@
     "cap:add:android": "npx cap add android",
     "cap:add:ios": "npx cap add ios",
     "native:prepare": "node scripts/setup-native.mjs",
+    "gps:verify": "node scripts/verify-gps.mjs",
     "cap:sync": "npm run native:prepare && npx cap sync",
     "cap:copy": "npm run native:prepare && npx cap copy",
     "cap:open:android": "npx cap open android",
