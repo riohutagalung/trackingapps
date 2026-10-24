@@ -78,7 +78,7 @@ console.log('PASS coordinate-only movement fallback');
 // Regression: native Android previously calculated a useful speedKmh fallback,
 // but the frontend normalizer dropped it. Exercise the full production filter at
 // road speeds without an OS provider-speed estimate.
-const native60 = points(Array.from({length:35}, (_,i) => i * (60 / 3.6), {
+const native60 = points(Array.from({length:35}, (_,i) => i * (60 / 3.6)), {
   source:'native-android', accuracy:4, speedKmh:60
 });
 const n60 = metrics(native60, 60000);
@@ -87,7 +87,7 @@ assert(n60.avgSpeedKmh >= 50 && n60.avgSpeedKmh <= 70, 'native 60 km/h average m
 assert(n60.maxSpeedKmh >= 50 && n60.maxSpeedKmh <= 70, 'native 60 km/h maximum must not collapse to low 20s');
 console.log('PASS native stored speed at 60 km/h');
 
-const native100 = points(Array.from({length:35}, (_,i) => i * (100 / 3.6), {
+const native100 = points(Array.from({length:35}, (_,i) => i * (100 / 3.6)), {
   source:'native-android', accuracy:4, speedKmh:100
 });
 const n100 = metrics(native100, 60000);
@@ -96,7 +96,7 @@ assert(n100.avgSpeedKmh >= 85 && n100.avgSpeedKmh <= 115, 'native 100 km/h avera
 assert(n100.maxSpeedKmh >= 85 && n100.maxSpeedKmh <= 115, 'native 100 km/h maximum must not be under-reported');
 console.log('PASS native stored speed at 100 km/h');
 
-const noStored60 = points(Array.from({length:35}, (_,i) => i * (60 / 3.6), {
+const noStored60 = points(Array.from({length:35}, (_,i) => i * (60 / 3.6)), {
   source:'native-android', accuracy:4, speedKmh:0
 });
 const ns60 = metrics(noStored60, 60000);
