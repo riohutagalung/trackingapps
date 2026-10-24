@@ -1803,6 +1803,9 @@ function RHNormalizeGpsPoints(points) {
     const speedAccuracy=Number(p.speedAccuracyMps);
     out.push({
       lat,lng,time,accuracy:isFinite(acc)&&acc>0?acc:0,
+      // Keep reported/Android-validated speed separate from provider GNSS speed.
+      // Android speedKmh can be a coordinate-derived fallback; providerSpeedKmh never is.
+      speedKmh:isFinite(speedRaw)&&speedRaw>=0?speedRaw:NaN,
       providerSpeedKmh:isFinite(providerRaw)&&providerRaw>=0?providerRaw:NaN,
       speedAccuracyMps:isFinite(speedAccuracy)&&speedAccuracy>=0?speedAccuracy:NaN,
       bearing:Number(p.bearing),
@@ -1835,6 +1838,15 @@ function RHTrustedProviderSpeed(p, speedCap) {
   return speed;
 }
 
+function RHRecordedGpsSpeed(p, speedCap) {
+  if(!p) return 0;
+  const speed=Number(p.speedKmh);
+  const accuracy=Number(p.accuracy);
+  if(!isFinite(speed)||speed<RH_GPS_CFG.movingSpeedKmh||speed>speedCap) return 0;
+  if(!isFinite(accuracy)||accuracy<=0||accuracy>35) return 0;
+  return speed;
+}
+
 function RHGpsWindowEvidence(points, index, noiseRadiusM) {
   const first=Math.max(0,index-4);
   if(index-first<2) return {moving:false,speedKmh:0,netMeters:0,pathMeters:0,segments:0};
@@ -1856,11 +1868,11 @@ function RHGpsWindowEvidence(points, index, noiseRadiusM) {
 }
 
 function RHFilterGpsTrack(points, vehicle) {
-  const src = RHNormalizeGpsPoints(points);
-  const speedCap = RHSpeedCapKmh(vehicle);
-  if (!src.length) return [];
-  const accepted = [];
-  let moving=false, stationarySince=null;
+  const src=RHNormalizeGpsPoints(points);
+  const speedCap=RHSpeedCapKmh(vehicle);
+  if(!src.length)return [];
+  const accepted=[];
+  let moving=false,stationarySince=null;
 
   for(let i=0;i<src.length;i++){
     const p=src[i];
@@ -1869,44 +1881,77 @@ function RHFilterGpsTrack(points, vehicle) {
       accepted.push({...p,filteredSpeedKmh:0,moving:false,movementConfirmed:false,providerSpeedTrusted:false});
       continue;
     }
+
     const dt=(p.time-previous.time)/1000;
-    if(!(dt>0)) continue;
-    if(p.gapAfterPrevious || dt>RH_GPS_CFG.maxGapForDistanceS){
-      moving=false;stationarySince=p.time;
+    if(!(dt>0))continue;
+    if(p.gapAfterPrevious||dt>RH_GPS_CFG.maxGapForDistanceS){
+      moving=false;
+      stationarySince=p.time;
       accepted.push({...p,filteredSpeedKmh:0,moving:false,movementConfirmed:false,providerSpeedTrusted:false,gapAfterPrevious:true});
       continue;
     }
 
     const dMeters=Haversine(previous.lat,previous.lng,p.lat,p.lng)*1000;
-    const prevAcc=Number(previous.accuracy)||0, acc=Number(p.accuracy)||0;
-    // Use accuracy as uncertainty, rather than a fixed 5 m cutoff. A 6 m
-    // shift can be plain GPS noise when the reported fix accuracy is ~8-10 m.
+    const prevAcc=Number(previous.accuracy)||0,acc=Number(p.accuracy)||0;
     const noiseRadius=Math.max(RH_GPS_CFG.stationaryRadiusM,Math.min(22,Math.max(prevAcc,acc)*1.05));
     const segmentSpeed=dt>0?dMeters*3.6/dt:0;
     const evidence=RHGpsWindowEvidence(src,i,noiseRadius);
+
+    // First choice: Android OS/GNSS velocity with a valid accuracy estimate.
     const providerCandidate=RHTrustedProviderSpeed(p,speedCap);
     const previousProviderCandidate=RHTrustedProviderSpeed(previous,speedCap);
-    // Require two consecutive reliable OS speed fixes to avoid one noisy
-    // velocity sample starting a trip while the phone sits still.
     const providerSpeed=providerCandidate>0&&previousProviderCandidate>0?providerCandidate:0;
-    const coordinateMotion=evidence.moving && evidence.speedKmh>=RH_GPS_CFG.movingSpeedKmh &&
-      evidence.speedKmh<=speedCap && dt<=RH_GPS_CFG.maxGapForMovingS;
-    const confirmed=providerSpeed>0 || coordinateMotion;
 
+    // Second choice: speed reported by the location provider, or Android's
+    // separately stored coordinate estimate. Require spatial corroboration so
+    // a single bad fix cannot create a fake maximum speed.
+    const reportedCandidate=RHRecordedGpsSpeed(p,speedCap);
+    const previousReported=RHRecordedGpsSpeed(previous,speedCap);
+    const coordinateMotion=evidence.moving&&evidence.speedKmh>=RH_GPS_CFG.movingSpeedKmh&&
+      evidence.speedKmh<=speedCap&&dt<=RH_GPS_CFG.maxGapForMovingS;
+    const segmentConsistent=dMeters>Math.max(3,noiseRadius*0.45)&&segmentSpeed>=RH_GPS_CFG.movingSpeedKmh&&
+      segmentSpeed<=speedCap&&Math.abs(reportedCandidate-segmentSpeed)<=Math.max(25,reportedCandidate*0.45);
+    const evidenceConsistent=evidence.moving&&evidence.speedKmh>=RH_GPS_CFG.movingSpeedKmh&&
+      Math.abs(reportedCandidate-evidence.speedKmh)<=Math.max(30,reportedCandidate*0.45);
+    const reportedPair=reportedCandidate>0&&previousReported>0&&dt<=RH_GPS_CFG.maxGapForMovingS&&
+      Math.abs(reportedCandidate-previousReported)<=Math.max(35,reportedCandidate*0.55);
+    const recordedSpeed=reportedCandidate>0&&
+      (segmentConsistent||evidenceConsistent||(reportedPair&&coordinateMotion))?reportedCandidate:0;
+
+    const confirmed=providerSpeed>0||coordinateMotion||recordedSpeed>0;
     if(confirmed){
-      moving=true;stationarySince=null;
+      moving=true;
+      stationarySince=null;
     }else if(moving){
-      if(stationarySince===null) stationarySince=p.time;
-      if(p.time-stationarySince>=3500) moving=false;
+      if(stationarySince===null)stationarySince=p.time;
+      if(p.time-stationarySince>=3500)moving=false;
     }
 
     let speed=0;
     if(moving){
-      if(providerSpeed>0) speed=providerSpeed;
-      else if(coordinateMotion) speed=evidence.speedKmh;
-      else if(dt<=3 && dMeters>noiseRadius && segmentSpeed>=RH_GPS_CFG.movingSpeedKmh && segmentSpeed<=speedCap) speed=segmentSpeed;
-      if(speed<RH_GPS_CFG.movingSpeedKmh) speed=0;
+      if(providerSpeed>0){
+        speed=providerSpeed;
+      }else if(recordedSpeed>0){
+        speed=recordedSpeed;
+      }else if(coordinateMotion){
+        // Once the multi-point path confirms movement, use the actual segment
+        // velocity when this fix has enough displacement; otherwise use the
+        // coherent multi-second GPS displacement. This keeps 60–100 km/h from
+        // being averaged down or silently converted to zero between fixes.
+        if(dMeters>noiseRadius*0.65&&segmentSpeed>=RH_GPS_CFG.movingSpeedKmh&&segmentSpeed<=speedCap){
+          speed=segmentSpeed;
+        }else{
+          speed=evidence.speedKmh;
+        }
+      }else{
+        const previousSpeed=Number(previous.filteredSpeedKmh)||0;
+        const corroboratedSegment=dt<=3&&dMeters>noiseRadius&&segmentSpeed>=RH_GPS_CFG.movingSpeedKmh&&
+          segmentSpeed<=speedCap&&previousSpeed>=RH_GPS_CFG.movingSpeedKmh&&
+          Math.abs(segmentSpeed-previousSpeed)<=Math.max(35,previousSpeed*0.7);
+        if(corroboratedSegment)speed=segmentSpeed;
+      }
     }
+    if(!isFinite(speed)||speed<RH_GPS_CFG.movingSpeedKmh)speed=0;
 
     accepted.push({
       ...p,
@@ -1996,9 +2041,38 @@ const GPS = {
     try{
       const raw=localStorage.getItem(this.storageKey); if(!raw)return;
       const x=JSON.parse(raw);
-      if(!x||!x.active||!x.start||!Array.isArray(x.points))return;
+      if(!x)return;
+      // If saving the previous trip failed or the app was closed at the summary
+      // screen, restore the pending summary instead of losing a completed trip.
+      if(x.pending&&x.pending.id){
+        const pendingTime=Date.parse(x.pending.startTime||'')||Number(x.start)||Number(x.savedAt)||0;
+        if(pendingTime>0&&Date.now()-pendingTime<=24*3600000){
+          const p=x.pending;
+          this.active=false;this.stopping=false;this.pending=p;
+          this.start=Date.parse(p.startTime||'')||Number(x.start)||Date.now();
+          this.end=Date.parse(p.endTime||'')||Date.now();
+          this.sessionId=String(p.id);this.points=this.dedupePoints(p.gpsPoints||x.points||[]);
+          this.nativeMode=this.isNative();this.updateButton(false);
+          document.getElementById('modal-distance').textContent=Num(p.distance,2)+' km';
+          document.getElementById('modal-duration').textContent=Num(p.durationMin,1)+' mnt';
+          document.getElementById('modal-avg').textContent=Num(p.avgSpeed,1)+' km/h';
+          document.getElementById('modal-max').textContent=Num(p.maxSpeed,1)+' km/h';
+          document.getElementById('trip-modal-sub').textContent=p.routeName||'Perjalanan GPS';
+          document.getElementById('modal-habit').innerHTML='<b>'+Icon('route',15)+' Habit &amp; route detection</b><span>Perjalanan belum dikonfirmasi tersimpan. Titik GPS tetap diamankan di perangkat.</span>';
+          document.getElementById('trip-modal').classList.add('active');
+          document.getElementById('trip-summary-point-count').textContent=this.points.length+' titik GPS dipulihkan';
+          document.getElementById('trip-summary-map-note').textContent='Memulihkan jalur GPS…';
+          setTimeout(()=>{try{Trip.renderSummaryMap(this.points,{id:this.sessionId,routeName:p.routeName,vehicle:p.vehicle||'Motor'});}catch(e){console.warn('[RH restored summary map]',e);}},300);
+          this.persist();
+          App.toast('Perjalanan sebelumnya belum dikonfirmasi tersimpan. Tekan Simpan untuk melanjutkan.');
+          return;
+        }
+        localStorage.removeItem(this.storageKey);
+        return;
+      }
+      if(!x.active||!x.start||!Array.isArray(x.points))return;
       if(Date.now()-Number(x.start)>12*3600000){localStorage.removeItem(this.storageKey);return;}
-      this.active=true;this.start=Number(x.start);this.sessionId=x.sessionId||('trip_'+Date.now());this.points=this.dedupePoints(x.points);this.lastNativeServerPoints=[];
+      this.active=true;this.start=Number(x.start);this.sessionId=x.sessionId||('trip_'+Date.now());this.points=this.dedupePoints(x.points);this.lastNativeServerPoints=[]; 
       this.nativeMode=this.isNative();this.updateButton(true);
       if(this.nativeMode&&window.RHNativeGPS){ await window.RHNativeGPS.start(this.sessionId); }
       else this.ensureWatch();
@@ -2013,7 +2087,12 @@ const GPS = {
     }catch(e){try{localStorage.removeItem(this.storageKey);}catch(_){} }
   },
   persist(){
-    try{localStorage.setItem(this.storageKey,JSON.stringify({active:this.active,start:this.start,sessionId:this.sessionId,points:this.points.slice(-2500),savedAt:Date.now()}));this.lastPersist=Date.now();}catch(e){}
+    try{
+      const state={active:this.active,start:this.start,end:this.end,sessionId:this.sessionId,points:this.points.slice(-5000),savedAt:Date.now()};
+      if(this.pending) state.pending={...this.pending,gpsPoints:(this.pending.gpsPoints||[]).slice(-5000)};
+      localStorage.setItem(this.storageKey,JSON.stringify(state));
+      this.lastPersist=Date.now();
+    }catch(e){console.warn('[RHGPS] local backup failed:',e);}
   },
   clearPersist(){try{localStorage.removeItem(this.storageKey);}catch(e){}},
   async requestWakeLock(){try{if('wakeLock' in navigator&&document.visibilityState==='visible'&&!this.wakeLock){this.wakeLock=await navigator.wakeLock.request('screen');this.wakeLock.addEventListener('release',()=>{this.wakeLock=null;});}}catch(e){}},
@@ -2132,8 +2211,8 @@ const GPS = {
 
     const point={
       lat,lng,
-      speedKmh:0,
-       providerSpeedKmh:isFinite(providerKmh)?providerKmh:NaN,
+      speedKmh:isFinite(speedKmh)&&speedKmh>=0?speedKmh:NaN,
+      providerSpeedKmh:isFinite(providerKmh)?providerKmh:NaN,
       speedAccuracyMps,
       displaySpeedKmh:0,
       accuracy:isFinite(accuracy)?accuracy:0,
@@ -2265,10 +2344,10 @@ const GPS = {
     const p=this.pending, sid=p.id, btn=document.querySelector('#trip-modal .btn.primary');
     if(btn)btn.disabled=true;
 
-    let syncResult={ok:true,remaining:0,tripIds:[]};
+    let syncResult=null;
     try{
-      if(GPS.nativeMode) syncResult=await window.RHNativeGPS.sync?.()||syncResult;
-    }catch(e){ console.warn('[RHGPS] final native sync:',e); }
+      if(GPS.nativeMode) syncResult=await window.RHNativeGPS.sync?.()||null;
+    }catch(e){ console.warn('[RHGPS] final native sync; keeping local GPS backup:',e); }
 
     const payload={
       id:sid,date:p.date,origin:p.origin,destination:p.destination,routeName:p.routeName,
@@ -2286,16 +2365,25 @@ const GPS = {
 
     const save=()=>google.script.run.withSuccessHandler(async()=>{
       if(GPS.nativeMode){
-        const left=Number(syncResult?.remaining||0);
-        if(left===0){
-          try{ await window.RHNativeGPS.clearTrip?.(sid); }catch(e){}
-          try{ google.script.run.withFailureHandler(()=>{}).deleteNativeTripPoints(sid); }catch(_){}
-          App.toast('Perjalanan + jalur GPS tersimpan ke Google Sheets.');
+        let serverPointCount=0;
+        try{
+          serverPointCount=await new Promise(resolve=>{
+            google.script.run.withSuccessHandler(rows=>resolve(Array.isArray(rows)?rows.length:0))
+              .withFailureHandler(()=>resolve(0)).getNativeTripPoints(sid);
+          });
+        }catch(e){serverPointCount=0;}
+        const syncConfirmed=!!syncResult&&syncResult.ok===true&&Number(syncResult.remaining||0)===0;
+        if(syncConfirmed&&serverPointCount>=2){
+          try{await window.RHNativeGPS.clearTrip?.(sid);}catch(e){}
+          // Keep server TripPoints: history map (getTripGpsPoints) depends on them.
+          App.toast('Perjalanan dan jalur GPS tersimpan ke riwayat.');
         }else{
-          App.toast('Ringkasan perjalanan tersimpan. Jalur GPS masih tersimpan di HP dan akan disinkronkan saat koneksi tersedia.');
+          // A summary can be saved while the route sync is offline. Keep SQLite
+          // points for retry; do not delete either local or server route data.
+          App.toast('Ringkasan tersimpan. Jalur GPS belum terverifikasi di server, jadi data tetap diamankan di HP untuk sinkronisasi ulang.');
         }
       }else{
-        App.toast('Perjalanan + jalur GPS tersimpan ke Google Sheets.');
+        App.toast('Perjalanan dan jalur GPS tersimpan ke riwayat.');
       }
       if(btn)btn.disabled=false;
       App.closeModal('trip-modal');
