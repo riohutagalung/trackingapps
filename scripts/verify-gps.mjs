@@ -172,8 +172,10 @@ assert(html.includes('Raw valid coordinates define the route; speed filtering on
 assert(html.includes("modal.classList.add('active')") && html.includes('Koordinat jalur untuk perjalanan ini belum tersedia di server.'),
   'history map must open first and explain missing server coordinates instead of silently returning');
 assert(html.includes('recompute from stored GPS failed') && html.includes('habitCounts[k].add(date)') &&
-  html.includes('Habit dihitung dari tanggal perjalanan, bukan jumlah titik GPS.'),
-  'history speed stats and habit counts must be derived from real stored trips and dates');
+  html.includes('Habit dihitung dari tanggal perjalanan, bukan jumlah titik GPS.') &&
+  html.includes('.filter(h=>h.dates.size>=2)') &&
+  html.includes('Trip baru tidak langsung dianggap habit.'),
+  'history and dashboard habits must use real trips on distinct dates');
 console.log('PASS wall-clock timer, speed-quality gates, and movement-only map');
 
 const service = read('android/app/src/main/java/com/rhhabits/app/RHTrackingService.java');
