@@ -1832,7 +1832,11 @@ function RHRecordedGpsSpeed(p,speedCap) {
 }
 /* Use elapsed time and several adjacent fixes, not one potentially noisy jump. */
 function RHGpsWindowEvidence(points,index,noiseRadiusM,speedCap) {
-  const end=points[index],windowMs=RH_GPS_CFG.movementWindowS*1000;
+  const end=points[index];
+  const previousInterval=index>0?(end.time-points[index-1].time):1000;
+  // Fast sampling gets a short window so speed falls quickly when stopped.
+  // Sparse background fixes get a wider window so real movement is not erased.
+  const windowMs=Math.min(RH_GPS_CFG.movementWindowS*1000,Math.max(4500,previousInterval*2.2));
   let first=index;
   while(first>0&&index-first<5){
     const gap=(points[first].time-points[first-1].time)/1000;
