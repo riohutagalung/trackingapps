@@ -158,6 +158,8 @@ assert(html.includes('nativeStoredKmh>=3&&(!isFinite(providerKmh)||providerKmh<3
   'a zero OS speed must not override a validated native coordinate-derived speed');
 assert(html.includes('maxGapForMovingS: 22') && html.includes('movementWindowS: 32'),
   'movement filter must handle sparse background GPS intervals up to 15 seconds');
+assert(html.includes('const windowMs=Math.min(RH_GPS_CFG.movementWindowS*1000,Math.max(4500,previousInterval*2.2));'),
+  'speed window must shrink at high sampling rate so speed returns to zero after stopping');
 assert(html.includes('usedCoordinateFallback'),
   'GPS route map must retain a credible coordinate trace when speed is not validated');
 assert(html.includes('providerSpeedKmh:isFinite(providerRaw)&&providerRaw>=0?providerRaw:NaN,'),
@@ -166,7 +168,8 @@ assert(html.includes('Raw valid coordinates define the route; speed filtering on
   'route geometry must remain visible even when speed validation rejects fixes');
 assert(html.includes("modal.classList.add('active')") && html.includes('Koordinat jalur untuk perjalanan ini belum tersedia di server.'),
   'history map must open first and explain missing server coordinates instead of silently returning');
-assert(html.includes('recompute from stored GPS failed') && html.includes('habitCounts[k].add(date)'),
+assert(html.includes('recompute from stored GPS failed') && html.includes('habitCounts[k].add(date)') &&
+  html.includes('Habit dihitung dari tanggal perjalanan, bukan jumlah titik GPS.'),
   'history speed stats and habit counts must be derived from real stored trips and dates');
 console.log('PASS wall-clock timer, speed-quality gates, and movement-only map');
 
