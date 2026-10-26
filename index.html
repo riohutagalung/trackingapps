@@ -1803,7 +1803,7 @@ function RHNormalizeGpsPoints(points) {
     const sav=p.speedAccuracyMps,speedAccuracy=sav===null||sav===''?NaN:Number(sav);
     out.push({
       lat,lng,time,accuracy:isFinite(acc)&&acc>0?acc:0,
-      // Keep this field: speedRaw was previously parsed and then discarded.
+      // Preserve coordinate/provider speed for the downstream validator.
       speedKmh:isFinite(speedRaw)&&speedRaw>=0?speedRaw:NaN,
       providerSpeedKmh:isFinite(providerRaw)&&providerRaw>=0?providerRaw:NaN,
       speedAccuracyMps:isFinite(speedAccuracy)&&speedAccuracy>=0?speedAccuracy:NaN,
@@ -1943,7 +1943,7 @@ function RHFilterGpsTrack(points,vehicle) {
 }
 
 function RHComputeGpsMetrics(points,startMs,endMs,vehicle) {
-  const track=RHFilterGpsTrack(points,vehicle);
+  let track=RHFilterGpsTrack(points,vehicle);
   let distance=0,movingMs=0,maxSpeed=0,stopCount=0;
   let prev=null,wasMoving=false,stoppedAt=null;
   for(let i=0;i<track.length;i++){
@@ -1951,8 +1951,8 @@ function RHComputeGpsMetrics(points,startMs,endMs,vehicle) {
     maxSpeed=Math.max(maxSpeed,speed);
     if(prev){
       const dt=(p.time-prev.time)/1000;
-      const validMovingSegment=dt>0&&dt<=RH_GPS_CFG.maxGapForMovingS&&
-        p.moving===true&&!p.gapAfterPrevious&&speed>=RH_GPS_CFG.movingSpeedKmh;
+      const validMovingSegment=dt>0&&dt<=RH_GPS_CFG.maxGapForMovingS&&p.moving===true&&
+        !p.gapAfterPrevious&&speed>=RH_GPS_CFG.movingSpeedKmh;
       if(validMovingSegment){
         const dMeters=Haversine(prev.lat,prev.lng,p.lat,p.lng)*1000;
         const acc=Number(p.accuracy)||0;
@@ -1967,6 +1967,63 @@ function RHComputeGpsMetrics(points,startMs,endMs,vehicle) {
     }
     prev=p;
   }
+
+  // Conservative coordinate-only recovery. If the strict movement state machine
+  // returns zero for a visibly travelled track, use adjacent plausible segments
+  // only when they corroborate each other. One isolated jump can never save a trip
+  // or create a fake max speed.
+  if(distance<0.05&&movingMs===0){
+    const raw=RHNormalizeGpsPoints(points);
+    if(raw.length>=3){
+      const segments=[];
+      for(let i=1;i<raw.length;i++){
+        const a=raw[i-1],b=raw[i],dt=(b.time-a.time)/1000;
+        const meters=Haversine(a.lat,a.lng,b.lat,b.lng)*1000;
+        const speed=dt>0?meters*3.6/dt:0;
+        const accuracy=Math.max(Number(a.accuracy)||0,Number(b.accuracy)||0);
+        const minDistance=Math.max(6,Math.min(15,accuracy*0.25));
+        segments.push({from:i-1,to:i,dt,meters,speed,valid:dt>0&&dt<=RH_GPS_CFG.maxGapForMovingS&&
+          meters>=minDistance&&speed>=RH_GPS_CFG.movingSpeedKmh&&speed<=RHSpeedCapKmh(vehicle)});
+      }
+      const supported=new Array(segments.length).fill(false);
+      for(let i=0;i<segments.length;i++){
+        const s=segments[i];if(!s.valid)continue;
+        for(const ni of [i-1,i+1]){
+          if(ni<0||ni>=segments.length)continue;
+          const n=segments[ni];if(!n.valid)continue;
+          const ratio=Math.min(s.speed,n.speed)/Math.max(s.speed,n.speed);
+          if(ratio<0.28)continue;
+          const first=Math.min(s.from,n.from),last=Math.max(s.to,n.to);
+          if(last-first>2)continue;
+          const net=Haversine(raw[first].lat,raw[first].lng,raw[last].lat,raw[last].lng)*1000;
+          const path=s.meters+n.meters;
+          if(path>0&&net/path<0.30)continue; // Reject an out-and-back location teleport.
+          if(Math.max(s.speed,n.speed)>110&&Math.abs(s.speed-n.speed)>Math.max(35,Math.max(s.speed,n.speed)*0.40))continue;
+          supported[i]=true;break;
+        }
+      }
+      let fallbackDistance=0,fallbackMovingMs=0,fallbackMax=0,fallbackCount=0;
+      const fallbackTrack=raw.map(p=>({...p,filteredSpeedKmh:0,moving:false,movementConfirmed:false,providerSpeedTrusted:false}));
+      for(let i=0;i<segments.length;i++){
+        const s=segments[i];
+        if(!supported[i])continue;
+        fallbackDistance+=s.meters/1000;
+        fallbackMovingMs+=s.dt*1000;
+        fallbackMax=Math.max(fallbackMax,s.speed);
+        fallbackCount++;
+        fallbackTrack[s.to].filteredSpeedKmh=s.speed;
+        fallbackTrack[s.to].moving=true;
+        fallbackTrack[s.to].movementConfirmed=true;
+      }
+      if(fallbackCount>=2&&fallbackDistance>=0.10){
+        distance=fallbackDistance;
+        movingMs=fallbackMovingMs;
+        maxSpeed=fallbackMax;
+        track=fallbackTrack;
+      }
+    }
+  }
+
   const fallbackStart=track.length?track[0].time:0,fallbackEnd=track.length?track[track.length-1].time:0;
   const a=Number(startMs)||fallbackStart,b=Number(endMs)||fallbackEnd;
   const durationMin=a&&b&&b>=a?(b-a)/60000:0;
@@ -2162,7 +2219,11 @@ const GPS = {
     const providerKmh=(isFinite(providerRaw)&&providerRaw>=0)?providerRaw:NaN;
     const nativeStoredKmh=Number(isNative?pos.speedKmh:NaN);
     let rawSpeed=Number(isNative?(pos.speed??pos.coords?.speed):(pos.coords?.speed));
-    const speedKmh=isFinite(providerKmh)?providerKmh:((isNative&&isFinite(nativeStoredKmh)&&nativeStoredKmh>=0)?nativeStoredKmh:((isFinite(rawSpeed)&&rawSpeed>=0)?rawSpeed*3.6:NaN));
+    // Prefer a non-zero speed already validated by the native service over an OS
+    // "0 km/h" placeholder. The filter still corroborates this value with GPS points.
+    const speedKmh=(isNative&&isFinite(nativeStoredKmh)&&nativeStoredKmh>=3&&(!isFinite(providerKmh)||providerKmh<3))
+      ?nativeStoredKmh
+      :(isFinite(providerKmh)?providerKmh:((isNative&&isFinite(nativeStoredKmh)&&nativeStoredKmh>=0)?nativeStoredKmh:((isFinite(rawSpeed)&&rawSpeed>=0)?rawSpeed*3.6:NaN)));
     const speedAccuracyRaw=Number(pos.speedAccuracyMps);
     const speedAccuracyMps=isFinite(speedAccuracyRaw)&&speedAccuracyRaw>=0?speedAccuracyRaw:NaN;
 
