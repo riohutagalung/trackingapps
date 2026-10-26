@@ -1831,7 +1831,20 @@ function RHNormalizeGpsPoints(points) {
       bearing:Number(Array.isArray(p)?NaN:p.bearing),altitude:Number(Array.isArray(p)?NaN:p.altitude),
       source:Array.isArray(p)?'':(p.source||''),gapAfterPrevious:!Array.isArray(p)&&p.gapAfterPrevious===true});
   });
-  out.sort((a,b)=>a.time-b.time);return out;
+  out.sort((a,b)=>a.time-b.time);
+  // Duplicate timestamps with different coordinates are not separate motion
+  // samples. Keep the most accurate fix so a zero-time jump cannot break speed.
+  const ordered=[];
+  for(const p of out){
+    const previous=ordered[ordered.length-1];
+    if(previous&&p.time===previous.time){
+      const pa=Number(previous.accuracy)||Infinity,ca=Number(p.accuracy)||Infinity;
+      if(ca<pa)ordered[ordered.length-1]=p;
+      continue;
+    }
+    ordered.push(p);
+  }
+  return ordered;
 }
 function RHSpeedCapKmh(vehicle) {
   let value=String(vehicle||'');
