@@ -1599,7 +1599,7 @@ const App = {
           </div>
           <div class="trip-sub" style="margin-top:10px">${pts.length?`${pts.length} titik GPS • jalur aktual tersimpan`:'Jalur GPS tidak tersedia pada trip ini'} • ${Esc(src)}</div>
           <div class="trip-data-note">Rata-rata dan kecepatan tertinggi berasal dari titik GPS yang benar-benar terekam dan lolos validasi perjalanan. Tidak menggunakan angka kecepatan estimasi.</div>
-          <div class="habit" style="margin-top:10px"><b>${Icon('route',15)} ${Esc(habitLabel)}</b><span>${repeat}x endpoint ${Esc(t.origin||'GPS')} → ${Esc(t.destination||'Tujuan')}. Habit dibentuk dari histori titik GPS aktual.</span></div>
+          <div class="habit" style="margin-top:10px"><b>${Icon('route',15)} ${Esc(habitLabel)}</b><span>${repeat} hari berbeda dengan rute ${Esc(t.origin||'GPS')} → ${Esc(t.destination||'Tujuan')} dalam 30 hari terakhir. Habit dihitung dari tanggal perjalanan, bukan jumlah titik GPS.</span></div>
           <div class="trip-actions">
             <button class="btn small" type="button" onclick="Trip.openMap('${EscAttr(t.id)}')">${Icon('map',15)} Lihat jalur GPS</button>
             <button class="btn small" type="button" onclick="Trip.openGoogleMaps('${EscAttr(t.id)}')">${Icon('route',15)} Google Maps</button>
