@@ -122,6 +122,18 @@ const jumpMetrics = metrics(jump, 60000);
 assert(jumpMetrics.maxSpeedKmh <= 160, 'an isolated GPS jump must not create an extreme motorcycle speed');
 console.log('PASS isolated GPS jump rejection');
 
+const stopOffsets = [];
+for (let i = 0; i < 20; i++) stopOffsets.push(i * 60 / 3.6);
+for (let i = 20; i < 35; i++) stopOffsets.push(19 * 60 / 3.6);
+for (let i = 35; i < 55; i++) stopOffsets.push(19 * 60 / 3.6 + (i - 34) * 60 / 3.6);
+const stopTrace = points(stopOffsets, {source:'native-android', accuracy:5, speedKmh:0});
+const stopTrack = gps.RHFilterGpsTrack(stopTrace);
+assert(stopTrack.slice(22,35).every(p => Number(p.filteredSpeedKmh || 0) <= 3),
+  'speed must fall to zero after the phone stops instead of lingering from the prior moving window');
+assert(stopTrack.slice(38).some(p => Number(p.filteredSpeedKmh || 0) >= 50),
+  'speed must resume after subsequent GPS fixes confirm movement');
+console.log('PASS stop/resume live speed consistency');
+
 assert(html.includes('if(x.pending&&x.pending.id)'), 'completed but unsaved trips must be restored after app restart');
 assert(html.includes('const syncConfirmed=!!syncResult&&syncResult.ok===true&&Number(syncResult.remaining||0)===0;'),
   'native trip save must not treat a failed sync as success');
@@ -142,6 +154,8 @@ assert(html.includes('if(!isFinite(accuracy)||accuracy<=0||accuracy>50)return 0;
   'provider speed must require a real, non-zero horizontal accuracy');
 assert(html.includes('speedKmh:isFinite(speedRaw)&&speedRaw>=0?speedRaw:NaN'),
   'GPS normalizer must preserve native coordinate-derived speed');
+assert(html.includes('nativeStoredKmh>=3&&(!isFinite(providerKmh)||providerKmh<3)'),
+  'a zero OS speed must not override a validated native coordinate-derived speed');
 assert(html.includes('maxGapForMovingS: 18') && html.includes('movementWindowS: 15'),
   'movement filter must handle sparse background GPS intervals');
 assert(html.includes('usedCoordinateFallback'),
