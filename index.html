@@ -1901,20 +1901,44 @@ function RHFilterGpsTrack(points,vehicle) {
     const accuracy=Math.max(Number(previous.accuracy)||0,Number(p.accuracy)||0);
     const noiseRadius=Math.max(RH_GPS_CFG.stationaryRadiusM,Math.min(22,accuracy*1.05));
     const segmentSpeed=dMeters*3.6/dt;
-    const evidence=RHGpsWindowEvidence(src,i,noiseRadius,speedCap),coordinateMotion=evidence.moving;
+    const currentMotionThreshold=Math.max(2.2,Math.min(10,noiseRadius*0.25));
+    const currentSegmentShowsMovement=dMeters>=currentMotionThreshold&&
+      segmentSpeed>=RH_GPS_CFG.movingSpeedKmh&&segmentSpeed<=speedCap;
+    const evidence=RHGpsWindowEvidence(src,i,noiseRadius,speedCap);
+    const coordinateMotion=evidence.moving&&currentSegmentShowsMovement;
+    // Confirm short movement from two consecutive, consistent segments when
+    // the rolling window is not ready yet. The net displacement requirement
+    // rejects stationary jitter and the out-and-back pattern of a GPS jump.
+    let localMotion=false;
+    if(i>=2&&currentSegmentShowsMovement){
+      const before=src[i-2],beforeDt=(previous.time-before.time)/1000;
+      if(beforeDt>0&&beforeDt<=RH_GPS_CFG.maxGapForMovingS){
+        const beforeMeters=Haversine(before.lat,before.lng,previous.lat,previous.lng)*1000;
+        const beforeSpeed=beforeMeters*3.6/beforeDt;
+        const combinedNet=Haversine(before.lat,before.lng,p.lat,p.lng)*1000;
+        const combinedPath=beforeMeters+dMeters;
+        const ratesAgree=beforeSpeed>=RH_GPS_CFG.movingSpeedKmh&&beforeSpeed<=speedCap&&
+          Math.abs(beforeSpeed-segmentSpeed)<=Math.max(15,Math.max(beforeSpeed,segmentSpeed)*0.35);
+        localMotion=ratesAgree&&combinedNet>=Math.max(8,accuracy*1.5)&&combinedPath>0&&combinedNet/combinedPath>=0.45;
+      }
+    }
     const provider=RHTrustedProviderSpeed(p,speedCap),previousProvider=RHTrustedProviderSpeed(previous,speedCap);
     const providerStable=provider>0&&previousProvider>0&&Math.abs(provider-previousProvider)<=Math.max(18,Math.max(provider,previousProvider)*0.30);
     const reported=RHRecordedGpsSpeed(p,speedCap);
-    const reportedMatches=reported>0&&coordinateMotion&&Math.abs(reported-evidence.speedKmh)<=Math.max(12,evidence.speedKmh*0.25);
-    const providerMatches=providerStable&&coordinateMotion&&Math.abs(provider-evidence.speedKmh)<=Math.max(15,evidence.speedKmh*0.30);
-    const confirmed=coordinateMotion;
+    const reportedMatches=reported>0&&currentSegmentShowsMovement&&
+      Math.abs(reported-segmentSpeed)<=Math.max(12,segmentSpeed*0.30)&&(coordinateMotion||localMotion);
+    const providerMatches=providerStable&&currentSegmentShowsMovement&&
+      Math.abs(provider-segmentSpeed)<=Math.max(15,segmentSpeed*0.30)&&(coordinateMotion||localMotion);
+    const confirmed=coordinateMotion||localMotion||providerMatches||reportedMatches;
     if(confirmed){moving=true;stationarySince=null;}
     else if(moving){if(stationarySince===null)stationarySince=p.time;if(p.time-stationarySince>=RH_GPS_CFG.movementWindowS*1000)moving=false;}
     let speed=0;
     if(confirmed){
-      speed=providerMatches?provider:(reportedMatches?reported:evidence.speedKmh);
+      // The live value is the latest validated distance/time segment, not the
+      // mean of the entire rolling window. Speed drops to 0 on the next
+      // reliable location fix after stopping.
+      speed=providerMatches?provider:(reportedMatches?reported:segmentSpeed);
       if(!isFinite(speed)||speed<RH_GPS_CFG.movingSpeedKmh||speed>speedCap)speed=0;
-      if(segmentSpeed>speedCap*1.08)speed=0;
     }
     accepted.push({...p,filteredSpeedKmh:Math.max(0,Math.min(speedCap,speed)),moving,
       movementConfirmed:confirmed,providerSpeedTrusted:providerMatches,segmentMeters:dMeters,segmentSpeedKmh:segmentSpeed,noiseRadiusM:noiseRadius});
