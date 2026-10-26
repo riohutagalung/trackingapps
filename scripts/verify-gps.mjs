@@ -103,6 +103,25 @@ const ns60 = metrics(noStored60, 60000);
 assert(ns60.maxSpeedKmh >= 45 && ns60.maxSpeedKmh <= 75, 'coordinate-only 60 km/h fallback must remain real');
 console.log('PASS coordinate speed fallback at road speed');
 
+for (const intervalMs of [7000]) {
+  for (const kmh of [60, 100]) {
+    const sparse = points(Array.from({length:35}, (_,i) => i * kmh / 3.6 * intervalMs / 1000), {
+      source:'native-android', accuracy:5, speedKmh:0, intervalMs
+    });
+    const sm = metrics(sparse, 60000);
+    assert(sm.distanceKm > 0.3, 'sparse ' + kmh + ' km/h coordinate route must accrue distance');
+    assert(sm.maxSpeedKmh >= kmh * 0.85 && sm.maxSpeedKmh <= kmh * 1.15,
+      'sparse ' + kmh + ' km/h speed must be reconstructed from elapsed GPS time without guessing');
+    assert(sm.avgSpeedKmh >= kmh * 0.80 && sm.avgSpeedKmh <= kmh * 1.20,
+      'sparse ' + kmh + ' km/h average speed must remain plausible');
+    console.log('PASS sparse background GPS cadence ' + kmh + ' km/h');
+  }
+}
+const jump = points([0,0,0,50,0,0,0,0,0], {source:'native-android', accuracy:5, speedKmh:180});
+const jumpMetrics = metrics(jump, 60000);
+assert(jumpMetrics.maxSpeedKmh <= 160, 'an isolated GPS jump must not create an extreme motorcycle speed');
+console.log('PASS isolated GPS jump rejection');
+
 assert(html.includes('if(x.pending&&x.pending.id)'), 'completed but unsaved trips must be restored after app restart');
 assert(html.includes('const syncConfirmed=!!syncResult&&syncResult.ok===true&&Number(syncResult.remaining||0)===0;'),
   'native trip save must not treat a failed sync as success');
@@ -119,8 +138,14 @@ assert(html.includes('const wallEnd=Number(endMs)||(this.active?Date.now():Numbe
 assert(html.includes('const elapsedSeconds=this.start?Math.max(0,Math.floor(((this.active?Date.now():(this.end||Date.now()))-this.start)/1000))'),
   'live trip timer must use wall clock');
 assert(html.includes('RHTrustedProviderSpeed'), 'provider speed accuracy filter must exist');
-assert(html.includes('if(!isFinite(accuracy)||accuracy<=0||accuracy>35) return 0;'),
+assert(html.includes('if(!isFinite(accuracy)||accuracy<=0||accuracy>50)return 0;'),
   'provider speed must require a real, non-zero horizontal accuracy');
+assert(html.includes('speedKmh:isFinite(speedRaw)&&speedRaw>=0?speedRaw:NaN'),
+  'GPS normalizer must preserve native coordinate-derived speed');
+assert(html.includes('maxGapForMovingS: 18') && html.includes('movementWindowS: 15'),
+  'movement filter must handle sparse background GPS intervals');
+assert(html.includes('usedCoordinateFallback'),
+  'GPS route map must retain a credible coordinate trace when speed is not validated');
 assert(html.includes('providerSpeedKmh:isFinite(providerRaw)&&providerRaw>=0?providerRaw:NaN,'),
   'coordinate-derived stored speed must never masquerade as provider GNSS speed');
 assert(html.includes('const movingPoints = filtered.filter(p => p.moving === true'),
