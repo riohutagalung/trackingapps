@@ -103,7 +103,7 @@ const ns60 = metrics(noStored60, 60000);
 assert(ns60.maxSpeedKmh >= 45 && ns60.maxSpeedKmh <= 75, 'coordinate-only 60 km/h fallback must remain real');
 console.log('PASS coordinate speed fallback at road speed');
 
-for (const intervalMs of [7000]) {
+for (const intervalMs of [7000, 15000]) {
   for (const kmh of [60, 100]) {
     const sparse = points(Array.from({length:35}, (_,i) => i * kmh / 3.6 * intervalMs / 1000), {
       source:'native-android', accuracy:5, speedKmh:0, intervalMs
@@ -156,14 +156,18 @@ assert(html.includes('speedKmh:isFinite(speedRaw)&&speedRaw>=0?speedRaw:NaN'),
   'GPS normalizer must preserve native coordinate-derived speed');
 assert(html.includes('nativeStoredKmh>=3&&(!isFinite(providerKmh)||providerKmh<3)'),
   'a zero OS speed must not override a validated native coordinate-derived speed');
-assert(html.includes('maxGapForMovingS: 18') && html.includes('movementWindowS: 15'),
-  'movement filter must handle sparse background GPS intervals');
+assert(html.includes('maxGapForMovingS: 22') && html.includes('movementWindowS: 32'),
+  'movement filter must handle sparse background GPS intervals up to 15 seconds');
 assert(html.includes('usedCoordinateFallback'),
   'GPS route map must retain a credible coordinate trace when speed is not validated');
 assert(html.includes('providerSpeedKmh:isFinite(providerRaw)&&providerRaw>=0?providerRaw:NaN,'),
   'coordinate-derived stored speed must never masquerade as provider GNSS speed');
-assert(html.includes('const movingPoints = filtered.filter(p => p.moving === true'),
-  'route map must exclude stationary GPS jitter points');
+assert(html.includes('Raw valid coordinates define the route; speed filtering only annotates it.'),
+  'route geometry must remain visible even when speed validation rejects fixes');
+assert(html.includes("modal.classList.add('active')") && html.includes('Koordinat jalur untuk perjalanan ini belum tersedia di server.'),
+  'history map must open first and explain missing server coordinates instead of silently returning');
+assert(html.includes('recompute from stored GPS failed') && html.includes('habitCounts[k].add(date)'),
+  'history speed stats and habit counts must be derived from real stored trips and dates');
 console.log('PASS wall-clock timer, speed-quality gates, and movement-only map');
 
 const service = read('android/app/src/main/java/com/rhhabits/app/RHTrackingService.java');
