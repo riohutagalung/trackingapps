@@ -170,7 +170,7 @@ public class RHTrackingService extends Service {
         boolean trustedProviderSpeed = providerSpeedKmh >= 3.0
                 && providerSpeedKmh <= MAX_PLAUSIBLE_SEGMENT_SPEED_KMH
                 && accuracy > 0 && accuracy <= 35
-                && speedAccuracyMps >= 0 && speedAccuracyMps <= 1.5;
+                && speedAccuracyMps >= 0 && speedAccuracyMps <= 2.5;
 
         // Keep two separate signals: the OS velocity (which may use GNSS Doppler)
         // and coordinate displacement. A one-off location wobble is not speed.
@@ -187,7 +187,7 @@ public class RHTrackingService extends Service {
             if (dtMs <= 90000L && meters >= movementThreshold) {
                 double candidate = meters * 3.6 / (dtMs / 1000.0);
                 if (candidate > MAX_PLAUSIBLE_SEGMENT_SPEED_KMH) return;
-                if (dtMs <= 8000L && candidate >= 3.0) coordinateSpeedKmh = candidate;
+                if (dtMs <= 20000L && candidate >= 3.0) coordinateSpeedKmh = candidate;
             }
         }
         double storedSpeedKmh = trustedProviderSpeed ? providerSpeedKmh : coordinateSpeedKmh;
