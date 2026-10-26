@@ -1488,8 +1488,31 @@ const App = {
     this.renderExpenses(d.recent || [], 'recent-expenses', true);
     this.renderTrips(d.trips || []);
     const wf=d.weekFuel||{}; const wfEl=document.getElementById('week-fuel-summary'); if(wfEl) wfEl.innerHTML=`<div class="route-row"><div><div class="route-name">${Icon('fuel',15)} BBM 7 hari</div><div class="route-sub">${wf.transactionCount||0} transaksi • ${Num(wf.liters||0,2)} L • ${Num(wf.distanceKm||0,1)} km</div></div><div class="eta"><strong>${Money(wf.amount||0)}</strong><span>${wf.avgKmL?Num(wf.avgKmL,1)+' km/L':'Belum cukup data'}</span></div></div>`;
-    const habits = d.habits || [];
-    document.getElementById('route-habits').innerHTML = habits.length ? habits.slice(0, 4).map(h => `<div class="habit"><b>${Esc(h.routeName)}</b><span>${h.freq}x perjalanan • rata-rata ${Num(h.avgDur)} menit • ${Num(h.avgDistance, 1)} km</span></div>`).join('') : '<div class="empty">Belum ada route habit. Mulai perjalanan GPS untuk membangun kebiasaan.</div>';
+    // A route habit is earned by real trips on distinct calendar days,
+    // not by repeated points or duplicate rows from the same journey.
+    const habitCutoff=Date.now()-30*24*60*60*1000;
+    const routeGroups=new Map();
+    (Array.isArray(d.trips)?d.trips:[]).forEach(t=>{
+      const date=String(t.date||'').slice(0,10),when=Date.parse(date);
+      const distance=Number(t.distanceKm)||0,duration=Number(t.durationMin)||0;
+      if(!date||!isFinite(when)||when<habitCutoff||when>Date.now()+24*60*60*1000||distance<=0||duration<=0)return;
+      const origin=String(t.origin||'GPS'),destination=String(t.destination||'Tujuan');
+      const key=origin+'|'+destination;
+      let group=routeGroups.get(key);
+      if(!group){
+        group={key,routeName:t.routeName||Trip.compactTripRoute(t),origin,destination,dates:new Set(),trips:0,
+          totalDistance:0,totalDuration:0};
+        routeGroups.set(key,group);
+      }
+      group.dates.add(date);group.trips++;group.totalDistance+=distance;group.totalDuration+=duration;
+    });
+    const habits=Array.from(routeGroups.values())
+      .filter(h=>h.dates.size>=2)
+      .sort((a,b)=>b.dates.size-a.dates.size||b.trips-a.trips||b.totalDistance-a.totalDistance)
+      .slice(0,4);
+    document.getElementById('route-habits').innerHTML=habits.length
+      ?habits.map(h=>\`<div class="habit"><b>\${Esc(h.routeName)}</b><span>Dipakai \${h.dates.size} hari berbeda • \${h.trips} trip tercatat • rata-rata \${Num(h.totalDuration/h.trips,0)} menit • total \${Num(h.totalDistance,1)} km (30 hari)</span></div>\`).join('')
+      :'<div class="empty">Belum ada rute yang diulang pada hari berbeda dalam 30 hari terakhir. Trip baru tidak langsung dianggap habit.</div>';
     document.getElementById('system-info').innerHTML = `Sheets: <b>terhubung</b><br>RPC: <b>${window.RHBridge?.endpoint ? 'aktif' : 'bridge tidak ditemukan'}</b><br>GPS: <b>${GPS.isNative() ? 'native mobile' : 'browser device'}</b><br>OCR: <b>Google Drive + arsip struk</b><br>Traffic Google: <b>${this.config.trafficConfigured ? 'aktif' : 'belum dikonfigurasi'}</b><br>Device: <b>${document.body.classList.contains('device-ios') ? 'iOS' : document.body.classList.contains('device-android') ? 'Android' : 'Desktop/Tablet'}</b>`;
     if (this.config.krlFare) document.getElementById('krl-fare').value = this.config.krlFare;
     if (this.config.tjFare) document.getElementById('tj-fare').value = this.config.tjFare;
