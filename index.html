@@ -1511,7 +1511,7 @@ const App = {
       .sort((a,b)=>b.dates.size-a.dates.size||b.trips-a.trips||b.totalDistance-a.totalDistance)
       .slice(0,4);
     document.getElementById('route-habits').innerHTML=habits.length
-      ?habits.map(h=>\`<div class="habit"><b>\${Esc(h.routeName)}</b><span>Dipakai \${h.dates.size} hari berbeda • \${h.trips} trip tercatat • rata-rata \${Num(h.totalDuration/h.trips,0)} menit • total \${Num(h.totalDistance,1)} km (30 hari)</span></div>\`).join('')
+      ?habits.map(h=>`<div class="habit"><b>${Esc(h.routeName)}</b><span>Dipakai ${h.dates.size} hari berbeda • ${h.trips} trip tercatat • rata-rata ${Num(h.totalDuration/h.trips,0)} menit • total ${Num(h.totalDistance,1)} km (30 hari)</span></div>`).join('')
       :'<div class="empty">Belum ada rute yang diulang pada hari berbeda dalam 30 hari terakhir. Trip baru tidak langsung dianggap habit.</div>';
     document.getElementById('system-info').innerHTML = `Sheets: <b>terhubung</b><br>RPC: <b>${window.RHBridge?.endpoint ? 'aktif' : 'bridge tidak ditemukan'}</b><br>GPS: <b>${GPS.isNative() ? 'native mobile' : 'browser device'}</b><br>OCR: <b>Google Drive + arsip struk</b><br>Traffic Google: <b>${this.config.trafficConfigured ? 'aktif' : 'belum dikonfigurasi'}</b><br>Device: <b>${document.body.classList.contains('device-ios') ? 'iOS' : document.body.classList.contains('device-android') ? 'Android' : 'Desktop/Tablet'}</b>`;
     if (this.config.krlFare) document.getElementById('krl-fare').value = this.config.krlFare;
