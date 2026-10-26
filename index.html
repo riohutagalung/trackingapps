@@ -1894,7 +1894,7 @@ function RHFilterGpsTrack(points,vehicle) {
       Math.abs(providerCandidate-previousProviderCandidate)<=Math.max(25,Math.max(providerCandidate,previousProviderCandidate)*0.35);
     // Even a high-confidence OS velocity must agree with the current location
     // displacement. This stops a stale 60 km/h reading surviving after a stop.
-    const currentMotionThreshold=Math.max(4,Math.min(10,noiseRadius*0.35));
+    const currentMotionThreshold=Math.max(3,Math.min(10,noiseRadius*0.30));
     const currentSegmentShowsMovement=dMeters>currentMotionThreshold&&
       segmentSpeed>=RH_GPS_CFG.movingSpeedKmh&&segmentSpeed<=speedCap;
     const providerDistanceConsistent=currentSegmentShowsMovement&&
