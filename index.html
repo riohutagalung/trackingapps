@@ -1892,7 +1892,14 @@ function RHFilterGpsTrack(points,vehicle) {
     const providerCandidate=RHTrustedProviderSpeed(p,speedCap),previousProviderCandidate=RHTrustedProviderSpeed(previous,speedCap);
     const providerStable=providerCandidate>0&&previousProviderCandidate>0&&
       Math.abs(providerCandidate-previousProviderCandidate)<=Math.max(25,Math.max(providerCandidate,previousProviderCandidate)*0.35);
-    const providerSpeed=providerStable?providerCandidate:0;
+    // Even a high-confidence OS velocity must agree with the current location
+    // displacement. This stops a stale 60 km/h reading surviving after a stop.
+    const currentMotionThreshold=Math.max(4,Math.min(10,noiseRadius*0.35));
+    const currentSegmentShowsMovement=dMeters>currentMotionThreshold&&
+      segmentSpeed>=RH_GPS_CFG.movingSpeedKmh&&segmentSpeed<=speedCap;
+    const providerDistanceConsistent=currentSegmentShowsMovement&&
+      Math.abs(segmentSpeed-providerCandidate)<=Math.max(25,providerCandidate*0.55);
+    const providerSpeed=providerStable&&providerDistanceConsistent?providerCandidate:0;
     const reportedCandidate=RHRecordedGpsSpeed(p,speedCap),previousReported=RHRecordedGpsSpeed(previous,speedCap);
     const coordinateMotion=evidence.moving&&evidence.speedKmh>=RH_GPS_CFG.movingSpeedKmh&&
       evidence.speedKmh<=speedCap&&dt<=RH_GPS_CFG.maxGapForMovingS;
@@ -1914,8 +1921,15 @@ function RHFilterGpsTrack(points,vehicle) {
       if(providerSpeed>0)speed=providerSpeed;
       else if(recordedSpeed>0)speed=recordedSpeed;
       else if(coordinateMotion){
-        speed=(dMeters>noiseRadius*0.65&&segmentSpeed>=RH_GPS_CFG.movingSpeedKmh&&segmentSpeed<=speedCap)
-          ?segmentSpeed:evidence.speedKmh;
+        // The rolling window confirms that this is a moving trip, but the
+        // displayed speed must still match the latest coordinate displacement.
+        // Otherwise a stale window can keep showing speed after the phone stops.
+        if(currentSegmentShowsMovement&&
+          (dMeters>noiseRadius*0.65||Math.abs(segmentSpeed-evidence.speedKmh)<=Math.max(18,segmentSpeed*0.40))){
+          speed=segmentSpeed;
+        }else{
+          speed=0;
+        }
       }else{
         const previousSpeed=Number(previous.filteredSpeedKmh)||0;
         const corroboratedSegment=dt<=RH_GPS_CFG.maxGapForMovingS&&dMeters>noiseRadius&&
