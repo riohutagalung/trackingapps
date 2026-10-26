@@ -24,7 +24,7 @@ const start = html.indexOf('const RH_GPS_CFG = Object.freeze({');
 const end = html.indexOf('const GPS = {', start);
 assert(start >= 0 && end > start, 'GPS filtering block exists in index.html');
 const logic = html.slice(start, end);
-const gps = new Function('Haversine', logic + '; return {RHFilterGpsTrack, RHComputeGpsMetrics};')(Haversine);
+const gps = new Function('Haversine', logic + '; return {RHGpsTimeMs, RHNormalizeGpsPoints, RHFilterGpsTrack, RHComputeGpsMetrics};')(Haversine);
 
 function points(offsets, options = {}) {
   const lat0 = -6.25, lng0 = 106.75;
@@ -132,7 +132,25 @@ assert(stopTrack.slice(22,35).every(p => Number(p.filteredSpeedKmh || 0) <= 3),
   'speed must fall to zero after the phone stops instead of lingering from the prior moving window');
 assert(stopTrack.slice(38).some(p => Number(p.filteredSpeedKmh || 0) >= 50),
   'speed must resume after subsequent GPS fixes confirm movement');
-console.log('PASS stop/resume live speed consistency');
+assert(html.includes('const currentMotionThreshold=Math.max(2.2,Math.min(10,noiseRadius*0.25));') &&
+  html.includes('const confirmed=coordinateMotion||localMotion||providerMatches||reportedMatches;') &&
+  html.includes('speed=providerMatches?provider:(reportedMatches?reported:segmentSpeed);'),
+  'current speed must use the latest GPS segment, with corroboration, not stale rolling-window speed');
+
+const seconds = points([0, 12, 24, 36], {intervalMs: 7000, speedKmh: 0});
+seconds.forEach(p => { p.time = p.time / 1000; });
+const normalizedSeconds = gps.RHNormalizeGpsPoints(seconds);
+assert(normalizedSeconds.length === 4 && normalizedSeconds[1].time - normalizedSeconds[0].time === 7000,
+  'epoch-second timestamps must become milliseconds before speed calculations');
+
+const tripLike = points(Array.from({length:495}, (_,i) => i * 23.5), {
+  source:'native-android', accuracy:5, speedKmh:0, intervalMs:6900
+});
+const tripLikeMetrics = metrics(tripLike, 60000);
+assert(tripLikeMetrics.pointCount === 495 && tripLikeMetrics.distanceKm > 10 &&
+  tripLikeMetrics.avgSpeedKmh > 5 && tripLikeMetrics.maxSpeedKmh > 5,
+  'a long 495-point background trip must yield real speed metrics, not 0/0');
+console.log('PASS per-fix speed, mixed timestamp units, and long-trip history');
 
 assert(html.includes('if(x.pending&&x.pending.id)'), 'completed but unsaved trips must be restored after app restart');
 assert(html.includes('const syncConfirmed=!!syncResult&&syncResult.ok===true&&Number(syncResult.remaining||0)===0;'),
@@ -163,6 +181,9 @@ assert(html.includes('maxGapForMovingS: 22') && html.includes('movementWindowS: 
   'movement filter must handle sparse background GPS intervals up to 15 seconds');
 assert(html.includes('const windowMs=Math.min(RH_GPS_CFG.movementWindowS*1000,Math.max(4500,previousInterval*2.2));'),
   'speed window must shrink at high sampling rate so speed returns to zero after stopping');
+assert(html.includes('const currentMotionThreshold=Math.max(2.2,Math.min(10,noiseRadius*0.25));') &&
+  html.includes('const confirmed=coordinateMotion||localMotion||providerMatches||reportedMatches;'),
+  'filter must validate current-segment movement before emitting speed');
 assert(html.includes('usedCoordinateFallback'),
   'GPS route map must retain a credible coordinate trace when speed is not validated');
 assert(html.includes('providerSpeedKmh:isFinite(providerRaw)&&providerRaw>=0?providerRaw:NaN,'),
