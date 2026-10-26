@@ -154,6 +154,9 @@ assert(html.includes('if(!isFinite(accuracy)||accuracy<=0||accuracy>50)return 0;
   'provider speed must require a real, non-zero horizontal accuracy');
 assert(html.includes('speedKmh:isFinite(speedRaw)&&speedRaw>=0?speedRaw:NaN'),
   'GPS normalizer must preserve native coordinate-derived speed');
+assert(html.includes('raw<100000000000?raw*1000:raw') &&
+  html.slice(html.indexOf('normalizeMapPoints(arr)'),html.indexOf('speedColor(speed)')).includes('RHGpsTimeMs({time:rawTime})'),
+  'numeric GPS timestamps in seconds and milliseconds must normalize to the same time unit');
 assert(html.includes('nativeStoredKmh>=3&&(!isFinite(providerKmh)||providerKmh<3)'),
   'a zero OS speed must not override a validated native coordinate-derived speed');
 assert(html.includes('maxGapForMovingS: 22') && html.includes('movementWindowS: 32'),
