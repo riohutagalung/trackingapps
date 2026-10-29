@@ -190,6 +190,16 @@ assert(html.includes('providerSpeedKmh:isFinite(providerRaw)&&providerRaw>=0?pro
   'coordinate-derived stored speed must never masquerade as provider GNSS speed');
 assert(html.includes('Raw valid coordinates define the route; speed filtering only annotates it.'),
   'route geometry must remain visible even when speed validation rejects fixes');
+assert(html.includes('https://nominatim.openstreetmap.org/reverse') &&
+  html.includes('this._placeNameCache') && html.includes('1100-(Date.now()-Number(this._lastGeocodeAt||0))'),
+  'route pin place-name lookup must be cached and rate-limited');
+assert(html.includes("addRoutePin(track[0],'S','#16a34a','Titik mulai')") &&
+  html.includes("addRoutePin(track[track.length-1],'F','#e11d48','Titik selesai')") &&
+  html.includes('const markerCount=Math.min(12') &&
+  html.includes("addRoutePin(track[idx],String(n),'#2563eb','Titik rute '+n)"),
+  'start, finish and numbered route-point pins must be visible and tappable');
+assert(html.includes('Buka titik ini di Google Maps') && html.includes('Klik pin bernomor untuk nama lokasi.'),
+  'a route pin must provide place name lookup and a direct Google Maps point link');
 assert(html.includes("modal.classList.add('active')") && html.includes('Koordinat jalur untuk perjalanan ini belum tersedia di server.'),
   'history map must open first and explain missing server coordinates instead of silently returning');
 assert(html.includes('recompute from stored GPS failed') && html.includes('habitCounts[k].add(date)') &&
