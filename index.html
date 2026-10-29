@@ -3784,7 +3784,7 @@ const Trip = {
     if (count) count.textContent = track.length + ' titik setelah filter';
     if(note)note.textContent=usedCoordinateFallback
       ?'Jalur GPS aktual ditampilkan dari koordinat yang tersimpan. Speed tidak dipaksakan karena belum lolos validasi. Klik pin untuk nama lokasi.'
-      :'Jalur GPS aktual • Max '+Number(maxPoint.filteredSpeedKmh||0).toFixed(1)+' km/jam • klik pin bernomor untuk nama lokasi';
+      :'Jalur GPS aktual • Max '+Number(maxPoint.filteredSpeedKmh||0).toFixed(1)+' km/jam • Klik pin bernomor untuk nama lokasi.';
 
     // Tile failure should not leave a blank route box.
     if (!window.L) {
