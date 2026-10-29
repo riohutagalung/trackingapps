@@ -3617,6 +3617,90 @@ const Trip = {
     return '#fb7185';
   },
 
+  // Only resolve a place name when the user taps a route pin. Requests are
+  // serialized to respect the public reverse-geocoding service's rate limit.
+  async reverseGeocode(lat,lng) {
+    const latitude=Number(lat),longitude=Number(lng);
+    if(!Number.isFinite(latitude)||!Number.isFinite(longitude))return '';
+    if(!this._placeNameCache)this._placeNameCache=new Map();
+    if(!this._geocodeQueue)this._geocodeQueue=Promise.resolve();
+    const key=latitude.toFixed(5)+','+longitude.toFixed(5);
+    if(this._placeNameCache.has(key))return this._placeNameCache.get(key);
+
+    const request=async()=>{
+      const wait=Math.max(0,1100-(Date.now()-Number(this._lastGeocodeAt||0)));
+      if(wait)await new Promise(resolve=>setTimeout(resolve,wait));
+      this._lastGeocodeAt=Date.now();
+      const url='https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat='+
+        encodeURIComponent(latitude)+'&lon='+encodeURIComponent(longitude)+
+        '&zoom=18&addressdetails=1&accept-language=id';
+      const response=await fetch(url,{headers:{'Accept-Language':'id'}});
+      if(!response.ok)throw new Error('Reverse geocoding HTTP '+response.status);
+      const data=await response.json(),a=data&&data.address?data.address:{};
+      const road=a.road||a.pedestrian||a.residential||a.path||a.cycleway||a.footway||a.service||'';
+      const area=a.neighbourhood||a.suburb||a.quarter||a.city_district||a.hamlet||'';
+      const city=a.city||a.town||a.village||a.municipality||a.county||'';
+      const unique=[];
+      [road,area,city].forEach(v=>{const value=String(v||'').trim();if(value&&!unique.some(x=>x.toLowerCase()===value.toLowerCase()))unique.push(value);});
+      const name=unique.join(', ')||String(data.name||data.display_name||'').trim();
+      if(name)this._placeNameCache.set(key,name);
+      return name;
+    };
+    const queued=(this._geocodeQueue||Promise.resolve()).then(request,request);
+    this._geocodeQueue=queued.catch(()=>{});
+    return queued;
+  },
+
+  placePopupHtml(point,title,placeName) {
+    const lat=Number(point.lat),lng=Number(point.lng);
+    const coordinates=lat.toFixed(6)+', '+lng.toFixed(6);
+    const time=Number(point.time)>0
+      ?new Date(Number(point.time)).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'})
+      :'Waktu tidak tersedia';
+    const speed=Number(point.filteredSpeedKmh)||0;
+    const place=placeName
+      ?'<div style="margin:5px 0;font-weight:700;line-height:1.35">'+Esc(placeName)+'</div>'
+      :'<div style="margin:5px 0;color:#64748b">Nama jalan/area belum tersedia.</div>';
+    const speedLine=speed>0
+      ?'<div style="margin-top:3px">Kecepatan terekam: <b>'+speed.toFixed(1)+' km/jam</b></div>'
+      :'';
+    const mapsUrl='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(lat+','+lng);
+    return '<div style="min-width:190px;max-width:260px">'+
+      '<div style="font-weight:800">'+Esc(title)+'</div>'+place+
+      '<div style="font-size:12px;margin-top:4px">Waktu: '+Esc(time)+'</div>'+
+      '<div style="font-size:12px">Koordinat: '+Esc(coordinates)+'</div>'+speedLine+
+      '<div style="margin-top:7px"><a href="'+Esc(mapsUrl)+'" target="_blank" rel="noopener noreferrer">Buka titik ini di Google Maps ↗</a></div>'+
+      '</div>';
+  },
+
+  bindPlacePopup(marker,point,title) {
+    marker.bindPopup(this.placePopupHtml(point,title,''));
+    marker.on('popupopen',async event=>{
+      const popup=event.popup;
+      if(marker._rhPlaceLookupDone){
+        popup.setContent(this.placePopupHtml(point,title,marker._rhPlaceName||''));
+        return;
+      }
+      if(marker._rhPlaceLookupRunning)return;
+      marker._rhPlaceLookupRunning=true;
+      popup.setContent(this.placePopupHtml(point,title,'Mencari nama jalan/area…'));
+      try{
+        const name=await this.reverseGeocode(point.lat,point.lng);
+        marker._rhPlaceName=name||'';
+        marker._rhPlaceLookupDone=true;
+        if(popup.isOpen())popup.setContent(this.placePopupHtml(point,title,name||''));
+      }catch(error){
+        console.warn('[RH map] reverse geocoding unavailable:',error);
+        marker._rhPlaceName='';
+        marker._rhPlaceLookupDone=true;
+        if(popup.isOpen())popup.setContent(this.placePopupHtml(point,title,''));
+      }finally{
+        marker._rhPlaceLookupRunning=false;
+      }
+    });
+    return marker;
+  },
+
   clearSummaryMap() {
     if (this._summaryMap) {
       try { this._summaryMap.remove(); } catch (e) {}
@@ -3699,8 +3783,8 @@ const Trip = {
       Number(p.filteredSpeedKmh || 0) > Number(best.filteredSpeedKmh || 0) ? p : best, track[0]);
     if (count) count.textContent = track.length + ' titik setelah filter';
     if(note)note.textContent=usedCoordinateFallback
-      ?'Jalur GPS aktual ditampilkan dari koordinat yang tersimpan. Speed tidak dipaksakan karena belum lolos validasi.'
-      :'Jalur GPS aktual • Max '+Number(maxPoint.filteredSpeedKmh||0).toFixed(1)+' km/jam • titik hijau = mulai, merah = selesai';
+      ?'Jalur GPS aktual ditampilkan dari koordinat yang tersimpan. Speed tidak dipaksakan karena belum lolos validasi. Klik pin untuk nama lokasi.'
+      :'Jalur GPS aktual • Max '+Number(maxPoint.filteredSpeedKmh||0).toFixed(1)+' km/jam • klik pin bernomor untuk nama lokasi';
 
     // Tile failure should not leave a blank route box.
     if (!window.L) {
@@ -3740,25 +3824,34 @@ const Trip = {
       }
       if (segmentPoints.length >= 2) L.polyline(segmentPoints, {color:segmentColor, weight:5, opacity:.96, lineCap:'round', lineJoin:'round'}).addTo(map);
 
-      L.circleMarker(latlngs[0], {radius:7, color:'#ffffff', weight:2, fillColor:'#22c55e', fillOpacity:1})
-        .addTo(map).bindTooltip('MULAI').bindPopup('Titik mulai<br>' + Number(track[0].lat).toFixed(6) + ', ' + Number(track[0].lng).toFixed(6));
-      L.circleMarker(latlngs[latlngs.length - 1], {radius:7, color:'#ffffff', weight:2, fillColor:'#fb7185', fillOpacity:1})
-        .addTo(map).bindTooltip('SELESAI').bindPopup('Titik selesai<br>' + Number(track[track.length - 1].lat).toFixed(6) + ', ' + Number(track[track.length - 1].lng).toFixed(6));
+      const addRoutePin=(point,label,color,title)=>{
+        const marker=L.marker([Number(point.lat),Number(point.lng)],{
+          icon:L.divIcon({
+            className:'',
+            html:'<div style="display:flex;align-items:center;justify-content:center;width:29px;height:29px;border:2px solid #fff;border-radius:50% 50% 50% 5px;transform:rotate(-45deg);background:'+color+';box-shadow:0 2px 7px rgba(0,0,0,.4);color:#fff;font-weight:800;font-size:12px"><span style="transform:rotate(45deg)">'+Esc(label)+'</span></div>',
+            iconSize:[29,29],iconAnchor:[14,25],popupAnchor:[0,-24]
+          }),
+          title:title,keyboard:true
+        }).addTo(map);
+        this.bindPlacePopup(marker,point,title);
+        return marker;
+      };
+      addRoutePin(track[0],'S','#16a34a','Titik mulai');
+      addRoutePin(track[track.length-1],'F','#e11d48','Titik selesai');
 
       if (Number(maxPoint.filteredSpeedKmh || 0) > 0) {
-        L.circleMarker([maxPoint.lat, maxPoint.lng], {radius:6, color:'#fff7ed', weight:2, fillColor:'#f97316', fillOpacity:1})
-          .addTo(map).bindTooltip('MAX ' + Number(maxPoint.filteredSpeedKmh).toFixed(1) + ' km/jam')
-          .bindPopup('Kecepatan maksimum terfilter: ' + Number(maxPoint.filteredSpeedKmh).toFixed(1) + ' km/jam<br>' + Number(maxPoint.lat).toFixed(6) + ', ' + Number(maxPoint.lng).toFixed(6));
+        const maxMarker=L.circleMarker([maxPoint.lat,maxPoint.lng],{radius:7,color:'#fff7ed',weight:2,fillColor:'#f97316',fillOpacity:1})
+          .addTo(map).bindTooltip('MAX '+Number(maxPoint.filteredSpeedKmh).toFixed(1)+' km/jam');
+        this.bindPlacePopup(maxMarker,maxPoint,'Kecepatan maksimum');
       }
 
-      const markerCount = Math.min(8, Math.max(0, track.length - 2));
-      for (let n = 1; n <= markerCount; n++) {
-        const idx = Math.min(track.length - 2, Math.round(n * (track.length - 1) / (markerCount + 1)));
-        const p = track[idx];
-        const timeLabel = p.time ? new Date(p.time).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'}) : '—';
-        L.circleMarker([p.lat, p.lng], {radius:3, color:'#e2e8f0', weight:1, fillColor:'#60a5fa', fillOpacity:.9})
-          .addTo(map)
-          .bindPopup('Checkpoint ' + n + '<br>' + timeLabel + ' • ' + Number(p.filteredSpeedKmh || 0).toFixed(1) + ' km/jam<br>' + Number(p.lat).toFixed(6) + ', ' + Number(p.lng).toFixed(6));
+      const markerCount=Math.min(12,Math.max(0,track.length-2));
+      const usedMarkerIndexes=new Set([0,track.length-1]);
+      for(let n=1;n<=markerCount;n++){
+        const idx=Math.min(track.length-2,Math.round(n*(track.length-1)/(markerCount+1)));
+        if(usedMarkerIndexes.has(idx))continue;
+        usedMarkerIndexes.add(idx);
+        addRoutePin(track[idx],String(n),'#2563eb','Titik rute '+n);
       }
 
       map.fitBounds(L.latLngBounds(latlngs).pad(.12), {animate:false});
