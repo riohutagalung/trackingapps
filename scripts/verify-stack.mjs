@@ -15,7 +15,8 @@ let ACTIVE_VERCEL = normalizeOrigin(
   'https://rhhabits.vercel.app'
 );
 
-const EXPECTED_BRIDGE = String(process.env.RH_EXPECT_BRIDGE || '20260922-r8');
+const EXPECTED_BRIDGE = String(process.env.RH_EXPECT_BRIDGE || '20261022-r11');
+const EXPECTED_MEDIA = String(process.env.RH_EXPECT_MEDIA || '20260922-r12');
 const GAS = 'https://script.google.com/macros/s/AKfycbyHREf-8F0Dd8G7hXtw_cyQskLkCzmkATDmOeBBovQWe9SeRw49ZIGxIzdSNTvScfn5qg/exec';
 const OLD_GAS = 'https://script.google.com/macros/s/AKfycbyi6yqLiKwjpoy9TclZycH6KOPi0GXlPHc7iHGAA5srKCV6TVWOlSyTr-1V-JOiwlr2MQ/exec';
 
@@ -159,6 +160,10 @@ if (!page.text.includes('<link rel="manifest" href="/manifest.json">')) {
 
 if (!page.text.includes('gas-bridge.js?v=' + EXPECTED_BRIDGE)) {
   throw new Error('Target belum memakai RPC bridge ' + EXPECTED_BRIDGE + '.');
+}
+
+if (!page.text.includes('rh-native-media.js?v=' + EXPECTED_MEDIA)) {
+  throw new Error('Target belum memakai native media ' + EXPECTED_MEDIA + '.');
 }
 
 if (!page.text.includes('renderPublicTransport(p)')) {

@@ -18,7 +18,7 @@ import java.util.Set;
 
 public final class TrackingDb extends SQLiteOpenHelper {
     private static final String DB_NAME = "rh_tracking.db";
-    private static final int DB_VERSION = 1;
+    private static final int DB_VERSION = 2;
     private static volatile TrackingDb instance;
 
     public static TrackingDb get(Context context) {
@@ -41,6 +41,8 @@ public final class TrackingDb extends SQLiteOpenHelper {
                 "lng REAL NOT NULL," +
                 "accuracy REAL NOT NULL DEFAULT 0," +
                 "speed_kmh REAL NOT NULL DEFAULT 0," +
+                "provider_speed_kmh REAL NOT NULL DEFAULT -1," +
+                "speed_accuracy_mps REAL NOT NULL DEFAULT -1," +
                 "bearing REAL," +
                 "altitude REAL," +
                 "uploaded INTEGER NOT NULL DEFAULT 0," +
@@ -49,11 +51,16 @@ public final class TrackingDb extends SQLiteOpenHelper {
         db.execSQL("CREATE INDEX idx_points_uploaded ON points(uploaded,trip_id)");
     }
 
-    @Override public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {}
+    @Override public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE points ADD COLUMN provider_speed_kmh REAL NOT NULL DEFAULT -1");
+            db.execSQL("ALTER TABLE points ADD COLUMN speed_accuracy_mps REAL NOT NULL DEFAULT -1");
+        }
+    }
 
     public synchronized long insert(String tripId, long timeMs, double lat, double lng,
-                                     double accuracy, double speedKmh, Double bearing,
-                                     Double altitude) {
+                                     double accuracy, double speedKmh, double providerSpeedKmh,
+                                     double speedAccuracyMps, Double bearing, Double altitude) {
         ContentValues v = new ContentValues();
         v.put("trip_id", tripId);
         v.put("time_ms", timeMs);
@@ -61,6 +68,8 @@ public final class TrackingDb extends SQLiteOpenHelper {
         v.put("lng", lng);
         v.put("accuracy", accuracy);
         v.put("speed_kmh", speedKmh);
+        v.put("provider_speed_kmh", providerSpeedKmh);
+        v.put("speed_accuracy_mps", speedAccuracyMps);
         if (bearing != null) v.put("bearing", bearing);
         if (altitude != null) v.put("altitude", altitude);
         return getWritableDatabase().insert("points", null, v);
@@ -134,11 +143,14 @@ public final class TrackingDb extends SQLiteOpenHelper {
         int ln=c.getColumnIndexOrThrow("lng");
         int ac=c.getColumnIndexOrThrow("accuracy");
         int sp=c.getColumnIndexOrThrow("speed_kmh");
+        int ps=c.getColumnIndexOrThrow("provider_speed_kmh");
+        int sa=c.getColumnIndexOrThrow("speed_accuracy_mps");
         int be=c.getColumnIndexOrThrow("bearing");
         int al=c.getColumnIndexOrThrow("altitude");
         return new Point(
                 c.getLong(id), c.getString(ti), c.getLong(tm),
                 c.getDouble(la), c.getDouble(ln), c.getDouble(ac), c.getDouble(sp),
+                c.getDouble(ps), c.getDouble(sa),
                 c.isNull(be) ? null : c.getDouble(be),
                 c.isNull(al) ? null : c.getDouble(al)
         );
@@ -146,14 +158,15 @@ public final class TrackingDb extends SQLiteOpenHelper {
 
     public static final class Point {
         public final long id; public final String tripId; public final long time;
-        public final double lat,lng,accuracy,speedKmh; public final Double bearing,altitude;
-        Point(long id,String tripId,long time,double lat,double lng,double accuracy,double speedKmh,Double bearing,Double altitude){
-            this.id=id;this.tripId=tripId;this.time=time;this.lat=lat;this.lng=lng;this.accuracy=accuracy;this.speedKmh=speedKmh;this.bearing=bearing;this.altitude=altitude;
+        public final double lat,lng,accuracy,speedKmh,providerSpeedKmh,speedAccuracyMps; public final Double bearing,altitude;
+        Point(long id,String tripId,long time,double lat,double lng,double accuracy,double speedKmh,double providerSpeedKmh,double speedAccuracyMps,Double bearing,Double altitude){
+            this.id=id;this.tripId=tripId;this.time=time;this.lat=lat;this.lng=lng;this.accuracy=accuracy;this.speedKmh=speedKmh;this.providerSpeedKmh=providerSpeedKmh;this.speedAccuracyMps=speedAccuracyMps;this.bearing=bearing;this.altitude=altitude;
         }
         public JSObject toJson(){
             JSObject o=new JSObject();
             o.put("tripId",tripId);o.put("time",time);o.put("latitude",lat);o.put("longitude",lng);
             o.put("lat",lat);o.put("lng",lng);o.put("accuracy",accuracy);o.put("speedKmh",speedKmh);
+            o.put("providerSpeedKmh",providerSpeedKmh);o.put("speedAccuracyMps",speedAccuracyMps);
             if(bearing!=null)o.put("bearing",bearing);
             if(altitude!=null)o.put("altitude",altitude);
             o.put("source","native-android");
@@ -164,6 +177,7 @@ public final class TrackingDb extends SQLiteOpenHelper {
             try{
                 o.put("tripId",tripId);o.put("latitude",lat);o.put("longitude",lng);
                 o.put("accuracy",accuracy);o.put("speedKmh",speedKmh);
+                o.put("providerSpeedKmh",providerSpeedKmh);o.put("speedAccuracyMps",speedAccuracyMps);
                 if(bearing!=null)o.put("bearing",bearing);else o.put("bearing",JSONObject.NULL);
                 if(altitude!=null)o.put("altitude",altitude);else o.put("altitude",JSONObject.NULL);
                 o.put("time",time);o.put("simulated",false);o.put("vehicle","Motor");o.put("source","native-android");

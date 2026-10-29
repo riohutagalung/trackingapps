@@ -56,21 +56,32 @@ npx cap sync android
 
 ### iOS (Mac + Xcode)
 
+**Codespaces/Linux dapat menyiapkan source, tetapi tidak dapat membangun atau memasang aplikasi native ke iPhone.** Untuk iOS native diperlukan Mac dengan Xcode yang sesuai dengan Capacitor 8.
+
+Siapkan source di Mac:
+
 ```bash
+git pull --ff-only origin fix/gps-speed-route-map-20261013
 npm ci
 npm run ios:prepare
 npm run ios:doctor
 npm run ios:open
 ```
 
-Untuk device iPhone, pilih target iPhone di Xcode lalu aktifkan **Signing & Capabilities → Background Modes → Location updates**.  
-Untuk smoke-test simulator tanpa signing:
+Di Xcode:
+
+1. Pilih project **App** lalu target **App** → **Signing & Capabilities**.
+2. Aktifkan **Automatically manage signing** dan pilih Team dari Apple Account.
+3. Pastikan **Background Modes → Location updates** aktif. File `Info.plist` proyek sudah memiliki izin lokasi saat digunakan, izin lokasi Always, serta `UIBackgroundModes = location`.
+4. Sambungkan iPhone lewat kabel, pilih **Trust This Computer** di iPhone, aktifkan **Developer Mode** di iPhone bila diminta, lalu pilih iPhone itu sebagai run destination dan tekan **Run**.
+
+Untuk tes di simulator tanpa signing:
 
 ```bash
 npm run ios:build:sim
 ```
 
-Build/sign/install ke iPhone nyata tetap membutuhkan macOS + Xcode + Apple signing. Linux/Codespace hanya dapat melakukan preparation/inspection.
+Akun Apple gratis dengan **Personal Team** dapat dipakai untuk pengujian pribadi melalui Xcode, tetapi provisioning untuk app/device akan kedaluwarsa setelah 7 hari sehingga perlu build dan instal ulang. Untuk TestFlight atau App Store, gunakan Apple Developer Program.
 
 ## Catatan
 

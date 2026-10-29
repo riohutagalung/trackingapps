@@ -874,6 +874,15 @@ body.device-android .mobile-header { padding-top:12px; }
 .trip-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
 .route-map { height:260px; width:100%; }
 .route-map-note { padding:8px 10px; font-size:9px; color:var(--muted); border-top:1px solid var(--line); }
+.trip-summary-route { margin:0 0 16px; padding:10px; border:1px solid var(--line); border-radius:16px; background:rgba(5,15,28,.55); }
+.trip-summary-route-head { display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:11px; font-weight:800; margin-bottom:8px; }
+.trip-summary-route-head span { font-size:9px; font-weight:600; color:var(--muted); }
+.trip-summary-map { height:205px; min-height:185px; width:100%; border-radius:12px; overflow:hidden; background:#101c2b; }
+.trip-summary-map-legend { display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; font-size:9px; color:var(--muted); }
+.trip-summary-map-legend span { display:inline-flex; align-items:center; gap:4px; }
+.trip-summary-map-legend i { width:8px; height:8px; border-radius:50%; display:inline-block; }
+.trip-svg-fallback { display:block; width:100%; height:100%; background:linear-gradient(145deg,#0c1c2c,#14263a); }
+.trip-svg-fallback text { fill:#cbd5e1; font-size:8px; font-family:Arial,sans-serif; }
 @media (max-width:700px) {
   .mobile-connection { display:inline-flex; }
   .trip-summary-metrics { display:none; }
@@ -1215,6 +1224,17 @@ body.device-android .mobile-header { padding-top:12px; }
 
 <div id="trip-modal" class="modal"><div class="modal-box">
   <h3 class="modal-title">Kesimpulan Perjalanan</h3><div class="modal-sub" id="trip-modal-sub">Perjalanan selesai.</div>
+  <div class="trip-summary-route">
+    <div class="trip-summary-route-head"><b>Jalur GPS aktual</b><span id="trip-summary-point-count">Menyiapkan peta…</span></div>
+    <div id="trip-summary-map" class="trip-summary-map" role="img" aria-label="Peta jalur GPS aktual"></div>
+    <div id="trip-summary-map-note" class="route-map-note">Menyiapkan titik jalur...</div>
+    <div class="trip-summary-map-legend">
+      <span><i style="background:#60a5fa"></i>0–15 km/jam</span>
+      <span><i style="background:#34d399"></i>15–30 km/jam</span>
+      <span><i style="background:#fbbf24"></i>30–50 km/jam</span>
+      <span><i style="background:#fb7185"></i>50+ km/jam</span>
+    </div>
+  </div>
   <div class="grid grid-4">
     <div class="stat"><div class="label">Jarak</div><div class="value" id="modal-distance">0 km</div></div>
     <div class="stat"><div class="label">Durasi</div><div class="value" id="modal-duration">0 mnt</div></div>
@@ -1267,7 +1287,7 @@ body.device-android .mobile-header { padding-top:12px; }
 <div id="quick-backdrop" class="quick-backdrop" aria-hidden="true" onclick="App.closeQuickMenu()"></div>
 <div id="toast" class="toast"></div>
 
-<script src="gas-bridge.js?v=20260922-r10"></script>
+<script src="gas-bridge.js?v=20261022-r11"></script>
 <script src="rh-native-gps.js"></script>
 <script src="rh-native-media.js?v=20260922-r12"></script>
 <script>
@@ -1468,8 +1488,31 @@ const App = {
     this.renderExpenses(d.recent || [], 'recent-expenses', true);
     this.renderTrips(d.trips || []);
     const wf=d.weekFuel||{}; const wfEl=document.getElementById('week-fuel-summary'); if(wfEl) wfEl.innerHTML=`<div class="route-row"><div><div class="route-name">${Icon('fuel',15)} BBM 7 hari</div><div class="route-sub">${wf.transactionCount||0} transaksi • ${Num(wf.liters||0,2)} L • ${Num(wf.distanceKm||0,1)} km</div></div><div class="eta"><strong>${Money(wf.amount||0)}</strong><span>${wf.avgKmL?Num(wf.avgKmL,1)+' km/L':'Belum cukup data'}</span></div></div>`;
-    const habits = d.habits || [];
-    document.getElementById('route-habits').innerHTML = habits.length ? habits.slice(0, 4).map(h => `<div class="habit"><b>${Esc(h.routeName)}</b><span>${h.freq}x perjalanan • rata-rata ${Num(h.avgDur)} menit • ${Num(h.avgDistance, 1)} km</span></div>`).join('') : '<div class="empty">Belum ada route habit. Mulai perjalanan GPS untuk membangun kebiasaan.</div>';
+    // A route habit is earned by real trips on distinct calendar days,
+    // not by repeated points or duplicate rows from the same journey.
+    const habitCutoff=Date.now()-30*24*60*60*1000;
+    const routeGroups=new Map();
+    (Array.isArray(d.trips)?d.trips:[]).forEach(t=>{
+      const date=String(t.date||'').slice(0,10),when=Date.parse(date);
+      const distance=Number(t.distanceKm)||0,duration=Number(t.durationMin)||0;
+      if(!date||!isFinite(when)||when<habitCutoff||when>Date.now()+24*60*60*1000||distance<=0||duration<=0)return;
+      const origin=String(t.origin||'GPS'),destination=String(t.destination||'Tujuan');
+      const key=origin+'|'+destination;
+      let group=routeGroups.get(key);
+      if(!group){
+        group={key,routeName:t.routeName||Trip.compactTripRoute(t),origin,destination,dates:new Set(),trips:0,
+          totalDistance:0,totalDuration:0};
+        routeGroups.set(key,group);
+      }
+      group.dates.add(date);group.trips++;group.totalDistance+=distance;group.totalDuration+=duration;
+    });
+    const habits=Array.from(routeGroups.values())
+      .filter(h=>h.dates.size>=2)
+      .sort((a,b)=>b.dates.size-a.dates.size||b.trips-a.trips||b.totalDistance-a.totalDistance)
+      .slice(0,4);
+    document.getElementById('route-habits').innerHTML=habits.length
+      ?habits.map(h=>`<div class="habit"><b>${Esc(h.routeName)}</b><span>Dipakai ${h.dates.size} hari berbeda • ${h.trips} trip tercatat • rata-rata ${Num(h.totalDuration/h.trips,0)} menit • total ${Num(h.totalDistance,1)} km (30 hari)</span></div>`).join('')
+      :'<div class="empty">Belum ada rute yang diulang pada hari berbeda dalam 30 hari terakhir. Trip baru tidak langsung dianggap habit.</div>';
     document.getElementById('system-info').innerHTML = `Sheets: <b>terhubung</b><br>RPC: <b>${window.RHBridge?.endpoint ? 'aktif' : 'bridge tidak ditemukan'}</b><br>GPS: <b>${GPS.isNative() ? 'native mobile' : 'browser device'}</b><br>OCR: <b>Google Drive + arsip struk</b><br>Traffic Google: <b>${this.config.trafficConfigured ? 'aktif' : 'belum dikonfigurasi'}</b><br>Device: <b>${document.body.classList.contains('device-ios') ? 'iOS' : document.body.classList.contains('device-android') ? 'Android' : 'Desktop/Tablet'}</b>`;
     if (this.config.krlFare) document.getElementById('krl-fare').value = this.config.krlFare;
     if (this.config.tjFare) document.getElementById('tj-fare').value = this.config.tjFare;
@@ -1526,11 +1569,30 @@ const App = {
     this.data.trips=arr||[];
     if(!arr||!arr.length){el.innerHTML='<div class="empty">Belum ada perjalanan GPS yang tersimpan.</div>';return;}
     const habitCounts={};
-    (arr||[]).forEach(t=>{ const k=String(t.origin||'GPS')+'|'+String(t.destination||'Tujuan'); habitCounts[k]=(habitCounts[k]||0)+1; });
+    const habitCutoff=Date.now()-30*24*60*60*1000;
+    (arr||[]).forEach(t=>{
+      const k=String(t.origin||'GPS')+'|'+String(t.destination||'Tujuan'),date=String(t.date||''),when=Date.parse(date);
+      if(when&&when<habitCutoff)return;
+      if(!habitCounts[k])habitCounts[k]=new Set();
+      if(date)habitCounts[k].add(date);
+    });
     el.innerHTML=arr.map((t)=>{
       const pts=Array.isArray(t.gpsPoints)?t.gpsPoints:[];
+      const tripStats={distanceKm:Number(t.distanceKm)||0,durationMin:Number(t.durationMin)||0,
+        avgSpeedKmh:Number(t.avgSpeed??t.avgSpeedKmh)||0,maxSpeedKmh:Number(t.maxSpeed??t.maxSpeedKmh)||0};
+      try{
+        const metricPoints=Trip.normalizeMapPoints(pts);
+        if(metricPoints.length>=3){
+          const startMs=Date.parse(String(t.startTime||''))||Number(metricPoints[0].time)||0;
+          const endMs=Date.parse(String(t.endTime||''))||Number(metricPoints[metricPoints.length-1].time)||0;
+          const derived=RHComputeGpsMetrics(metricPoints,startMs,endMs,t.vehicle||'Motor');
+          if(derived.distanceKm>0&&derived.maxSpeedKmh>0&&derived.movingTimeMin>0){
+            tripStats.distanceKm=derived.distanceKm;tripStats.avgSpeedKmh=derived.avgSpeedKmh;tripStats.maxSpeedKmh=derived.maxSpeedKmh;
+          }
+        }
+      }catch(e){console.warn('[RH history] recompute from stored GPS failed:',e);}
       const key=String(t.origin||'GPS')+'|'+String(t.destination||'Tujuan');
-      const repeat=habitCounts[key]||1;
+      const repeat=habitCounts[key]?.size||1;
       const habitLabel=repeat>=3?'Habit utama':repeat===2?'Mulai jadi habit':'Trip baru';
       const route=this.compactTripRoute(t);
       const full=this.fullTripRoute(t);
@@ -1543,16 +1605,16 @@ const App = {
             <div class="trip-summary-title">${Esc(route)}</div>
             <div class="trip-summary-sub">${Esc(date)} • ${Esc(t.vehicle||'Motor')} • ${Esc(habitLabel)}</div>
           </div>
-          <div class="trip-summary-metrics"><div class="trip-summary-metric"><span>JARAK</span><b>${Num(t.distanceKm,1)} km</b></div><div class="trip-summary-metric"><span>DURASI</span><b>${Num(t.durationMin,0)} mnt</b></div></div>
+          <div class="trip-summary-metrics"><div class="trip-summary-metric"><span>JARAK</span><b>${Num(tripStats.distanceKm,1)} km</b></div><div class="trip-summary-metric"><span>DURASI</span><b>${Num(tripStats.durationMin,0)} mnt</b></div></div>
         </summary>
         <div class="trip-details">
           ${this.tripSparkline(pts)}
           <div class="trip-route-full"><b>${Esc(full.origin)} → ${Esc(full.destination)}</b>${full.via?`<div class="trip-route-via">Via ${Esc(full.via)}</div>`:''}</div>
           <div class="trip-details-grid">
-            <div class="trip-detail-box"><span>JARAK</span><b>${Num(t.distanceKm,2)} km</b></div>
-            <div class="trip-detail-box"><span>DURASI</span><b>${Num(t.durationMin,1)} mnt</b></div>
-            <div class="trip-detail-box"><span>RATA-RATA GPS</span><b>${Num(t.avgSpeed,1)} km/h</b></div>
-            <div class="trip-detail-box"><span>TERCEPAT TEREKAM</span><b>${Num(t.maxSpeed,1)} km/h</b></div>
+            <div class="trip-detail-box"><span>JARAK</span><b>${Num(tripStats.distanceKm,2)} km</b></div>
+            <div class="trip-detail-box"><span>DURASI</span><b>${Num(tripStats.durationMin,1)} mnt</b></div>
+            <div class="trip-detail-box"><span>AVG SAAT BERGERAK</span><b>${Num(tripStats.avgSpeedKmh,1)} km/h</b></div>
+            <div class="trip-detail-box"><span>TERCEPAT TEREKAM</span><b>${Num(tripStats.maxSpeedKmh,1)} km/h</b></div>
           </div>
           <div class="trip-gps-facts">
             <div class="trip-gps-fact"><span>TITIK MULAI</span><b>${this.tripCoord(startPoint)}</b></div>
@@ -1560,7 +1622,7 @@ const App = {
           </div>
           <div class="trip-sub" style="margin-top:10px">${pts.length?`${pts.length} titik GPS • jalur aktual tersimpan`:'Jalur GPS tidak tersedia pada trip ini'} • ${Esc(src)}</div>
           <div class="trip-data-note">Rata-rata dan kecepatan tertinggi berasal dari titik GPS yang benar-benar terekam dan lolos validasi perjalanan. Tidak menggunakan angka kecepatan estimasi.</div>
-          <div class="habit" style="margin-top:10px"><b>${Icon('route',15)} ${Esc(habitLabel)}</b><span>${repeat}x endpoint ${Esc(t.origin||'GPS')} → ${Esc(t.destination||'Tujuan')}. Habit dibentuk dari histori titik GPS aktual.</span></div>
+          <div class="habit" style="margin-top:10px"><b>${Icon('route',15)} ${Esc(habitLabel)}</b><span>${repeat} hari berbeda dengan rute ${Esc(t.origin||'GPS')} → ${Esc(t.destination||'Tujuan')} dalam 30 hari terakhir. Habit dihitung dari tanggal perjalanan, bukan jumlah titik GPS.</span></div>
           <div class="trip-actions">
             <button class="btn small" type="button" onclick="Trip.openMap('${EscAttr(t.id)}')">${Icon('map',15)} Lihat jalur GPS</button>
             <button class="btn small" type="button" onclick="Trip.openGoogleMaps('${EscAttr(t.id)}')">${Icon('route',15)} Google Maps</button>
@@ -1737,171 +1799,204 @@ const Traffic = {
 };
 
 const RH_GPS_CFG = Object.freeze({
-  maxAccuracyM: 75,
-  maxProviderSpeedKmh: 320,
-  stationaryRadiusM: 5,
-  stationarySpeedKmh: 3,
-  movingSpeedKmh: 3,
-  maxGapForDistanceS: 90,
-  maxGapForMovingS: 90,
-  movementWindowS: 4,
-  movementDistanceM: 10,
-  speedWindowS: 3,
-  serverSyncIntervalMs: 10000
+  maxAccuracyM: 75, maxProviderSpeedKmh: 220, maxMotorSpeedKmh: 145, maxCarSpeedKmh: 220,
+  stationaryRadiusM: 8, stationarySpeedKmh: 2.5, movingSpeedKmh: 3,
+  maxGapForDistanceS: 90, maxGapForMovingS: 22, movementWindowS: 32,
+  movementDistanceM: 10, speedWindowS: 32, serverSyncIntervalMs: 10000
 });
-
 function RHGpsTimeMs(p) {
-  const raw = p && (p.time !== undefined ? p.time : (p.timestamp !== undefined ? p.timestamp : p.ts));
-  if (typeof raw === 'number') return raw > 0 ? raw : 0;
-  const n = Number(raw);
-  if (isFinite(n) && n > 0) return n;
-  const t = Date.parse(String(raw || ''));
-  return isFinite(t) && t > 0 ? t : 0;
+  const raw=p&&(p.time!==undefined?p.time:(p.timestamp!==undefined?p.timestamp:p.ts));
+  if(typeof raw==='number')return raw>0?(raw<100000000000?raw*1000:raw):0;
+  const n=Number(raw);if(isFinite(n)&&n>0)return n<100000000000?n*1000:n;
+  const t=Date.parse(String(raw||''));return isFinite(t)&&t>0?t:0;
 }
-
 function RHNormalizeGpsPoints(points) {
   const seen=new Set(),out=[];
   (Array.isArray(points)?points:[]).forEach(p=>{
-    if(!p || p.simulated===true) return;
-    const lat=Number(p.lat!==undefined?p.lat:p.latitude);
-    const lng=Number(p.lng!==undefined?p.lng:p.longitude);
-    const time=RHGpsTimeMs(p);
-    const acc=Number(p.accuracy);
-    if(!isFinite(lat)||!isFinite(lng)||!time) return;
-    if(isFinite(acc)&&acc>RH_GPS_CFG.maxAccuracyM) return;
-    const key=[time,lat.toFixed(6),lng.toFixed(6)].join('|');
-    if(seen.has(key)) return;
-    seen.add(key);
-    out.push({
-      lat,lng,time,accuracy:isFinite(acc)?acc:0,
-      providerSpeedKmh:Number(p.providerSpeedKmh),
-      bearing:Number(p.bearing),
-      altitude:Number(p.altitude),
-      source:p.source||''
-    });
+    if(!p||p.simulated===true)return;
+    const lat=Number(Array.isArray(p)?p[0]:(p.lat!==undefined?p.lat:p.latitude));
+    const lng=Number(Array.isArray(p)?p[1]:(p.lng!==undefined?p.lng:p.longitude));
+    const rawTime=Array.isArray(p)?p[3]:(p.time!==undefined?p.time:(p.timestamp!==undefined?p.timestamp:p.ts));
+    const time=RHGpsTimeMs({time:rawTime}),acc=Number(Array.isArray(p)?0:p.accuracy);
+    if(!isFinite(lat)||!isFinite(lng)||!time||lat < -90||lat>90||lng < -180||lng>180)return;
+    if(isFinite(acc)&&acc>RH_GPS_CFG.maxAccuracyM)return;
+    const key=[time,lat.toFixed(6),lng.toFixed(6)].join('|');if(seen.has(key))return;seen.add(key);
+    const providerRaw=Number(Array.isArray(p)?NaN:p.providerSpeedKmh);
+    const speedRaw=Number(Array.isArray(p)?p[2]:(p.speedKmh!==undefined?p.speedKmh:p.speed));
+    const speedAccuracy=Number(Array.isArray(p)?NaN:p.speedAccuracyMps);
+    out.push({lat,lng,time,accuracy:isFinite(acc)&&acc>0?acc:0,
+      speedKmh:isFinite(speedRaw)&&speedRaw>=0?speedRaw:NaN,
+      providerSpeedKmh:isFinite(providerRaw)&&providerRaw>=0?providerRaw:NaN,
+      speedAccuracyMps:isFinite(speedAccuracy)&&speedAccuracy>=0?speedAccuracy:NaN,
+      bearing:Number(Array.isArray(p)?NaN:p.bearing),altitude:Number(Array.isArray(p)?NaN:p.altitude),
+      source:Array.isArray(p)?'':(p.source||''),gapAfterPrevious:!Array.isArray(p)&&p.gapAfterPrevious===true});
   });
   out.sort((a,b)=>a.time-b.time);
-  return out;
-}
-
-// For live speed and trip metrics RH derives speed from real coordinate movement
-// over a short window. Android's provider speed is retained for diagnostics only.
-function RHGpsWindowSpeedKmh(src,i) {
-  if(i<1) return 0;
-  const latest=src[i];
-  let j=i-1;
-  while(j>0 && (latest.time-src[j-1].time)/1000<=RH_GPS_CFG.speedWindowS) j--;
-  const a=src[j], b=latest, dt=(b.time-a.time)/1000;
-  if(!(dt>0)||dt>RH_GPS_CFG.maxGapForMovingS) return 0;
-  const dMeters=Haversine(a.lat,a.lng,b.lat,b.lng)*1000;
-  if(dMeters<RH_GPS_CFG.movementDistanceM) return 0;
-  return Math.min(RH_GPS_CFG.maxProviderSpeedKmh,Math.max(0,dMeters*3.6/dt));
-}
-
-function RHFilterGpsTrack(points) {
-  const src=RHNormalizeGpsPoints(points);
-  if(!src.length) return [];
-  if(src.length===1) return [{...src[0],filteredSpeedKmh:0,moving:false}];
-
-  const accepted=[{...src[0],filteredSpeedKmh:0,moving:false}];
-  let moving=false, stationarySince=null, last=src[0];
-
-  for(let i=1;i<src.length;i++){
-    const p=src[i], dt=(p.time-last.time)/1000;
-    if(!(dt>0)) continue;
-    if(dt>RH_GPS_CFG.maxGapForDistanceS){
-      moving=false; stationarySince=p.time;
-      accepted.push({...p,filteredSpeedKmh:0,moving:false,gapAfterPrevious:true});
-      last=p; continue;
+  // Duplicate timestamps with different coordinates are not separate motion
+  // samples. Keep the most accurate fix so a zero-time jump cannot break speed.
+  const ordered=[];
+  for(const p of out){
+    const previous=ordered[ordered.length-1];
+    if(previous&&p.time===previous.time){
+      const pa=Number(previous.accuracy)||Infinity,ca=Number(p.accuracy)||Infinity;
+      if(ca<pa)ordered[ordered.length-1]=p;
+      continue;
     }
-
-    const dMeters=Haversine(last.lat,last.lng,p.lat,p.lng)*1000;
-    const acc=Number(p.accuracy);
-    const jitterRadius=Math.max(RH_GPS_CFG.stationaryRadiusM,Math.min(15,isFinite(acc)&&acc>0?acc*0.20:5));
+    ordered.push(p);
+  }
+  return ordered;
+}
+function RHSpeedCapKmh(vehicle) {
+  let value=String(vehicle||'');
+  if(!value&&typeof document!=='undefined')value=document.getElementById('trip-vehicle')?.value||'';
+  return /mobil|car|auto/i.test(value)?RH_GPS_CFG.maxCarSpeedKmh:RH_GPS_CFG.maxMotorSpeedKmh;
+}
+function RHTrustedProviderSpeed(p,speedCap) {
+  if(!p||!isFinite(Number(p.providerSpeedKmh)))return 0;
+  const speed=Number(p.providerSpeedKmh),accuracy=Number(p.accuracy),speedAccuracy=Number(p.speedAccuracyMps);
+  if(speed<RH_GPS_CFG.movingSpeedKmh||speed>Math.min(speedCap,RH_GPS_CFG.maxProviderSpeedKmh))return 0;
+  if(!isFinite(accuracy)||accuracy<=0||accuracy>50)return 0;
+  if(!isFinite(speedAccuracy)||speedAccuracy<0||speedAccuracy>2.5)return 0;
+  return speed;
+}
+function RHRecordedGpsSpeed(p,speedCap) {
+  if(!p)return 0;
+  const speed=Number(p.speedKmh),accuracy=Number(p.accuracy);
+  if(!isFinite(speed)||speed<RH_GPS_CFG.movingSpeedKmh||speed>speedCap)return 0;
+  if(!isFinite(accuracy)||accuracy<=0||accuracy>50)return 0;
+  return speed;
+}
+/* Use elapsed time and several adjacent fixes, not one potentially noisy jump. */
+function RHGpsWindowEvidence(points,index,noiseRadiusM,speedCap) {
+  const end=points[index];
+  const previousInterval=index>0?(end.time-points[index-1].time):1000;
+  // Fast sampling gets a short window so speed falls quickly when stopped.
+  // Sparse background fixes get a wider window so real movement is not erased.
+  const windowMs=Math.min(RH_GPS_CFG.movementWindowS*1000,Math.max(4500,previousInterval*2.2));
+  let first=index;
+  while(first>0&&index-first<5){
+    const gap=(points[first].time-points[first-1].time)/1000;
+    if(!(gap>0)||gap>RH_GPS_CFG.maxGapForMovingS||end.time-points[first-1].time>windowMs)break;
+    first--;
+  }
+  if(index-first<2)return{moving:false,speedKmh:0,netMeters:0,pathMeters:0,segments:0,spanSeconds:0};
+  const a=points[first],b=end,spanSeconds=(b.time-a.time)/1000;
+  if(!(spanSeconds>0)||spanSeconds>windowMs/1000)return{moving:false,speedKmh:0,netMeters:0,pathMeters:0,segments:0,spanSeconds};
+  let pathMeters=0,segments=0;
+  for(let j=first+1;j<=index;j++){
+    const dt=(points[j].time-points[j-1].time)/1000;
+    if(!(dt>0)||dt>RH_GPS_CFG.maxGapForMovingS)return{moving:false,speedKmh:0,netMeters:0,pathMeters:0,segments:0,spanSeconds};
+    const d=Haversine(points[j-1].lat,points[j-1].lng,points[j].lat,points[j].lng)*1000;
+    const segmentSpeed=d*3.6/dt;
+    if(!isFinite(segmentSpeed)||segmentSpeed>speedCap*1.08)
+      return{moving:false,speedKmh:0,netMeters:0,pathMeters:pathMeters+d,segments,spanSeconds};
+    pathMeters+=d;if(d>=Math.max(2.5,noiseRadiusM*0.25))segments++;
+  }
+  const netMeters=Haversine(a.lat,a.lng,b.lat,b.lng)*1000;
+  const coherent=pathMeters>0&&netMeters/pathMeters>=0.62;
+  const required=Math.max(RH_GPS_CFG.movementDistanceM,Math.min(22,noiseRadiusM*0.9));
+  const speedKmh=netMeters*3.6/spanSeconds;
+  const moving=segments>=2&&netMeters>=required&&coherent&&speedKmh>=RH_GPS_CFG.movingSpeedKmh&&speedKmh<=speedCap;
+  return{moving,speedKmh:moving?speedKmh:0,netMeters,pathMeters,segments,spanSeconds,coherent};
+}
+function RHFilterGpsTrack(points,vehicle) {
+  const src=RHNormalizeGpsPoints(points),speedCap=RHSpeedCapKmh(vehicle);if(!src.length)return[];
+  const accepted=[];let moving=false,stationarySince=null;
+  for(let i=0;i<src.length;i++){
+    const p=src[i],previous=i?src[i-1]:null;
+    if(!previous){accepted.push({...p,filteredSpeedKmh:0,moving:false,movementConfirmed:false,providerSpeedTrusted:false});continue;}
+    const dt=(p.time-previous.time)/1000;if(!(dt>0))continue;
+    if(p.gapAfterPrevious||dt>RH_GPS_CFG.maxGapForDistanceS){
+      moving=false;stationarySince=p.time;
+      accepted.push({...p,filteredSpeedKmh:0,moving:false,movementConfirmed:false,providerSpeedTrusted:false,gapAfterPrevious:true});continue;
+    }
+    const dMeters=Haversine(previous.lat,previous.lng,p.lat,p.lng)*1000;
+    const accuracy=Math.max(Number(previous.accuracy)||0,Number(p.accuracy)||0);
+    const noiseRadius=Math.max(RH_GPS_CFG.stationaryRadiusM,Math.min(22,accuracy*1.05));
     const segmentSpeed=dMeters*3.6/dt;
-    const windowStart=Math.max(0,i-4);
-    const w=src[windowStart];
-    const windowMove=Haversine(w.lat,w.lng,p.lat,p.lng)*1000;
-    const physicalMovement=dMeters>=Math.max(6,jitterRadius*1.25)||windowMove>=RH_GPS_CFG.movementDistanceM;
-
-    if(!moving&&physicalMovement){moving=true;stationarySince=null;}
-
-    const stationary=dMeters<=jitterRadius&&windowMove<RH_GPS_CFG.movementDistanceM&&segmentSpeed<RH_GPS_CFG.movingSpeedKmh;
-    if(stationary){
-      if(stationarySince===null) stationarySince=p.time;
-      if(moving&&(p.time-stationarySince)>=1500) moving=false;
-    }else{
-      stationarySince=null;
-    }
-
-    // Reject only an isolated GPS jump that immediately returns near its prior path.
-    const next=src[i+1];
-    if(next){
-      const dtNext=(next.time-p.time)/1000;
-      if(dt<=8&&dtNext>0&&dtNext<=8){
-        const nextD=Haversine(p.lat,p.lng,next.lat,next.lng)*1000;
-        const nextSpeed=nextD*3.6/dtNext;
-        const direct=Haversine(last.lat,last.lng,next.lat,next.lng)*1000;
-        const detour=(dMeters+nextD)/Math.max(direct,1);
-        if(detour>2.2&&segmentSpeed>70&&nextSpeed>70) continue;
+    const currentMotionThreshold=Math.max(2.2,Math.min(10,noiseRadius*0.25));
+    const currentSegmentShowsMovement=dMeters>=currentMotionThreshold&&
+      segmentSpeed>=RH_GPS_CFG.movingSpeedKmh&&segmentSpeed<=speedCap;
+    const evidence=RHGpsWindowEvidence(src,i,noiseRadius,speedCap);
+    const coordinateMotion=evidence.moving&&currentSegmentShowsMovement;
+    // Confirm short movement from two consecutive, consistent segments when
+    // the rolling window is not ready yet. The net displacement requirement
+    // rejects stationary jitter and the out-and-back pattern of a GPS jump.
+    let localMotion=false;
+    if(i>=2&&currentSegmentShowsMovement){
+      const before=src[i-2],beforeDt=(previous.time-before.time)/1000;
+      if(beforeDt>0&&beforeDt<=RH_GPS_CFG.maxGapForMovingS){
+        const beforeMeters=Haversine(before.lat,before.lng,previous.lat,previous.lng)*1000;
+        const beforeSpeed=beforeMeters*3.6/beforeDt;
+        const combinedNet=Haversine(before.lat,before.lng,p.lat,p.lng)*1000;
+        const combinedPath=beforeMeters+dMeters;
+        const ratesAgree=beforeSpeed>=RH_GPS_CFG.movingSpeedKmh&&beforeSpeed<=speedCap&&
+          Math.abs(beforeSpeed-segmentSpeed)<=Math.max(15,Math.max(beforeSpeed,segmentSpeed)*0.35);
+        localMotion=ratesAgree&&combinedNet>=Math.max(8,accuracy*1.5)&&combinedPath>0&&combinedNet/combinedPath>=0.45;
       }
     }
-
-    const windowSpeed=RHGpsWindowSpeedKmh(src,i);
-    const speed=moving?(windowSpeed>0?windowSpeed:(dMeters>=Math.max(6,jitterRadius*1.25)?segmentSpeed:0)):0;
-    accepted.push({...p,filteredSpeedKmh:Math.max(0,Math.min(RH_GPS_CFG.maxProviderSpeedKmh,speed)),moving});
-    last=p;
+    const provider=RHTrustedProviderSpeed(p,speedCap),previousProvider=RHTrustedProviderSpeed(previous,speedCap);
+    const providerStable=provider>0&&previousProvider>0&&Math.abs(provider-previousProvider)<=Math.max(18,Math.max(provider,previousProvider)*0.30);
+    const reported=RHRecordedGpsSpeed(p,speedCap);
+    const reportedMatches=reported>0&&currentSegmentShowsMovement&&
+      Math.abs(reported-segmentSpeed)<=Math.max(12,segmentSpeed*0.30)&&(coordinateMotion||localMotion);
+    const providerMatches=providerStable&&currentSegmentShowsMovement&&
+      Math.abs(provider-segmentSpeed)<=Math.max(15,segmentSpeed*0.30)&&(coordinateMotion||localMotion);
+    const confirmed=coordinateMotion||localMotion||providerMatches||reportedMatches;
+    if(confirmed){moving=true;stationarySince=null;}
+    else if(moving){if(stationarySince===null)stationarySince=p.time;if(p.time-stationarySince>=RH_GPS_CFG.movementWindowS*1000)moving=false;}
+    let speed=0;
+    if(confirmed){
+      // The live value is the latest validated distance/time segment, not the
+      // mean of the entire rolling window. Speed drops to 0 on the next
+      // reliable location fix after stopping.
+      speed=providerMatches?provider:(reportedMatches?reported:segmentSpeed);
+      if(!isFinite(speed)||speed<RH_GPS_CFG.movingSpeedKmh||speed>speedCap)speed=0;
+    }
+    accepted.push({...p,filteredSpeedKmh:Math.max(0,Math.min(speedCap,speed)),moving,
+      movementConfirmed:confirmed,providerSpeedTrusted:providerMatches,segmentMeters:dMeters,segmentSpeedKmh:segmentSpeed,noiseRadiusM:noiseRadius});
+  }
+  for(let i=0;i<accepted.length;i++){
+    const p=accepted[i],speed=Number(p.filteredSpeedKmh)||0;
+    if(speed<=80)continue;
+    const before=i>0?(Number(accepted[i-1].filteredSpeedKmh)||0):0;
+    const after=i+1<accepted.length?(Number(accepted[i+1].filteredSpeedKmh)||0):0;
+    const neighbor=Math.max(before,after);
+    if(speed>neighbor*1.65+18&&speed-neighbor>25){p.filteredSpeedKmh=0;p.movementConfirmed=false;}
   }
   return accepted;
 }
-
-function RHComputeGpsMetrics(points,startMs,endMs){
-  const track=RHFilterGpsTrack(points);
+function RHComputeGpsMetrics(points,startMs,endMs,vehicle) {
+  const track=RHFilterGpsTrack(points,vehicle),speedCap=RHSpeedCapKmh(vehicle);
   let distance=0,movingMs=0,maxSpeed=0,stopCount=0,prev=null,wasMoving=false,stoppedAt=null;
-
   for(let i=0;i<track.length;i++){
-    const p=track[i], speed=Math.max(0,Number(p.filteredSpeedKmh||0));
+    const p=track[i],speed=Math.max(0,Math.min(speedCap,Number(p.filteredSpeedKmh)||0));
     maxSpeed=Math.max(maxSpeed,speed);
-
     if(prev){
       const dt=(p.time-prev.time)/1000;
-      if(dt>0&&dt<=RH_GPS_CFG.maxGapForDistanceS){
-        const dKm=Haversine(prev.lat,prev.lng,p.lat,p.lng);
-        const dMeters=dKm*1000;
-        const acc=Number(p.accuracy);
-        const jitter=Math.max(RH_GPS_CFG.stationaryRadiusM,Math.min(15,isFinite(acc)&&acc>0?acc*0.20:5));
-
-        if(p.moving){
-          if(dMeters>jitter) distance+=dKm;
-          movingMs+=Math.min(dt,RH_GPS_CFG.maxGapForMovingS)*1000;
-          wasMoving=true; stoppedAt=null;
-        }else if(wasMoving){
-          if(stoppedAt===null) stoppedAt=p.time;
-          if(p.time-stoppedAt>=30000){
-            stopCount++;
-            stoppedAt=null;
-            wasMoving=false;
-          }
-        }
+      if(dt>0&&dt<=RH_GPS_CFG.maxGapForMovingS&&p.movementConfirmed&&!p.gapAfterPrevious){
+        const dMeters=Haversine(prev.lat,prev.lng,p.lat,p.lng)*1000;
+        const noise=Math.max(RH_GPS_CFG.stationaryRadiusM,Math.min(22,Math.max(Number(prev.accuracy)||0,Number(p.accuracy)||0)*0.75));
+        const segmentSpeed=dMeters*3.6/dt;
+        if(dMeters>Math.max(2.5,noise*0.25)&&segmentSpeed<=speedCap*1.03)distance+=dMeters/1000;
+        movingMs+=dt*1000;wasMoving=true;stoppedAt=null;
+      }else if(wasMoving){
+        if(stoppedAt===null)stoppedAt=p.time;
+        if(p.time-stoppedAt>=30000){stopCount++;stoppedAt=null;wasMoving=false;}
       }
     }
     prev=p;
   }
-
-  const fallbackStart=track.length?track[0].time:0;
-  const fallbackEnd=track.length?track[track.length-1].time:0;
+  const fallbackStart=track.length?track[0].time:0,fallbackEnd=track.length?track[track.length-1].time:0;
   const a=Number(startMs)||fallbackStart,b=Number(endMs)||fallbackEnd;
-  const durationMin=a&&b&&b>=a?(b-a)/60000:0;
-  const movingTimeMin=Math.min(durationMin,movingMs/60000);
-  const avgSpeed=movingTimeMin>0?distance/(movingTimeMin/60):0;
-
-  return {
-    points:track, pointCount:track.length, distanceKm:distance, durationMin,
-    movingTimeMin, stopTimeMin:Math.max(0,durationMin-movingTimeMin),
-    stopCount, avgSpeedKmh:avgSpeed, maxSpeedKmh:maxSpeed,
-    currentSpeedKmh:track.length?Number(track[track.length-1].filteredSpeedKmh||0):0
-  };
+  const durationMin=a&&b&&b>=a?(b-a)/60000:0,movingTimeMin=Math.min(durationMin,movingMs/60000);
+  const avgSpeed=movingTimeMin>0&&distance>0?distance/(movingTimeMin/60):0;
+  const last=track[track.length-1],currentFresh=!!last&&Date.now()-last.time<=15000;
+  return{points:track,pointCount:track.length,distanceKm:distance,durationMin,movingTimeMin,
+    stopTimeMin:Math.max(0,durationMin-movingTimeMin),stopCount,avgSpeedKmh:avgSpeed,maxSpeedKmh:maxSpeed,
+    currentSpeedKmh:currentFresh?Number(last.filteredSpeedKmh||0):0};
 }
+
 const GPS = {
   active:false,watch:null,timer:null,start:null,end:null,points:[],pending:null,wakeLock:null,
   speedSamples:[],
@@ -1909,6 +2004,7 @@ const GPS = {
   stopping:false, lastNativeCount:-1, lastNativeServerPoints:[], lastNativeSyncAt:0, nativeRefreshPromise:null,
   zones:[{name:'Bintaro',lat:-6.273,lng:106.742,r:4.0},{name:'Ciputat',lat:-6.310,lng:106.765,r:4.0}],
   toggle(){this.active?this.stop():this.startTracking();},
+  currentVehicle(){return document.getElementById('trip-vehicle')?.value || 'Motor';},
   isNative(){return !!(window.RHNativeGPS&&window.RHNativeGPS.isNative&&window.RHNativeGPS.isNative());},
   init(){
     if(this.resumeBound)return;
@@ -1929,9 +2025,38 @@ const GPS = {
     try{
       const raw=localStorage.getItem(this.storageKey); if(!raw)return;
       const x=JSON.parse(raw);
-      if(!x||!x.active||!x.start||!Array.isArray(x.points))return;
+      if(!x)return;
+      // If saving the previous trip failed or the app was closed at the summary
+      // screen, restore the pending summary instead of losing a completed trip.
+      if(x.pending&&x.pending.id){
+        const pendingTime=Date.parse(x.pending.startTime||'')||Number(x.start)||Number(x.savedAt)||0;
+        if(pendingTime>0&&Date.now()-pendingTime<=24*3600000){
+          const p=x.pending;
+          this.active=false;this.stopping=false;this.pending=p;
+          this.start=Date.parse(p.startTime||'')||Number(x.start)||Date.now();
+          this.end=Date.parse(p.endTime||'')||Date.now();
+          this.sessionId=String(p.id);this.points=this.dedupePoints(p.gpsPoints||x.points||[]);
+          this.nativeMode=this.isNative();this.updateButton(false);
+          document.getElementById('modal-distance').textContent=Num(p.distance,2)+' km';
+          document.getElementById('modal-duration').textContent=Num(p.durationMin,1)+' mnt';
+          document.getElementById('modal-avg').textContent=Num(p.avgSpeed,1)+' km/h';
+          document.getElementById('modal-max').textContent=Num(p.maxSpeed,1)+' km/h';
+          document.getElementById('trip-modal-sub').textContent=p.routeName||'Perjalanan GPS';
+          document.getElementById('modal-habit').innerHTML='<b>'+Icon('route',15)+' Habit &amp; route detection</b><span>Perjalanan belum dikonfirmasi tersimpan. Titik GPS tetap diamankan di perangkat.</span>';
+          document.getElementById('trip-modal').classList.add('active');
+          document.getElementById('trip-summary-point-count').textContent=this.points.length+' titik GPS dipulihkan';
+          document.getElementById('trip-summary-map-note').textContent='Memulihkan jalur GPS…';
+          setTimeout(()=>{try{Trip.renderSummaryMap(this.points,{id:this.sessionId,routeName:p.routeName,vehicle:p.vehicle||'Motor'});}catch(e){console.warn('[RH restored summary map]',e);}},300);
+          this.persist();
+          App.toast('Perjalanan sebelumnya belum dikonfirmasi tersimpan. Tekan Simpan untuk melanjutkan.');
+          return;
+        }
+        localStorage.removeItem(this.storageKey);
+        return;
+      }
+      if(!x.active||!x.start||!Array.isArray(x.points))return;
       if(Date.now()-Number(x.start)>12*3600000){localStorage.removeItem(this.storageKey);return;}
-      this.active=true;this.start=Number(x.start);this.sessionId=x.sessionId||('trip_'+Date.now());this.points=this.dedupePoints(x.points);this.lastNativeServerPoints=[];
+      this.active=true;this.start=Number(x.start);this.sessionId=x.sessionId||('trip_'+Date.now());this.points=this.dedupePoints(x.points);this.lastNativeServerPoints=[]; 
       this.nativeMode=this.isNative();this.updateButton(true);
       if(this.nativeMode&&window.RHNativeGPS){ await window.RHNativeGPS.start(this.sessionId); }
       else this.ensureWatch();
@@ -1946,7 +2071,12 @@ const GPS = {
     }catch(e){try{localStorage.removeItem(this.storageKey);}catch(_){} }
   },
   persist(){
-    try{localStorage.setItem(this.storageKey,JSON.stringify({active:this.active,start:this.start,sessionId:this.sessionId,points:this.points.slice(-2500),savedAt:Date.now()}));this.lastPersist=Date.now();}catch(e){}
+    try{
+      const state={active:this.active,start:this.start,end:this.end,sessionId:this.sessionId,points:this.points.slice(-5000),savedAt:Date.now()};
+      if(this.pending) state.pending={...this.pending,gpsPoints:(this.pending.gpsPoints||[]).slice(-5000)};
+      localStorage.setItem(this.storageKey,JSON.stringify(state));
+      this.lastPersist=Date.now();
+    }catch(e){console.warn('[RHGPS] local backup failed:',e);}
   },
   clearPersist(){try{localStorage.removeItem(this.storageKey);}catch(e){}},
   async requestWakeLock(){try{if('wakeLock' in navigator&&document.visibilityState==='visible'&&!this.wakeLock){this.wakeLock=await navigator.wakeLock.request('screen');this.wakeLock.addEventListener('release',()=>{this.wakeLock=null;});}}catch(e){}},
@@ -2048,8 +2178,17 @@ const GPS = {
     const accuracy=Number(isNative?(pos.accuracy??pos.coords?.accuracy):(pos.coords?.accuracy||0));
     if(isFinite(accuracy)&&accuracy>120)return;
 
+    const providerRaw=Number(isNative?pos.providerSpeedKmh:NaN);
+    const providerKmh=(isFinite(providerRaw)&&providerRaw>=0)?providerRaw:NaN;
+    const nativeStoredKmh=Number(isNative?pos.speedKmh:NaN);
     let rawSpeed=Number(isNative?(pos.speed??pos.coords?.speed):(pos.coords?.speed));
-    const speedKmh=(isFinite(rawSpeed)&&rawSpeed>=0)?rawSpeed*3.6:NaN;
+    // Prefer a non-zero speed already validated by the native service over an OS
+    // "0 km/h" placeholder. The filter still corroborates this value with GPS points.
+    const speedKmh=(isNative&&isFinite(nativeStoredKmh)&&nativeStoredKmh>=3&&(!isFinite(providerKmh)||providerKmh<3))
+      ?nativeStoredKmh
+      :(isFinite(providerKmh)?providerKmh:((isNative&&isFinite(nativeStoredKmh)&&nativeStoredKmh>=0)?nativeStoredKmh:((isFinite(rawSpeed)&&rawSpeed>=0)?rawSpeed*3.6:NaN)));
+    const speedAccuracyRaw=Number(pos.speedAccuracyMps);
+    const speedAccuracyMps=isFinite(speedAccuracyRaw)&&speedAccuracyRaw>=0?speedAccuracyRaw:NaN;
 
     const bearingRaw=isNative?(pos.bearing??pos.coords?.heading):pos.coords?.heading;
     const bearing=Number(bearingRaw);
@@ -2060,9 +2199,10 @@ const GPS = {
 
     const point={
       lat,lng,
-      speedKmh:0,
-       providerSpeedKmh:isFinite(speedKmh)?speedKmh:NaN,
-       displaySpeedKmh:0,
+      speedKmh:isFinite(speedKmh)&&speedKmh>=0?speedKmh:NaN,
+      providerSpeedKmh:isFinite(providerKmh)?providerKmh:NaN,
+      speedAccuracyMps,
+      displaySpeedKmh:0,
       accuracy:isFinite(accuracy)?accuracy:0,
       time:ts,
       bearing:isFinite(bearing)?bearing:null,
@@ -2161,9 +2301,9 @@ const GPS = {
       }
       this.stopping=false;this.reset();App.toast('Perjalanan terlalu singkat untuk disimpan.');return;
     }
-    const metricStart=stats.points.length?stats.points[0].time:this.start;
-    const metricEnd=stats.points.length?stats.points[stats.points.length-1].time:this.end;
-    this.pending={distance:stats.distanceKm,durationMin:stats.durationMin,avgSpeed:stats.avgSpeedKmh,maxSpeed:stats.maxSpeedKmh,movingTimeMin:stats.movingTimeMin,stopTimeMin:stats.stopTimeMin,stopCount:stats.stopCount,...route,gpsPoints:stats.points.slice(),startTime:new Date(metricStart).toISOString(),endTime:new Date(metricEnd).toISOString(),date:new Date(metricStart).toISOString().slice(0,10),id:sid};
+    const metricStart=Number(this.start)||(stats.points.length?stats.points[0].time:Date.now());
+    const metricEnd=Number(this.end)||(stats.points.length?stats.points[stats.points.length-1].time:Date.now());
+    this.pending={distance:stats.distanceKm,durationMin:stats.durationMin,avgSpeed:stats.avgSpeedKmh,maxSpeed:stats.maxSpeedKmh,movingTimeMin:stats.movingTimeMin,stopTimeMin:stats.stopTimeMin,stopCount:stats.stopCount,...route,gpsPoints:stats.points.slice(),startTime:new Date(metricStart).toISOString(),endTime:new Date(metricEnd).toISOString(),date:new Date(metricStart).toISOString().slice(0,10),id:sid,vehicle:this.currentVehicle()};
     document.getElementById('modal-distance').textContent=Num(stats.distanceKm,2)+' km';
     document.getElementById('modal-duration').textContent=Num(stats.durationMin,1)+' mnt';
     document.getElementById('modal-avg').textContent=Num(stats.avgSpeedKmh,1)+' km/h';
@@ -2171,6 +2311,9 @@ const GPS = {
     document.getElementById('trip-modal-sub').textContent=route.routeName;
     document.getElementById('modal-habit').innerHTML=`<b>${Icon('route',15)} Habit &amp; route detection</b><span>${Esc(route.note)} • ${stats.pointCount} titik GPS valid tersimpan</span>`;
     document.getElementById('trip-modal').classList.add('active');
+    document.getElementById('trip-summary-point-count').textContent=stats.pointCount+' titik setelah filter';
+    document.getElementById('trip-summary-map-note').textContent='Menggambar jalur GPS aktual…';
+    setTimeout(()=>{try{Trip.renderSummaryMap(stats.points,{id:sid,routeName:route.routeName,vehicle:this.currentVehicle()});}catch(e){console.warn('[RH summary map]',e);document.getElementById('trip-summary-map-note').textContent='Peta gagal dirender. Jalur tetap tersimpan pada data GPS.';}},350);
     this.stopping=false;
     this.persist();
   },
@@ -2189,10 +2332,10 @@ const GPS = {
     const p=this.pending, sid=p.id, btn=document.querySelector('#trip-modal .btn.primary');
     if(btn)btn.disabled=true;
 
-    let syncResult={ok:true,remaining:0,tripIds:[]};
+    let syncResult=null;
     try{
-      if(GPS.nativeMode) syncResult=await window.RHNativeGPS.sync?.()||syncResult;
-    }catch(e){ console.warn('[RHGPS] final native sync:',e); }
+      if(GPS.nativeMode) syncResult=await window.RHNativeGPS.sync?.()||null;
+    }catch(e){ console.warn('[RHGPS] final native sync; keeping local GPS backup:',e); }
 
     const payload={
       id:sid,date:p.date,origin:p.origin,destination:p.destination,routeName:p.routeName,
@@ -2210,16 +2353,25 @@ const GPS = {
 
     const save=()=>google.script.run.withSuccessHandler(async()=>{
       if(GPS.nativeMode){
-        const left=Number(syncResult?.remaining||0);
-        if(left===0){
-          try{ await window.RHNativeGPS.clearTrip?.(sid); }catch(e){}
-          try{ google.script.run.withFailureHandler(()=>{}).deleteNativeTripPoints(sid); }catch(_){}
-          App.toast('Perjalanan + jalur GPS tersimpan ke Google Sheets.');
+        let serverPointCount=0;
+        try{
+          serverPointCount=await new Promise(resolve=>{
+            google.script.run.withSuccessHandler(rows=>resolve(Array.isArray(rows)?rows.length:0))
+              .withFailureHandler(()=>resolve(0)).getNativeTripPoints(sid);
+          });
+        }catch(e){serverPointCount=0;}
+        const syncConfirmed=!!syncResult&&syncResult.ok===true&&Number(syncResult.remaining||0)===0;
+        if(syncConfirmed&&serverPointCount>=2){
+          try{await window.RHNativeGPS.clearTrip?.(sid);}catch(e){}
+          // Keep server TripPoints: history map (getTripGpsPoints) depends on them.
+          App.toast('Perjalanan dan jalur GPS tersimpan ke riwayat.');
         }else{
-          App.toast('Ringkasan perjalanan tersimpan. Jalur GPS masih tersimpan di HP dan akan disinkronkan saat koneksi tersedia.');
+          // A summary can be saved while the route sync is offline. Keep SQLite
+          // points for retry; do not delete either local or server route data.
+          App.toast('Ringkasan tersimpan. Jalur GPS belum terverifikasi di server, jadi data tetap diamankan di HP untuk sinkronisasi ulang.');
         }
       }else{
-        App.toast('Perjalanan + jalur GPS tersimpan ke Google Sheets.');
+        App.toast('Perjalanan dan jalur GPS tersimpan ke riwayat.');
       }
       if(btn)btn.disabled=false;
       App.closeModal('trip-modal');
@@ -2243,9 +2395,13 @@ const GPS = {
   },
   stats(endMs){
     const usable=RHNormalizeGpsPoints(this.points);
-    const firstTime=usable.length?usable[0].time:(this.start||0);
-    const lastTime=usable.length?usable[usable.length-1].time:(endMs||Date.now());
-    return RHComputeGpsMetrics(this.points,firstTime,lastTime);
+    const firstPointTime=usable.length?usable[0].time:0;
+    const lastPointTime=usable.length?usable[usable.length-1].time:0;
+    // Elapsed trip duration is wall-clock time from tapping Start to Stop,
+    // not time between GPS fixes (a stationary phone may not get a new fix).
+    const startMs=Number(this.start)||firstPointTime;
+    const wallEnd=Number(endMs)||(this.active?Date.now():Number(this.end)||lastPointTime);
+    return RHComputeGpsMetrics(this.points,startMs,wallEnd,this.currentVehicle());
   },
   detectRoute(trackPoints){
     const pts=Array.isArray(trackPoints)?trackPoints:this.points;
@@ -2259,13 +2415,14 @@ const GPS = {
     const liveSpeed=Number(s.currentSpeedKmh||0);
     document.getElementById('gps-speed').textContent=Num(liveSpeed,1);
     document.getElementById('gps-distance').textContent=Num(s.distanceKm,2);
-    document.getElementById('gps-time').textContent=TimeFmt(s.durationMin*60);
+    const elapsedSeconds=this.start?Math.max(0,Math.floor(((this.active?Date.now():(this.end||Date.now()))-this.start)/1000)):Math.max(0,Math.floor(s.durationMin*60));
+    document.getElementById('gps-time').textContent=TimeFmt(elapsedSeconds);
     document.getElementById('gps-avg').textContent=Num(s.avgSpeedKmh,1);
     document.getElementById('gps-max').textContent=Num(s.maxSpeedKmh,1);
     const qEl=document.getElementById('gps-quality');
     if(qEl){
       const acc=last&&Number(last.accuracy);
-      if(isFinite(acc)){
+      if(isFinite(acc)&&acc>0){
         qEl.textContent=acc<=15?'GPS kuat • ±'+Math.round(acc)+' m':acc<=40?'GPS baik • ±'+Math.round(acc)+' m':'GPS lemah • ±'+Math.round(acc)+' m';
         qEl.className='gps-quality '+(acc<=40?'good':'warn');
       }else{
@@ -2278,7 +2435,7 @@ const GPS = {
     document.getElementById('float-route').textContent=route.routeName;
     document.getElementById('float-speed').textContent=Num(liveSpeed,1);
     document.getElementById('float-distance').textContent=Num(s.distanceKm,2)+' km';
-    document.getElementById('float-time').textContent=TimeFmt(s.durationMin*60);
+    document.getElementById('float-time').textContent=TimeFmt(elapsedSeconds);
     document.getElementById('float-avg').textContent=Num(s.avgSpeedKmh,1)+' km/h';
   },
   async reconcileNativeQueue(){
@@ -2302,7 +2459,7 @@ const GPS = {
       if(ids.length) App.refresh(true);
     }catch(e){ console.warn('[RHGPS] reconcile native queue:',e); }
   },
-  reset(){this.active=false;this.stopping=false;this.points=[];this.speedSamples=[];this.start=null;this.end=null;this.pending=null;this.sessionId=null;this.nativeMode=false;this.lastNativeServerPoints=[];this.lastNativeSyncAt=0;this.nativeRefreshPromise=null;this.clearPersist();if(this.watch!==null){navigator.geolocation.clearWatch(this.watch);this.watch=null;}clearInterval(this.timer);this.timer=null;this.updateButton(false);['gps-speed','gps-distance','gps-avg','gps-max'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=id==='gps-distance'?'0.00':'0';});const tm=document.getElementById('gps-time');if(tm)tm.textContent='00:00';const rt=document.getElementById('gps-route');if(rt)rt.textContent='GPS STANDBY';const q=document.getElementById('gps-quality');if(q){q.textContent='GPS standby';q.className='gps-quality';}document.getElementById('gps-floating')?.classList.remove('show');}
+  reset(){try{if(typeof Trip!=='undefined')Trip.clearSummaryMap();}catch(e){}this.active=false;this.stopping=false;this.points=[];this.speedSamples=[];this.start=null;this.end=null;this.pending=null;this.sessionId=null;this.nativeMode=false;this.lastNativeServerPoints=[];this.lastNativeSyncAt=0;this.nativeRefreshPromise=null;this.clearPersist();if(this.watch!==null){navigator.geolocation.clearWatch(this.watch);this.watch=null;}clearInterval(this.timer);this.timer=null;this.updateButton(false);['gps-speed','gps-distance','gps-avg','gps-max'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=id==='gps-distance'?'0.00':'0';});const tm=document.getElementById('gps-time');if(tm)tm.textContent='00:00';const rt=document.getElementById('gps-route');if(rt)rt.textContent='GPS STANDBY';const q=document.getElementById('gps-quality');if(q){q.textContent='GPS standby';q.className='gps-quality';}document.getElementById('gps-floating')?.classList.remove('show');}
 };
 
 const OCR = {
@@ -2352,12 +2509,23 @@ const OCR = {
     document.getElementById('ocr-bar').style.width = '12%';
 
     const callAnalyze=(optimized)=>new Promise((resolve,reject)=>{
-      const success=(r)=>{
-        if(!r || !r.ok){
+      const success=(response)=>{
+        // Vercel /api/rpc historically returned its own {ok,result} envelope
+        // around the Apps Script {ok,result} envelope. The bridge removed only
+        // the outer envelope, leaving the actual OCR payload one level deeper.
+        // Unwrap only this known RPC envelope, then use one normalized contract.
+        let r=response, unwrapDepth=0;
+        while(r && r.ok===true && !r.text && !r.parsed &&
+              r.result && typeof r.result==='object' && unwrapDepth<3){
+          r=r.result;
+          unwrapDepth++;
+        }
+        if(!r || r.ok===false){
           const msg=(r&&r.error)||'OCR tidak menemukan teks atau gagal membaca.';
           reject(new Error(msg));
           return;
         }
+        if(unwrapDepth>0 && r && typeof r==='object')r={...r,__rhResponseUnwrapDepth:unwrapDepth};
         resolve(r);
       };
       const failure=(e)=>reject(e instanceof Error?e:new Error(String(e?.message||e||'OCR gagal.')));
@@ -2405,6 +2573,13 @@ const OCR = {
         mode:serverParsed.mode||'unknown',
         sourceApp:serverParsed.sourceApp||'',
         amount:Number(serverParsed.amount||0),
+        backendBuild:String(r.buildId||serverParsed.buildId||'').trim(),
+        currency:String(serverParsed.currency||'IDR').toUpperCase(),
+        amountNeedsVisualCheck:serverParsed.amountNeedsVisualCheck===true,
+        amountText:String(serverParsed.amountText||'').trim(),
+        amountLine:String(serverParsed.amountLine||'').trim(),
+        title:String(serverParsed.title||'').trim(),
+        brandSource:String(serverParsed.brandSource||'').trim(),
         date:serverParsed.date||TodayLocal(),
         category:serverParsed.category||'Lainnya',
         brand:String(serverParsed.brand||serverParsed.recipient||'').trim(),
@@ -2412,6 +2587,88 @@ const OCR = {
         detail:String(serverParsed.detail||'').trim(),
         note:String(serverParsed.note||'').trim()
       };
+
+      // Recovery layer: the raw OCR text is the source of truth when an older
+      // Apps Script deployment returns a corrupted amount or a blank recipient.
+      // Parse explicit currency tokens locally before trusting serverParsed.amount.
+      const ocrLines=rawText.split(/\r?\n/).map(x=>String(x||'').replace(/[\u00a0\t]+/g,' ').replace(/\s{2,}/g,' ').trim()).filter(Boolean);
+      const amountMetadataLine=/\b(?:rrn|reference(?:\s*(?:no|number))?|transaction\s*id|terminal\s*id|merchant\s*(?:id|pan)|customer\s*pan|acquirer|source\s+of\s+fund|account|rekening|phone|telepon|merchant\s+location)\b/i;
+      let rawAmountChoice=null;
+      for(let li=0;li<ocrLines.length;li++){
+        const line=ocrLines[li];
+        if(amountMetadataLine.test(line))continue;
+        const moneyMatches=[...line.matchAll(/(?:\bIDR\b|\bRUPIAH\b|\bRP\.?)\s*([0-9][0-9.,]*)/gi)];
+        for(const mm of moneyMatches){
+          const token=String(mm[1]||'').trim();
+          const value=this.parseMoneyToken(token,line);
+          if(!(Number.isFinite(value)&&value>0&&value<=500000000))continue;
+          let score=50;
+          if(/\b(?:grand\s+total|total\s+payment|total\s+paid|total|amount|nominal|jumlah|paid|dibayar)\b/i.test(line))score+=100;
+          if(/\b(?:qr.?is\s+payment\s+successful|payment\s+successful|transaction\s+successful)\b/i.test(line))score-=20;
+          if(mm[0])score+=10;
+          if(!rawAmountChoice||score>rawAmountChoice.score)rawAmountChoice={value,score,token: mm[0],line};
+        }
+      }
+      if(rawAmountChoice){
+        const numericToken=String(rawAmountChoice.token).replace(/^(?:IDR|RUPIAH|RP\.?)\s*/i,'').replace(/[^0-9.,-]/g,'');
+        const separatorless=/^\d{7,}$/.test(numericToken);
+        p.amountText=rawAmountChoice.token;
+        p.amountLine=rawAmountChoice.line;
+        p.amount=separatorless?0:Math.round(rawAmountChoice.value);
+        // A separatorless 7+ digit IDR value is unknowable from digits alone:
+        // never silently treat e.g. 2720000 as Rp2.720.000 or Rp27.200.
+        p.amountNeedsVisualCheck=separatorless;
+      }else if(p.amountText){
+        const tokenValue=this.parseMoneyToken(p.amountText,p.amountLine||p.amountText);
+        const numericToken=String(p.amountText).replace(/^(?:IDR|RUPIAH|RP\.?)\s*/i,'').replace(/[^0-9.,-]/g,'');
+        p.amountNeedsVisualCheck=/^\d{7,}$/.test(numericToken);
+        p.amount=p.amountNeedsVisualCheck?0:(tokenValue>0?Math.round(tokenValue):Number(p.amount||0));
+      }else if(p.amountNeedsVisualCheck || (String(p.currency||'IDR').toUpperCase()==='IDR' && p.amount>=1000000 && !p.amountText)){
+        // Fail closed if an older backend supplies a large amount without the
+        // original OCR token: there is no evidence to distinguish Rp27.200 from
+        // Rp2.720.000 after separators have vanished.
+        p.amountNeedsVisualCheck=true;
+        if(!p.amountText&&p.amount>0)p.amountText=String(Math.round(p.amount));
+        if(!p.amountLine)p.amountLine='Token nominal asli tidak dikembalikan oleh server';
+        p.amount=0;
+      }
+
+      // Prefer an explicitly labelled Payment to / Paid to target over any
+      // stale bank/app value returned by an older Apps Script deployment.
+      const isTargetMetadata=line=>/^(?:acquirer|rrn|reference|reference\s*no\.?|transaction\s*type|transaction\s*id|terminal\s*id|merchant\s*(?:pan|id)|customer\s*pan|source\s+of\s+fund|total\s+payment|merchant\s+location|payment\s+method|date|tanggal|status|idr\s*\d|rp\.?\s*\d)/i.test(String(line||'').trim());
+      const tidyTarget=value=>String(value||'').replace(/^[\s:|>]+|[\s:|>]+$/g,'').replace(/\s{2,}/g,' ').trim();
+      const extractExplicitTarget=()=>{
+        const label=/^(?:payment\s*to|paid\s*to|pay\s*to|payee|recipient|payment\s+recipient|transfer\s+to|sent\s+to|nama\s+merchant)\s*[:=>\-]?\s*(.*)$/i;
+        for(let i=0;i<ocrLines.length;i++){
+          const match=ocrLines[i].match(label);
+          if(!match)continue;
+          let pieces=[];
+          const inline=tidyTarget(match[1]);
+          if(inline&&!isTargetMetadata(inline))pieces.push(inline);
+          for(let j=i+1;j<Math.min(ocrLines.length,i+4)&&pieces.length<2;j++){
+            const next=tidyTarget(ocrLines[j]);
+            if(!next)continue;
+            if(isTargetMetadata(next))break;
+            if(/^(?:BANK\s+)?(?:BCA|BANK CENTRAL ASIA|BRI|BRIMO|BNI|MANDIRI|BANK MANDIRI|CIMB|ACQUIRER|ACQUIRER BANK)$/i.test(next))break;
+            if(pieces.length===0&&/[A-Za-zÀ-ÿ]{3,}/.test(next))pieces.push(next);
+            else if(pieces.length&&/^(?:\d{2}\.\d{4,6}|\d{2,8}-\d{1,4})$/.test(next)&&/\b(?:SPBU|PERTAMINA|SHELL|VIVO)\b/i.test(pieces.join(' ')))pieces.push(next);
+            else break;
+          }
+          const candidate=pieces.join(' ').replace(/\s{2,}/g,' ').trim();
+          if(candidate&&/[A-Za-zÀ-ÿ]{3,}/.test(candidate)&&!isTargetMetadata(candidate))return candidate;
+        }
+        return '';
+      };
+      const explicitTarget=extractExplicitTarget();
+      if(explicitTarget){
+        p.recipient=explicitTarget;
+        p.brand=explicitTarget;
+        p.brandSource='recipient';
+        if(/\b(?:spbu|pertamina|shell|vivo)\b/i.test(explicitTarget))p.category='Bensin';
+        if(/\bqris\b/i.test(rawText))p.detail='Pembayaran QRIS ke '+explicitTarget;
+        else if(!p.detail||/^(?:bca|bri|bni|mandiri|cimb|qris|payment|transfer)$/i.test(p.detail))p.detail='Pembayaran ke '+explicitTarget;
+        p.note='Ke: '+explicitTarget+(/\bqris\b/i.test(rawText)?' • QRIS':'');
+      }
 
       // OCR result is authoritative for the scanned transaction. Never keep
       // an old Brand/Detail/Note from a previous scan when the new parser says blank.
@@ -2433,12 +2690,39 @@ const OCR = {
         return /^(?:bank )?(?:bca(?: mobile)?|bank central asia|m bca|mybca|bri|brimo|bri mobile|bank rakyat indonesia|bni|bni mobile|bank negara indonesia|wondr|mandiri|bank mandiri|livin(?: by mandiri)?|cimb|octo|permata|btn|danamon|ocbc|uob|hsbc|dbs|jenius|seabank|bank jago|blu|bank neo|neo bank|qris|gpn|visa|mastercard|edc|atm|mobile banking|internet banking|virtual account|gopay|go pay|ovo|dana|shopeepay|spay|linkaja|flip|doku|xendit|midtrans|paypal|wise|stripe|google pay|apple pay|paynow|duitnow)$/i.test(v);
       };
       const invalidOCRName=value=>this.isDateTimeLike(value)||this.isLocationLike(value)||isGenericOCRTitle(value)||isOCRProviderHeader(value);
-      const safeBrand=invalidOCRName(p.brand)?'':String(p.brand||'').trim();
+      // Provider headers are normally rejected, but an explicit receipt-title
+      // label is a distinct signal: "Judul BCA" may populate Brand/Tempat = BCA.
+      const safeBrand=p.brandSource==='receipt-title'
+        ? ((this.isDateTimeLike(p.brand)||this.isLocationLike(p.brand)||isGenericOCRTitle(p.brand))?'':String(p.brand||'').trim())
+        : (invalidOCRName(p.brand)?'':String(p.brand||'').trim());
       const safeRecipient=invalidOCRName(p.recipient)?'':String(p.recipient||'').trim();
-      const brandOrRecipient=safeRecipient||safeBrand;
+      // Recover a known merchant from raw OCR when Apps Script returned only
+      // the bank/app name (for example detail="BCA", brand="").
+      let rawMerchant='';
+      const merchantLines=ocrLines.filter(line=>/pertamina|\bspbu\b|\bshell\b|\bvivo\b|\bbp\b|indomaret|alfamart|hok\s*ben|hokben|starbucks|kopi\s+kenangan|fore\s+coffee/i.test(line));
+      const stationLine=merchantLines.find(line=>/pertamina|\bspbu\b/i.test(line)&&/[A-Za-z]/.test(line));
+      if(stationLine){
+        rawMerchant=stationLine
+          .replace(/\b(?:payment|transaction|successful|success|berhasil|completed|qris|bca|mybca|transfer)\b/ig,' ')
+          .replace(/\s{2,}/g,' ').replace(/^[\s:|>\-]+|[\s:|>\-]+$/g,'').trim();
+        if(!/pertamina|spbu/i.test(rawMerchant))rawMerchant='';
+      }
+      if(!rawMerchant && typeof this.knownMerchantFromText==='function'){
+        rawMerchant=this.knownMerchantFromText(rawText)||'';
+      }
+      const brandOrRecipient=safeRecipient||safeBrand||rawMerchant;
+      if(!p.recipient && rawMerchant && !safeRecipient){
+        p.brand=rawMerchant;
+        p.recipient=rawMerchant;
+        if(/pertamina|spbu|shell|vivo|\bbp\b/i.test(rawMerchant))p.category='Bensin';
+        if(!p.detail || /^(?:bca|bri|bni|mandiri|cimb|qris|payment|transfer)$/i.test(p.detail)){
+          p.detail=/qris/i.test(rawText)?'Pembayaran QRIS ke '+rawMerchant:'Pembayaran ke '+rawMerchant;
+        }
+      }
       const safeNote=this.isLocationLike(p.note)?'':String(p.note||'').trim();
 
-      if(p.amount)document.getElementById('exp-amount').value=p.amount;
+      if(p.amount&&!p.amountNeedsVisualCheck)document.getElementById('exp-amount').value=p.amount;
+      else if(p.amountNeedsVisualCheck)document.getElementById('exp-amount').value='';
       if(p.date&&/^\d{4}-\d{2}-\d{2}$/.test(p.date))document.getElementById('exp-date').value=p.date;
       if(p.category)document.getElementById('exp-category').value=p.category;
       document.getElementById('exp-brand').value=brandOrRecipient;
@@ -2449,12 +2733,24 @@ const OCR = {
 
       const det=document.getElementById('ocr-detection');
       if(det){
+        // Normal mode shows only useful receipt fields. Technical diagnostics
+        // remain available on demand via ?ocrdebug=1.
+        const debug=new URLSearchParams(location.search).get('ocrdebug')==='1';
         const bits=[];
-        if(brandOrRecipient)bits.push((p.recipient?'Payment To: ':'Brand/Tempat: ')+Esc(brandOrRecipient));
+        if(brandOrRecipient)bits.push('Brand/Tempat: '+Esc(brandOrRecipient));
         if(p.date)bits.push('Tanggal: '+Esc(p.date));
-        if(p.amount)bits.push('Nominal: '+Money(p.amount));
-        if(p.category)bits.push('Kategori: '+Esc(p.category));
+        if(p.amountNeedsVisualCheck)bits.push('Nominal perlu dicek manual');
+        else if(p.amount)bits.push('Nominal: '+Money(p.amount));
+        if(p.category && p.category!=='Lainnya')bits.push('Kategori: '+Esc(p.category));
         if(p.detail)bits.push('Detail: '+Esc(p.detail));
+        if(debug){
+          bits.push('Frontend: RH OCR-IDR 2026-10-22-r4 • Bridge: '+String(window.RHBridge?.version||'unknown'));
+          bits.push('Backend: '+(p.backendBuild||'unconfirmed'));
+          bits.push('OCR text: '+rawText.length+' chars');
+          bits.push('Amount token: '+Esc(p.amountText||'none'));
+          bits.push('Recipient: '+Esc(p.recipient||'none'));
+          console.debug('[RH OCR diagnostics]',{frontend:'2026-10-22-r4',bridge:window.RHBridge?.version,backend:p.backendBuild||null,rawText,parsed:p});
+        }
         det.innerHTML=bits.join('<br>');
         det.classList.toggle('show',!!bits.length);
       }
@@ -2463,8 +2759,9 @@ const OCR = {
         const el=document.getElementById(id);
         if(el){el.classList.remove('field-highlight');void el.offsetWidth;el.classList.add('field-highlight');}
       });
-      document.getElementById('ocr-label').textContent='✓ Bukti transaksi berhasil dianalisis!';
-      App.toast(brandOrRecipient ? (p.recipient ? 'Nominal, tanggal, dan penerima berhasil diekstrak.' : 'Nominal, tanggal, dan tempat berhasil diekstrak.') : 'Nominal dan tanggal berhasil diekstrak.');
+      document.getElementById('ocr-label').textContent=p.amountNeedsVisualCheck?'⚠️ Periksa nominal hasil OCR':'✓ Bukti transaksi berhasil dianalisis!';
+      if(p.amountNeedsVisualCheck)App.toast('Nominal otomatis dikosongkan karena pemisah angka tidak terbaca. Periksa struk lalu isi manual.');
+      else App.toast(brandOrRecipient ? (p.recipient ? 'Nominal, tanggal, dan penerima berhasil diekstrak.' : 'Nominal, tanggal, dan tempat berhasil diekstrak.') : 'Nominal dan tanggal berhasil diekstrak.');
       setTimeout(()=>document.getElementById('ocr-progress').style.display='none',1200);
       return r;
     }catch(e){
@@ -2490,10 +2787,38 @@ const OCR = {
     const isIDR=/\b(?:IDR|RP|RUPIAH)\b|\bRP\.?\s*[0-9]/.test(ctx);
     const lc=s.lastIndexOf(','),ld=s.lastIndexOf('.');
     if(isIDR){
-      const lastSep=Math.max(lc,ld);
-      const tail=lastSep>=0?s.slice(lastSep+1):'';
-      if(lastSep>=0&&tail.length===2&&/^\d{2}$/.test(tail))s=s.slice(0,lastSep);
-      return Number(s.replace(/[^0-9]/g,'')||0);
+      const negative=s.charAt(0)==='-';
+      s=s.replace(/-/g,'');
+      const commas=(s.match(/,/g)||[]).length,dots=(s.match(/\./g)||[]).length;
+      const lastComma=s.lastIndexOf(','),lastDot=s.lastIndexOf('.');
+      const sign=negative?'-':'';
+      // "27.200,00" can lose its comma and become "27.20000".
+      if(commas+dots===1){
+        const sep=commas?lastComma:lastDot;
+        const left=s.slice(0,sep).replace(/[.,]/g,'');
+        const right=s.slice(sep+1);
+        if(/^\d{5}$/.test(right)&&/00$/.test(right))return Number(sign+(left||'0')+right.slice(0,3));
+      }
+      if(commas>0&&dots>0){
+        const pos=Math.max(lastComma,lastDot),fraction=s.slice(pos+1);
+        const integer=s.slice(0,pos).replace(/[.,]/g,'');
+        if(/^\d{1,2}$/.test(fraction)&&Number(fraction)===0)return Number(sign+(integer||'0'));
+        return Number(sign+s.replace(/[.,]/g,''));
+      }
+      if(commas>1||dots>1){
+        const chunks=s.split(/[.,]/);
+        if(chunks.length>1&&chunks.slice(1).every(part=>/^\d{3}$/.test(part)))return Number(sign+chunks.join(''));
+        return Number(sign+s.replace(/[.,]/g,''));
+      }
+      if(commas===1||dots===1){
+        const pos=commas?lastComma:lastDot,left=s.slice(0,pos).replace(/[.,]/g,''),right=s.slice(pos+1);
+        if(/^\d{3}$/.test(right))return Number(sign+(left||'0')+right);
+        if(/^\d{1,2}$/.test(right)){
+          if(Number(right)===0)return Number(sign+(left||'0'));
+          return Number(sign+(left||'0')+'.'+right);
+        }
+      }
+      return Number(sign+s.replace(/[.,]/g,'')||0);
     }
     if(lc>=0&&ld>=0){
       if(ld>lc)s=s.replace(/,/g,'');
@@ -3225,52 +3550,322 @@ const Expense = {
 
 const Trip = {
   _map:null,
-  async openMap(id){
+  async openMap(id) {
     const t=(App.data.trips||[]).find(x=>String(x.id)===String(id));
     if(!t){App.toast('Data perjalanan tidak ditemukan.');return;}
-    let points=this.normalizeMapPoints(Array.isArray(t.gpsPoints)?t.gpsPoints:[]);
-    if(points.length<2 && t.id && window.google?.script?.run){
-      points=await new Promise(resolve=>{google.script.run.withSuccessHandler(r=>resolve(this.normalizeMapPoints(r))).withFailureHandler(()=>resolve([])).getTripGpsPoints(t.id);});
-    }
-    if(points.length<2){App.toast('Trip ini belum memiliki cukup titik GPS aktual untuk dibuatkan jalur.');return;}
     const modal=document.getElementById('trip-map-modal');
-    const title=document.getElementById('trip-map-title');
-    const sub=document.getElementById('trip-map-sub');
-    const note=document.getElementById('trip-map-note');
+    const title=document.getElementById('trip-map-title'),sub=document.getElementById('trip-map-sub'),note=document.getElementById('trip-map-note');
     if(title)title.textContent=t.routeName||'Jalur GPS Aktual';
-    if(sub)sub.textContent=`${t.date||''} • ${t.vehicle||'Motor'} • ${points.length} titik GPS`;
-    if(note)note.textContent='Jalur mengikuti titik GPS yang benar-benar tersimpan pada trip ini.';
+    if(sub)sub.textContent=(t.date||'')+' • '+(t.vehicle||'Motor')+' • memuat titik GPS…';
+    if(note)note.textContent='Mengambil jalur perjalanan yang tersimpan…';
     modal.classList.add('active');
-    setTimeout(()=>this.renderActualMap(points,t),50);
-  },
-  normalizeMapPoints(arr){
-    return (Array.isArray(arr)?arr:[]).map(p=>{
-      if(Array.isArray(p)) return {lat:Number(p[0]),lng:Number(p[1]),speedKmh:Number(p[2]||0),time:Number(p[3]||0)};
-      return {lat:Number(p?.lat??p?.latitude),lng:Number(p?.lng??p?.longitude),speedKmh:Number(p?.speedKmh??p?.speed??0),time:Number(p?.time??p?.timestamp??0)};
-    }).filter(p=>isFinite(p.lat)&&isFinite(p.lng));
-  },
-  async renderActualMap(points,t){
-    const el=document.getElementById('trip-map');if(!el)return;
-    if(this._map){try{this._map.remove();}catch(e){}this._map=null;}
-    if(!window.L){
-      el.innerHTML=`<div class="empty" style="padding:30px;text-align:center"><b>Peta belum tersedia offline.</b><div style="margin-top:8px">Koordinat GPS tetap tersimpan. Gunakan tombol Google Maps untuk membuka jalur berdasarkan titik awal/akhir.</div><div style="margin-top:14px"><button class="btn small" type="button" onclick="Trip.openGoogleMaps('${EscAttr(t.id)}')">${Icon('route',15)} Buka Google Maps</button></div></div>`;
+    const el=document.getElementById('trip-map');
+    if(el)el.textContent='Memuat koordinat perjalanan…';
+    let points=this.normalizeMapPoints(Array.isArray(t.gpsPoints)?t.gpsPoints:[]);
+    if(points.length<2&&t.id&&window.google?.script?.run){
+      points=await new Promise(resolve=>{
+        google.script.run.withSuccessHandler(r=>resolve(this.normalizeMapPoints(r)))
+          .withFailureHandler(e=>{console.warn('[RH map] failed to load GPS points:',e);resolve([]);})
+          .getTripGpsPoints(t.id);
+      });
+    }
+    if(points.length<2){
+      if(el)el.textContent='Koordinat jalur untuk perjalanan ini belum tersedia di server.';
+      if(note)note.textContent='Ringkasan perjalanan tetap tersimpan, tetapi titik GPS belum tersedia untuk menggambar peta.';
+      App.toast('Titik GPS jalur belum tersedia; data perjalanan tidak dihapus.');
       return;
     }
-    let drawPoints=points;
-    try{
-      const filtered=RHFilterGpsTrack(points);
-      if(Array.isArray(filtered)&&filtered.length>=2)drawPoints=filtered;
-    }catch(e){console.warn('[RH Trip Map] filter skipped:',e);}
-    const latlngs=drawPoints.map(p=>[Number(p.lat!==undefined?p.lat:p.latitude),Number(p.lng!==undefined?p.lng:p.longitude)]);
-    this._map=L.map(el,{zoomControl:true,attributionControl:true,preferCanvas:true});
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,crossOrigin:true,attribution:'© OpenStreetMap contributors'}).addTo(this._map);
-    const line=L.polyline(latlngs,{weight:5,opacity:.9,smoothFactor:.12}).addTo(this._map);
-    L.circleMarker(latlngs[0],{radius:6}).addTo(this._map).bindTooltip('Mulai');
-    L.circleMarker(latlngs[latlngs.length-1],{radius:6}).addTo(this._map).bindTooltip('Selesai');
-    try{this._map.fitBounds(line.getBounds().pad(.12));}catch(e){this._map.setView(latlngs[0],15);}
-    setTimeout(()=>{try{this._map.invalidateSize(true);}catch(e){}},150);
+    if(sub)sub.textContent=(t.date||'')+' • '+(t.vehicle||'Motor')+' • '+points.length+' titik GPS';
+    if(note)note.textContent='Menggambar jalur dari koordinat GPS yang tersimpan…';
+    setTimeout(()=>this.renderActualMap(points,t),250);
   },
-  openGoogleMaps(id){
+
+  normalizeMapPoints(arr) {
+    return (Array.isArray(arr) ? arr : []).map(p => {
+      const rawTime=Array.isArray(p)?p[3]:(p?.time ?? p?.timestamp ?? p?.ts);
+      const time=RHGpsTimeMs({time:rawTime});
+      if (Array.isArray(p)) return {lat:Number(p[0]), lng:Number(p[1]), speedKmh:Number(p[2] || 0), time, gapAfterPrevious:false};
+      return {
+        lat:Number(p?.lat ?? p?.latitude),
+        lng:Number(p?.lng ?? p?.longitude),
+        speedKmh:Number(p?.speedKmh ?? p?.speed ?? 0),
+        time,
+        accuracy:Number(p?.accuracy ?? 0),
+        bearing:Number(p?.bearing),
+        source:p?.source || '',
+        gapAfterPrevious:p?.gapAfterPrevious===true
+      };
+    }).filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lng) &&
+      p.lat >= -90 && p.lat <= 90 && p.lng >= -180 && p.lng <= 180);
+  },
+
+  renderActualMap(points, trip) {
+    return this.renderMapInto('trip-map', points, trip || {});
+  },
+
+  renderSummaryMap(points, trip) {
+    const target = document.getElementById('trip-summary-point-count');
+    if (target) target.textContent = 'Memproses kualitas titik GPS…';
+    return this.renderMapInto('trip-summary-map', points, trip || {});
+  },
+
+  speedColor(speed) {
+    const n = Math.max(0, Number(speed) || 0);
+    if (n < 15) return '#60a5fa';
+    if (n < 30) return '#34d399';
+    if (n < 50) return '#fbbf24';
+    return '#fb7185';
+  },
+
+  // Only resolve a place name when the user taps a route pin. Requests are
+  // serialized to respect the public reverse-geocoding service's rate limit.
+  async reverseGeocode(lat,lng) {
+    const latitude=Number(lat),longitude=Number(lng);
+    if(!Number.isFinite(latitude)||!Number.isFinite(longitude))return '';
+    if(!this._placeNameCache)this._placeNameCache=new Map();
+    if(!this._geocodeQueue)this._geocodeQueue=Promise.resolve();
+    const key=latitude.toFixed(5)+','+longitude.toFixed(5);
+    if(this._placeNameCache.has(key))return this._placeNameCache.get(key);
+
+    const request=async()=>{
+      const wait=Math.max(0,1100-(Date.now()-Number(this._lastGeocodeAt||0)));
+      if(wait)await new Promise(resolve=>setTimeout(resolve,wait));
+      this._lastGeocodeAt=Date.now();
+      const url='https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat='+
+        encodeURIComponent(latitude)+'&lon='+encodeURIComponent(longitude)+
+        '&zoom=18&addressdetails=1&accept-language=id';
+      const response=await fetch(url,{headers:{'Accept-Language':'id'}});
+      if(!response.ok)throw new Error('Reverse geocoding HTTP '+response.status);
+      const data=await response.json(),a=data&&data.address?data.address:{};
+      const road=a.road||a.pedestrian||a.residential||a.path||a.cycleway||a.footway||a.service||'';
+      const area=a.neighbourhood||a.suburb||a.quarter||a.city_district||a.hamlet||'';
+      const city=a.city||a.town||a.village||a.municipality||a.county||'';
+      const unique=[];
+      [road,area,city].forEach(v=>{const value=String(v||'').trim();if(value&&!unique.some(x=>x.toLowerCase()===value.toLowerCase()))unique.push(value);});
+      const name=unique.join(', ')||String(data.name||data.display_name||'').trim();
+      if(name)this._placeNameCache.set(key,name);
+      return name;
+    };
+    const queued=(this._geocodeQueue||Promise.resolve()).then(request,request);
+    this._geocodeQueue=queued.catch(()=>{});
+    return queued;
+  },
+
+  placePopupHtml(point,title,placeName) {
+    const lat=Number(point.lat),lng=Number(point.lng);
+    const coordinates=lat.toFixed(6)+', '+lng.toFixed(6);
+    const time=Number(point.time)>0
+      ?new Date(Number(point.time)).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'})
+      :'Waktu tidak tersedia';
+    const speed=Number(point.filteredSpeedKmh)||0;
+    const place=placeName
+      ?'<div style="margin:5px 0;font-weight:700;line-height:1.35">'+Esc(placeName)+'</div>'
+      :'<div style="margin:5px 0;color:#64748b">Nama jalan/area belum tersedia.</div>';
+    const speedLine=speed>0
+      ?'<div style="margin-top:3px">Kecepatan terekam: <b>'+speed.toFixed(1)+' km/jam</b></div>'
+      :'';
+    const mapsUrl='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(lat+','+lng);
+    return '<div style="min-width:190px;max-width:260px">'+
+      '<div style="font-weight:800">'+Esc(title)+'</div>'+place+
+      '<div style="font-size:12px;margin-top:4px">Waktu: '+Esc(time)+'</div>'+
+      '<div style="font-size:12px">Koordinat: '+Esc(coordinates)+'</div>'+speedLine+
+      '<div style="margin-top:7px"><a href="'+Esc(mapsUrl)+'" target="_blank" rel="noopener noreferrer">Buka titik ini di Google Maps ↗</a></div>'+
+      '</div>';
+  },
+
+  bindPlacePopup(marker,point,title) {
+    marker.bindPopup(this.placePopupHtml(point,title,''));
+    marker.on('popupopen',async event=>{
+      const popup=event.popup;
+      if(marker._rhPlaceLookupDone){
+        popup.setContent(this.placePopupHtml(point,title,marker._rhPlaceName||''));
+        return;
+      }
+      if(marker._rhPlaceLookupRunning)return;
+      marker._rhPlaceLookupRunning=true;
+      popup.setContent(this.placePopupHtml(point,title,'Mencari nama jalan/area…'));
+      try{
+        const name=await this.reverseGeocode(point.lat,point.lng);
+        marker._rhPlaceName=name||'';
+        marker._rhPlaceLookupDone=true;
+        if(popup.isOpen())popup.setContent(this.placePopupHtml(point,title,name||''));
+      }catch(error){
+        console.warn('[RH map] reverse geocoding unavailable:',error);
+        marker._rhPlaceName='';
+        marker._rhPlaceLookupDone=true;
+        if(popup.isOpen())popup.setContent(this.placePopupHtml(point,title,''));
+      }finally{
+        marker._rhPlaceLookupRunning=false;
+      }
+    });
+    return marker;
+  },
+
+  clearSummaryMap() {
+    if (this._summaryMap) {
+      try { this._summaryMap.remove(); } catch (e) {}
+      this._summaryMap = null;
+    }
+    const el = document.getElementById('trip-summary-map');
+    if (el) el.innerHTML = '';
+  },
+
+  renderSvgFallback(points) {
+    const elWidth = 320, elHeight = 180, pad = 14;
+    const lats = points.map(p => Number(p.lat)), lngs = points.map(p => Number(p.lng));
+    const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+    const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+    const x = lng => pad + (maxLng === minLng ? 0.5 : (lng - minLng) / (maxLng - minLng)) * (elWidth - 2 * pad);
+    const y = lat => elHeight - pad - (maxLat === minLat ? 0.5 : (lat - minLat) / (maxLat - minLat)) * (elHeight - 2 * pad);
+    const first = points[0], last = points[points.length - 1];
+    const pathSegments=[];let currentSegment=[points[0]];
+    for(let i=1;i<points.length;i++){if(points[i].gapAfterPrevious){if(currentSegment.length>1)pathSegments.push(currentSegment);currentSegment=[];}currentSegment.push(points[i]);}
+    if(currentSegment.length>1)pathSegments.push(currentSegment);
+    const pathsSvg=pathSegments.map(seg=>'<polyline points="'+seg.map(p=>x(Number(p.lng)).toFixed(1)+','+y(Number(p.lat)).toFixed(1)).join(' ')+'" fill="none" stroke="#34d399" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>').join('');
+    return '<svg class="trip-svg-fallback" viewBox="0 0 320 180" preserveAspectRatio="none" role="img" aria-label="Trek GPS tanpa tile peta">' +
+      '<defs><pattern id="rh-grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M 24 0 L 0 0 0 24" fill="none" stroke="#54708a" stroke-opacity=".2" stroke-width=".7"/></pattern></defs>' +
+      '<rect width="320" height="180" fill="url(#rh-grid)"/>' + pathsSvg +
+      '<circle cx="' + x(first.lng).toFixed(1) + '" cy="' + y(first.lat).toFixed(1) + '" r="5" fill="#22c55e" stroke="#fff" stroke-width="1.5"/>' +
+      '<circle cx="' + x(last.lng).toFixed(1) + '" cy="' + y(last.lat).toFixed(1) + '" r="5" fill="#fb7185" stroke="#fff" stroke-width="1.5"/>' +
+      '<text x="8" y="12">START • ' + Number(first.lat).toFixed(5) + ', ' + Number(first.lng).toFixed(5) + '</text>' +
+      '<text x="8" y="173">FINISH • ' + Number(last.lat).toFixed(5) + ', ' + Number(last.lng).toFixed(5) + '</text>' +
+      '</svg>';
+  },
+
+  renderMapInto(containerId, points, trip) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+
+    const summary = containerId === 'trip-summary-map';
+    const note = document.getElementById(summary ? 'trip-summary-map-note' : 'trip-map-note');
+    const count = document.getElementById('trip-summary-point-count');
+    const refName = summary ? '_summaryMap' : '_map';
+    if (this[refName]) {
+      try { this[refName].remove(); } catch (e) {}
+      this[refName] = null;
+    }
+    el.innerHTML = '';
+
+    const vehicle=trip.vehicle||GPS.currentVehicle();
+    let filtered=[];
+    try{filtered=RHFilterGpsTrack(points,vehicle);}catch(e){console.warn('[RH map] speed validation failed:',e);}
+    const pointKey=p=>[Number(p.time)||0,Number(p.lat).toFixed(6),Number(p.lng).toFixed(6)].join('|');
+    const speedByKey=new Map(filtered.map(p=>[pointKey(p),p]));
+    // Raw valid coordinates define the route; speed filtering only annotates it.
+    let track=this.normalizeMapPoints(points)
+      .filter(p=>Number.isFinite(Number(p.lat))&&Number.isFinite(Number(p.lng))&&!(Number(p.accuracy)>RH_GPS_CFG.maxAccuracyM))
+      .sort((a,b)=>(Number(a.time)||0)-(Number(b.time)||0))
+      .map(p=>{const q=speedByKey.get(pointKey(p));return{...p,
+        filteredSpeedKmh:q?Number(q.filteredSpeedKmh||0):0,
+        moving:!!q?.moving,movementConfirmed:!!q?.movementConfirmed,
+        providerSpeedTrusted:!!q?.providerSpeedTrusted};});
+    const speedCap=RHSpeedCapKmh(vehicle);
+    for(let i=1;i<track.length;i++){
+      const p=track[i],prev=track[i-1],t1=Number(prev.time),t2=Number(p.time);
+      if(p.gapAfterPrevious)continue;
+      if(t1>0&&t2>0){
+        const dt=(t2-t1)/1000;
+        if(!(dt>0)||dt>RH_GPS_CFG.maxGapForDistanceS){p.gapAfterPrevious=true;continue;}
+        const d=Haversine(Number(prev.lat),Number(prev.lng),Number(p.lat),Number(p.lng))*1000;
+        const segmentSpeed=d*3.6/dt;
+        if(!isFinite(segmentSpeed)||segmentSpeed>speedCap*1.08)p.gapAfterPrevious=true;
+      }
+    }
+    const usedCoordinateFallback=track.every(p=>!(Number(p.filteredSpeedKmh)>0));
+    if(track.length<2){
+      el.textContent='Koordinat GPS belum cukup untuk menggambar jalur.';
+      if(note)note.textContent='Perjalanan tidak dihapus; perlu sedikitnya dua koordinat GPS valid.';
+      if(count)count.textContent=track.length+' titik valid';
+      return;
+    }
+    const latlngs = track.map(p => [Number(p.lat), Number(p.lng)]);
+    const maxPoint = track.reduce((best, p) =>
+      Number(p.filteredSpeedKmh || 0) > Number(best.filteredSpeedKmh || 0) ? p : best, track[0]);
+    if (count) count.textContent = track.length + ' titik setelah filter';
+    if(note)note.textContent=usedCoordinateFallback
+      ?'Jalur GPS aktual ditampilkan dari koordinat yang tersimpan. Speed tidak dipaksakan karena belum lolos validasi. Klik pin untuk nama lokasi.'
+      :'Jalur GPS aktual • Max '+Number(maxPoint.filteredSpeedKmh||0).toFixed(1)+' km/jam • Klik pin bernomor untuk nama lokasi.';
+
+    // Tile failure should not leave a blank route box.
+    if (!window.L) {
+      el.innerHTML = this.renderSvgFallback(track);
+      if (note) note.textContent = 'Jalur GPS ditampilkan tanpa latar peta jalan (tile peta tidak tersedia).';
+      return;
+    }
+
+    try {
+      const map = L.map(el, {zoomControl:true, attributionControl:true, preferCanvas:true});
+      this[refName] = map;
+      const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom:19, crossOrigin:true, attribution:'© OpenStreetMap contributors'
+      }).addTo(map);
+      let tileErrorCount = 0;
+      tileLayer.on('tileerror', () => {
+        tileErrorCount++;
+        if (tileErrorCount >= 2 && note) note.textContent = 'Sebagian tile peta tidak tersedia. Jalur GPS aktual tetap ditampilkan.';
+      });
+
+      let segmentColor = this.speedColor(track[0].filteredSpeedKmh);
+      let segmentPoints = [latlngs[0]];
+      for (let i = 1; i < track.length; i++) {
+        if (track[i].gapAfterPrevious) {
+          if (segmentPoints.length >= 2) L.polyline(segmentPoints, {color:segmentColor, weight:5, opacity:.96, lineCap:'round', lineJoin:'round'}).addTo(map);
+          segmentPoints = [latlngs[i]];
+          segmentColor = this.speedColor(track[i].filteredSpeedKmh);
+          continue;
+        }
+        const color = this.speedColor((Number(track[i - 1].filteredSpeedKmh || 0) + Number(track[i].filteredSpeedKmh || 0)) / 2);
+        if (color !== segmentColor) {
+          if (segmentPoints.length >= 2) L.polyline(segmentPoints, {color:segmentColor, weight:5, opacity:.96, lineCap:'round', lineJoin:'round'}).addTo(map);
+          segmentPoints = [latlngs[i - 1]];
+          segmentColor = color;
+        }
+        segmentPoints.push(latlngs[i]);
+      }
+      if (segmentPoints.length >= 2) L.polyline(segmentPoints, {color:segmentColor, weight:5, opacity:.96, lineCap:'round', lineJoin:'round'}).addTo(map);
+
+      const addRoutePin=(point,label,color,title)=>{
+        const marker=L.marker([Number(point.lat),Number(point.lng)],{
+          icon:L.divIcon({
+            className:'',
+            html:'<div style="display:flex;align-items:center;justify-content:center;width:29px;height:29px;border:2px solid #fff;border-radius:50% 50% 50% 5px;transform:rotate(-45deg);background:'+color+';box-shadow:0 2px 7px rgba(0,0,0,.4);color:#fff;font-weight:800;font-size:12px"><span style="transform:rotate(45deg)">'+Esc(label)+'</span></div>',
+            iconSize:[29,29],iconAnchor:[14,25],popupAnchor:[0,-24]
+          }),
+          title:title,keyboard:true
+        }).addTo(map);
+        this.bindPlacePopup(marker,point,title);
+        return marker;
+      };
+      addRoutePin(track[0],'S','#16a34a','Titik mulai');
+      addRoutePin(track[track.length-1],'F','#e11d48','Titik selesai');
+
+      if (Number(maxPoint.filteredSpeedKmh || 0) > 0) {
+        const maxMarker=L.circleMarker([maxPoint.lat,maxPoint.lng],{radius:7,color:'#fff7ed',weight:2,fillColor:'#f97316',fillOpacity:1})
+          .addTo(map).bindTooltip('MAX '+Number(maxPoint.filteredSpeedKmh).toFixed(1)+' km/jam');
+        this.bindPlacePopup(maxMarker,maxPoint,'Kecepatan maksimum');
+      }
+
+      const markerCount=Math.min(12,Math.max(0,track.length-2));
+      const usedMarkerIndexes=new Set([0,track.length-1]);
+      for(let n=1;n<=markerCount;n++){
+        const idx=Math.min(track.length-2,Math.round(n*(track.length-1)/(markerCount+1)));
+        if(usedMarkerIndexes.has(idx))continue;
+        usedMarkerIndexes.add(idx);
+        addRoutePin(track[idx],String(n),'#2563eb','Titik rute '+n);
+      }
+
+      map.fitBounds(L.latLngBounds(latlngs).pad(.12), {animate:false});
+      const refresh = () => { try { map.invalidateSize(true); } catch (e) {} };
+      if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => setTimeout(refresh, 350));
+      else setTimeout(refresh, 450);
+    } catch (e) {
+      console.error('[RH map] render failed:', e);
+      el.innerHTML = this.renderSvgFallback(track);
+      if (note) note.textContent = 'Peta jalan tidak berhasil dimuat. Bentuk trek GPS tetap ditampilkan; periksa koneksi lalu buka kembali.';
+    }
+  },
+
+    openGoogleMaps(id){
     const t=(App.data.trips||[]).find(x=>String(x.id)===String(id));if(!t)return;
     google.script.run.withSuccessHandler(url=>{if(url)window.open(url,'_blank','noopener');}).withFailureHandler(e=>App.error(e)).getGoogleMapsUrlForTrip({origin:t.origin,destination:t.destination});
   },
